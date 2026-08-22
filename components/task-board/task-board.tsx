@@ -27,7 +27,6 @@ import { WeekCalendar } from "./week-calendar";
 import type {
   BoardColumnId,
   BoardSnapshot,
-  BoardWatch,
   CalendarViewMode,
   CardMoveIntent,
   DraftEdit,
@@ -220,7 +219,6 @@ function 처음펼칠조건(snapshot: BoardSnapshot | null): string[] {
 
 export function TaskBoard({
   initialSources = null,
-  onWatchChange,
 }: {
   /**
    * 서버가 첫 그림 전에 이미 읽어 둔 보드 재료다.
@@ -230,12 +228,6 @@ export function TaskBoard({
    * 첫 요청이 나가므로 데이터베이스 왕복 앞에 대기가 한 겹 더 붙는다.
    */
   initialSources?: BoardSources | null;
-  /**
-   * "연결된 맥락을 보고 있습니다" 를 왼쪽 사이드바가 그린다. 그 데이터는 보드 스냅샷 안에
-   * 있고 그것을 읽는 곳은 여기뿐이라, 읽고 나서 위로 올려 준다. 콘솔이 따로 한 번 더 읽으면
-   * 같은 요청이 두 벌이 되고 두 화면의 값이 갈라진다.
-   */
-  onWatchChange?: (watch: BoardWatch) => void;
 }): JSX.Element {
   // 서버가 준 재료를 뷰모델로 옮기는 일은 첫 렌더에 한 번이면 된다. 재료는 요청마다 새로
   // 오는 객체라 의존성에 그대로 걸면 매 렌더에서 다시 계산된다.
@@ -294,12 +286,6 @@ export function TaskBoard({
       cancelled = true;
     };
   }, [attempt, 서버보드]);
-
-  /** 맥락 소스는 스냅샷을 읽어야 알 수 있으므로, 읽은 뒤에 왼쪽 사이드바로 올려 보낸다. */
-  const watch = snapshot?.site.watch ?? null;
-  useEffect(() => {
-    if (watch !== null) onWatchChange?.(watch);
-  }, [watch, onWatchChange]);
 
   // Ctrl+K 로 열고 Esc 로 닫는다 (아티팩트 317줄). 효과는 리스너만 걸고 상태는 핸들러가 바꾼다.
   useEffect(() => {

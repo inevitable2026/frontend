@@ -14,10 +14,8 @@ import { 재평가건수 } from "@/components/risk/risk-queue";
 import { BOARD_SITE_ID } from "@/lib/board/site";
 import type { BoardPage } from "@/lib/board/types";
 import { SiteContextPanel } from "@/components/site-context-panel";
-import { ContextWatch } from "@/components/task-board/context-watch";
 import { TaskBoard } from "@/components/task-board/task-board";
 import type { BoardSources } from "@/components/task-board/board-data";
-import type { BoardWatch } from "@/components/task-board/types";
 
 /**
  * 사이드바 차례. **첫 항목이 태스크 보드**이므로 아래 인덱스가 곧 화면이다.
@@ -105,11 +103,6 @@ export function ConstructionConsole({
    */
   const [riskBadge, setRiskBadge] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  /**
-   * "연결된 맥락을 보고 있습니다". 보드가 스냅샷을 읽고 나서 올려 주고, 사이드바가 그린다.
-   * 아직 한 번도 읽지 않았으면 null 이고 그 자리는 비워 둔다.
-   */
-  const [watch, setWatch] = useState<BoardWatch | null>(null);
 
   // 사이드바 배지는 탭을 열기 전에도 맞아야 한다. 그래서 콘솔이 직접 센다.
   useEffect(() => {
@@ -282,8 +275,6 @@ export function ConstructionConsole({
           />
         </button>
 
-        {watch === null ? null : <ContextWatch watch={watch} />}
-
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">
             <AssetCarousel blurred />
@@ -317,7 +308,7 @@ export function ConstructionConsole({
 
       <section className={`workspace${activeNav === NAV_BOARD ? " is-board" : ""}`}>
         {activeNav === NAV_BOARD ? (
-          <TaskBoard initialSources={initialBoard} onWatchChange={setWatch} />
+          <TaskBoard initialSources={initialBoard} />
         ) : activeNav === NAV_SITE_CONTEXT ? (
           <SiteContextPanel />
         ) : activeNav === NAV_RISK ? (
