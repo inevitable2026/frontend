@@ -17,6 +17,13 @@ export const DOCUMENT_KINDS: DocumentKind[] = [
   "기타",
 ];
 
+/** Studio live/document demo ingestion is pinned to these six manifest contracts. */
+export const INGEST_DOCUMENT_KINDS = DOCUMENT_KINDS.filter(
+  (kind): kind is Exclude<DocumentKind, "메일"> => kind !== "메일",
+);
+
+export type IngestDocumentKind = (typeof INGEST_DOCUMENT_KINDS)[number];
+
 export type StageName =
   | "수신"
   | "레이아웃분석"
@@ -57,6 +64,64 @@ export type LayoutElement = {
   coordinates?: Array<{ x: number; y: number }>;
 };
 
+export type RawEvidenceAnchor = {
+  page: number;
+  elementId: string;
+  sourceKey: string;
+  coordinates: Array<{ x: number; y: number }> | null;
+};
+
+export type EvidenceRef = RawEvidenceAnchor & {
+  evidenceId: string;
+  responseId: string;
+  stepName: string;
+};
+
+export type EvidenceAnchor = RawEvidenceAnchor | EvidenceRef;
+
+export type AssessmentItem = {
+  itemId: string;
+  hazard: string;
+  riskLevel: string | null;
+  mitigationIds: string[];
+  evidence: EvidenceAnchor[];
+};
+
+export type AssessmentMitigation = {
+  mitigationId: string;
+  assessmentItemIds: string[];
+  description: string;
+  status: string | null;
+  evidence: EvidenceAnchor[];
+};
+
+export type WorkStep = {
+  stepId: string;
+  order: number;
+  name: string;
+  hazard: string | null;
+  controls: string[];
+  ppe: string[];
+  evidence: EvidenceAnchor[];
+};
+
+export type Finding = {
+  findingId: string;
+  description: string;
+  severity: string | null;
+  actionIds: string[];
+  evidence: EvidenceAnchor[];
+};
+
+export type PatrolAction = {
+  actionId: string;
+  findingIds: string[];
+  description: string;
+  status: string | null;
+  dueDate: string | null;
+  evidence: EvidenceAnchor[];
+};
+
 export type ExtractedFields = {
   업체명?: string | null;
   현장명?: string | null;
@@ -75,6 +140,44 @@ export type ExtractedFields = {
   제목?: string | null;
   요청사항?: string | null;
   회신기한?: string | null;
+  평가항목?: AssessmentItem[];
+  저감조치?: AssessmentMitigation[];
+  작업단계?: WorkStep[];
+  점검일자?: string | null;
+  지적사항?: Finding[];
+  조치사항?: PatrolAction[];
+  문서유형?: string | null;
+  요약?: string | null;
+  evidence?: EvidenceAnchor[];
+};
+
+export type CleanupStatus = "not_started" | "deleted" | "pending" | "failed";
+
+export type IngestExecution = {
+  mode: "studio" | "demo";
+  source: SourceGrade | "recorded" | "synthetic";
+  agent?: string;
+  agentId?: string;
+  /** Config requested under the readiness receipt; never response-attested. */
+  requestedConfigId?: string;
+  boundByReceipt?: { id: string; scheme: "request-config-id-v1" };
+  servedConfigEchoVerified?: false;
+  fingerprint?: string;
+  manifestSha?: string;
+  responseId?: string;
+  servedIdentity?: string;
+  steps?: string[];
+  cleanup: CleanupStatus | "not_applicable";
+  validation?: { owner: "application"; valid: boolean; issueCount: number };
+  review?: {
+    owner: "application";
+    decision: "accepted" | "corrected" | "needs_human_review" | "rejected";
+    issueCount: number;
+    evidenceCount: number;
+  };
+  recordedAt?: string;
+  selectedKind?: DocumentKind;
+  networkCalls?: number;
 };
 
 export type SiteRecommendation = {
@@ -104,5 +207,7 @@ export type IngestEvent =
       upstageCalls: number;
       청크수: number;
       추천: SiteRecommendation | null;
+      execution?: IngestExecution;
+      provenance?: IngestExecution;
     }
-  | { 종류: "실패"; 단계: StageName | null; 사유: string };
+  | { 종류: "실패"; 단계: StageName | null; 사유: string; code?: string; execution?: IngestExecution };

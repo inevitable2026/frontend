@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DocumentViewer } from "@/components/document-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
+import { formatExtractedField, hasExtractedDisplayValue } from "@/lib/context/extracted-display";
 import type { MailThread } from "@/lib/context/mail-threads";
+import { consumeIngestStream, createIngestJob } from "@/lib/context/stream-terminal";
 import {
   DOCUMENT_KINDS,
+  INGEST_DOCUMENT_KINDS,
   STAGE_ORDER,
   type DocumentKind,
   type ExtractedFields,
@@ -30,6 +33,25 @@ type DocumentRow = {
 };
 
 type Phase = "idle" | "running" | "done" | "failed";
+type ExecutionDetails = Record<string, unknown>;
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function record(value: unknown): ExecutionDetails | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as ExecutionDetails) : null;
+}
+
+function cleanupBlocksSave(execution: ExecutionDetails | null): boolean {
+  const cleanup = text(execution?.cleanup ?? execution?.cleanupStatus)?.toLowerCase();
+  const mode = text(execution?.mode);
+  return cleanup !== "deleted" || mode !== "studio";
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
+}
 
 const STAGE_HINT: Record<StageName, string> = {
   수신: "파일 접수",
@@ -89,10 +111,12 @@ export function SiteContextPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [ranAsDemo, setRanAsDemo] = useState(false);
+  const [execution, setExecution] = useState<ExecutionDetails | null>(null);
   const [activeRegion, setActiveRegion] = useState<number | null>(null);
   const [openedDocument, setOpenedDocument] = useState<string | null>(null);
   const [mailThreads, setMailThreads] = useState<MailThread[]>([]);
   const [openedThread, setOpenedThread] = useState<string | null>(null);
+  const [demoRetryFile, setDemoRetryFile] = useState<File | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -161,7 +185,7 @@ export function SiteContextPanel() {
     [previewUrl],
   );
 
-  async function upload(file: File) {
+  async function upload(file: File, requestedMode = mode) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
     setFileName(file.name);
@@ -171,59 +195,67 @@ export function SiteContextPanel() {
     setChosenSiteId("");
     setUpstageCalls(0);
     setMessage(null);
-    setRanAsDemo(mode === "demo");
+    setRanAsDemo(requestedMode === "demo");
+    setExecution(null);
 
-    const form = new FormData();
-    form.append("file", file);
-    form.append("kind", kind);
-    form.append("mode", mode);
-
-    const created = await fetch("/api/context/ingest", { method: "POST", body: form });
-    const body = await created.json();
-    if (!created.ok) {
-      setPhase("failed");
-      setMessage(body.error ?? "업로드에 실패했습니다.");
-      return;
-    }
-    setJobId(body.jobId);
-    await consume(body.jobId);
-  }
-
-  async function consume(id: string) {
-    const res = await fetch(`/api/context/ingest/${id}/stream`);
-    if (!res.ok || !res.body) {
-      setPhase("failed");
-      setMessage("진행 스트림을 열지 못했습니다.");
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let cut: number;
-      while ((cut = buffer.indexOf("\n\n")) >= 0) {
-        const block = buffer.slice(0, cut);
-        buffer = buffer.slice(cut + 2);
-        if (!block.startsWith("data: ")) continue;
-        apply(JSON.parse(block.slice(6)) as IngestEvent);
+    try {
+      const form = new FormData();
+      if (requestedMode === "live") form.append("file", file);
+      else {
+        form.append("filename", file.name);
+        form.append("byteLength", String(file.size));
+        form.append("mime", file.type || "application/pdf");
       }
+
+      const params = new URLSearchParams({ mode: requestedMode, kind });
+      const created = await createIngestJob(fetch, `/api/context/ingest?${params}`, { method: "POST", body: form });
+      if (created.kind === "live_disabled") {
+        setPhase("idle");
+        setStages(emptyStages());
+        setMessage(`${created.message} 파일은 업로드·저장·분석되지 않았습니다. 데모로 전환해 고정된 예시를 볼 수 있습니다.`);
+        setDemoRetryFile(file);
+        setMode("demo");
+        return;
+      }
+      if (created.kind === "failed") {
+        setPhase("failed");
+        setMessage(created.message);
+        return;
+      }
+      setJobId(created.jobId);
+      await consume(created.jobId, requestedMode === "demo" ? file.size : undefined, requestedMode === "demo");
+    } catch {
+      setPhase("failed");
+      setMessage("업로드 요청에 실패했습니다. 다시 업로드해 주세요.");
     }
   }
 
-  function apply(event: IngestEvent) {
+  async function consume(id: string, demoByteLength?: number, wasDemo = false) {
+    const params = demoByteLength === undefined ? "" : `?byteLength=${encodeURIComponent(String(demoByteLength))}`;
+    const outcome = await consumeIngestStream(fetch, `/api/context/ingest/${id}/stream${params}`, (event) => apply(event, wasDemo));
+    if (outcome.kind === "failed") {
+      setPhase("failed");
+      setMessage(outcome.message);
+    }
+  }
+
+  function apply(event: IngestEvent, wasDemo = false) {
     if (event.종류 === "단계") {
       setStages((prev) => prev.map((s) => (s.이름 === event.단계.이름 ? event.단계 : s)));
       return;
     }
     if (event.종류 === "완료") {
+      const details = record((event as IngestEvent & { execution?: unknown; provenance?: unknown }).execution) ??
+        record((event as IngestEvent & { provenance?: unknown }).provenance);
+      if (!details && !wasDemo) {
+        setPhase("failed");
+        setMessage("Studio 실행 출처와 원격 파일 정리를 확인할 수 없어 결과를 저장하지 않습니다.");
+        return;
+      }
       setPhase("done");
       setUpstageCalls(event.upstageCalls);
       setRecommendation(event.추천);
+      setExecution(details);
       if (event.추천) setChosenSiteId(event.추천.siteId);
       return;
     }
@@ -298,7 +330,7 @@ export function SiteContextPanel() {
         <label>
           문서 종류
           <select value={kind} onChange={(e) => setKind(e.target.value as DocumentKind)}>
-            {DOCUMENT_KINDS.map((k) => (
+            {INGEST_DOCUMENT_KINDS.map((k) => (
               <option key={k} value={k}>
                 {k}
               </option>
@@ -312,7 +344,9 @@ export function SiteContextPanel() {
           className="sr-only"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) void upload(file);
+            if (file) {
+              void upload(file);
+            }
             e.target.value = "";
           }}
         />
@@ -326,6 +360,12 @@ export function SiteContextPanel() {
         </button>
         {fileName ? <span className="context-filename">{fileName}</span> : null}
       </section>
+
+      {mode === "demo" && message?.includes("라이브 분석은") && demoRetryFile ? (
+        <button type="button" className="upload-button" onClick={() => void upload(demoRetryFile, "demo")}>
+          이 파일로 데모 보기
+        </button>
+      ) : null}
 
       {phase !== "idle" ? (
         <section className="context-analysis">
@@ -343,6 +383,7 @@ export function SiteContextPanel() {
                 읽어낸 영역
                 {layout.역할 ? <span className="context-role">{layout.역할}</span> : null}
               </h2>
+              <p className="context-note">도식 레이아웃 — PDF 위에 겹쳐진 것이 아닙니다.</p>
               <ParseOverlay
                 regions={layout.요소}
                 agent={layout.agent ?? null}
@@ -375,11 +416,11 @@ export function SiteContextPanel() {
           <h2>읽어낸 값</h2>
           <dl>
             {Object.entries(extracted)
-              .filter(([, value]) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))
+              .filter(([, value]) => hasExtractedDisplayValue(value))
               .map(([key, value]) => (
                 <div key={key}>
                   <dt>{key}</dt>
-                  <dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd>
+                  <dd>{formatExtractedField(key, value)}</dd>
                 </div>
               ))}
           </dl>
@@ -390,14 +431,36 @@ export function SiteContextPanel() {
       {phase === "done" && ranAsDemo ? (
         <section className="context-save">
           <p className="context-note">
-            데모 모드 결과라 저장하지 않습니다. Upstage 호출 {upstageCalls}회 —
-            네트워크를 타지 않았다는 뜻입니다. 실제로 문서함에 넣으려면 라이브 모드로 다시 올리세요.
+            {text(execution?.source) === "recorded" ? "녹화" : "합성"} 데모 · 선택한 문서 종류: {text(execution?.selectedKind) ?? kind}
+            {text(execution?.recordedAt) ? ` · 기록 시각 ${text(execution?.recordedAt)}` : ""}
+            {text(execution?.agent) ? ` · 원본 에이전트 ${text(execution?.agent)}` : ""}
+            {text(execution?.requestedConfigId) ? ` · 구성 ${text(execution?.requestedConfigId)}` : ""}
+            <br />Upstage 호출 {upstageCalls}회 · 업로드한 파일은 분석하지 않았고 결과는 고정 예시입니다. 데모 결과는 저장하지 않습니다.
           </p>
         </section>
       ) : null}
 
       {phase === "done" && !ranAsDemo ? (
         <section className="context-save">
+          {execution ? (
+            <p className="context-note" aria-live="polite">
+              실행: {text(execution.mode) ?? "기존 실행"}
+              {text(execution.source) ? ` · 출처 ${text(execution.source)}` : ""}
+              {text(execution.agent) ? ` · Studio 에이전트 ${text(execution.agent)}` : ""}
+              {text(execution.requestedConfigId) ? ` · 요청 구성 ${text(execution.requestedConfigId)}` : ""}
+              {text(record(execution.boundByReceipt)?.id) ? ` · 준비 영수증 바인딩 ${text(record(execution.boundByReceipt)?.id)}` : ""}
+              {text(execution.servedIdentity) ? ` · 응답 에이전트 ${text(execution.servedIdentity)}` : ""}
+              {text(execution.fingerprint) ? ` · 지문 ${text(execution.fingerprint)}` : ""}
+              {text(execution.response ?? execution.responseId) ? ` · 응답 ${text(execution.response ?? execution.responseId)}` : ""}
+              {text(execution.cleanup ?? execution.cleanupStatus) ? ` · 정리 ${text(execution.cleanup ?? execution.cleanupStatus)}` : ""}
+              {stringList(execution.steps ?? execution.studioSteps).length > 0
+                ? ` · Studio 단계 ${stringList(execution.steps ?? execution.studioSteps).join(" → ")} · 검증·리뷰: 앱 소유`
+                : ""}
+            </p>
+          ) : null}
+          {cleanupBlocksSave(execution) ? (
+            <p className="context-message">원격 파일 정리가 확인되지 않았거나 대체 실행입니다. 이 결과는 저장할 수 없습니다.</p>
+          ) : null}
           <label>
             저장할 현장
             <select value={chosenSiteId} onChange={(e) => setChosenSiteId(e.target.value)}>
@@ -415,7 +478,7 @@ export function SiteContextPanel() {
               : "문서에서 현장명을 찾지 못했습니다. 직접 고르세요."}
             {upstageCalls > 0 ? ` · Upstage 호출 ${upstageCalls}회` : " · Upstage 호출 0회"}
           </p>
-          <button type="button" className="upload-button" disabled={!chosenSiteId || saving} onClick={save}>
+          <button type="button" className="upload-button" disabled={!chosenSiteId || saving || cleanupBlocksSave(execution)} onClick={save}>
             {saving ? "저장 중…" : "문서함에 저장"}
           </button>
         </section>

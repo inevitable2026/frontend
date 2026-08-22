@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:build": "node scripts/test/build.mjs",
+    "test": "npm run test:build && node --test tests/*.test.mjs",
+    "test:chunk": "npm run test:build && node --test tests/chunk.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.35",

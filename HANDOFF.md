@@ -28,13 +28,16 @@ app/api/context/…                    ingest · ingest/[jobId]/stream · docume
 
 | | |
 | --- | --- |
-| 빌드 / 타입 / 린트 | 통과 (`npm run build`, `npm run typecheck`, `npm run lint`) |
-| 인제스트 | 실호출 통과 — 아래 "검증된 것" |
+| 빌드 / 타입 / 린트 | Gate A 전체 검증 결과는 아래 최신 검증 절을 기준으로 본다 |
+| 인제스트 | localhost Gate B/C 증거와 `tbm-check` 정리·sweeper 마이그레이션은 완료됐다. 라이브는 현재 환경의 유효한 준비 영수증 없이는 계속 503으로 차단된다 |
 | 저장된 문서 | **16건** (현장 4 × 종류 4 · 청크 112) |
 | 데모 모드 | 동작함. Upstage 호출 0회 · 저장 차단 (아래) |
 | 인증 | **없다.** 의도된 결정이고 아래 위험에 적었다 |
 
-### 검증된 것 (실호출, 2026-08-22)
+### 과거 기준선 (실호출, 2026-08-22)
+
+아래 수치는 Parse-only Studio + 직접 v1 Extract 경로의 과거 기록이다. 현재의 Studio Parse/Extract와
+앱 소유 Validate/Review 분리 계약의 검증 증거로 사용하면 안 된다.
 
 ```
 라이브                  8/8 단계 26.5s · upstageCalls 3 · 저장 201
@@ -56,10 +59,21 @@ npm run dev
 
 | 변수 | 쓰는 곳 |
 | --- | --- |
-| `UPSTAGE_API_KEY` | 파싱 · 추출 · 임베딩. 챗봇과 같은 키를 쓴다 |
+| `UPSTAGE_API_KEY` | Studio Files/Responses/DELETE · 임베딩. 챗봇과 같은 키를 쓴다 |
 | `DATABASE_URL` | Railway Postgres. **TCP 프록시 주소를 쓴다** — 내부 도메인은 Vercel 에서 닿지 않는다 |
+| `STUDIO_LIVE_INGEST_ENABLED` | 기본 `false`. 이것만 `true`여도 라이브는 켜지지 않는다 |
+| `STUDIO_LIVE_READINESS_RECEIPT_JSON` | schema-v3 Gate C JSON. production project-ID 증명 또는 localhost 자격 증명 범위, 요청 config 바인딩 증거, 매니페스트·마이그레이션·sweeper·호스트 예산을 담는다. 응답이 config를 echo했다는 주장은 포함하지 않는다 |
+| `STUDIO_EXPECTED_PROJECT_ID` | **production 필수.** 배포가 독립적으로 고정한 API project ID이며 receipt의 `projectIdentity.projectId`와 같아야 한다 |
+| `STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED` | localhost 개발에서만 `true`로 명시 활성화한다. production에서는 localhost receipt를 거부한다 |
+| `STUDIO_REQUIRED_CLEANUP_MIGRATION` | `tbm-check`에 배포된 필수 정리/바이트 삭제 마이그레이션 버전 |
 
-**둘 다 서버 전용이다.** `NEXT_PUBLIC_` 을 붙이지 마라.
+위 Studio 설정과 API/DB 자격증명은 모두 서버 전용이다. `NEXT_PUBLIC_` 을 붙이지 마라.
+
+## Gate A 최신 검증
+
+현재 변경은 저장소의 테스트·타입 검사·린트·production build와 `git diff --check`로 검증한다.
+localhost Gate B/C spike 및 로컬 `tbm-check` 정리·sweeper 마이그레이션 증거는 준비 영수증의
+schema-v3 계약으로 소비한다. 이는 production 프로젝트 배포·환경변수 구성 증거와는 별개다.
 
 ### 스키마는 여기서 만들지 않는다
 
@@ -73,7 +87,7 @@ npm run dev
 ## 파이프라인
 
 ```
-POST /api/context/ingest              file · kind · mode → { jobId }   바이트만 저장하고 즉시 반환
+POST /api/context/ingest?kind=&mode=  live: file / demo: 파일 메타데이터 → { jobId }
 GET  /api/context/ingest/:jobId/stream SSE 8단계          여기서 파이프라인이 돈다
 POST /api/context/documents           { jobId, siteId }  → 문서 확정. 현장이 여기서 정해진다
 GET  /api/context/documents           ?siteId=&kind=&q=
@@ -93,60 +107,55 @@ SSE 이벤트 세 가지 (`lib/context/types.ts` 의 `IngestEvent`):
 
 `10초마다 ": ping"` 주석 줄이 섞여 오니 `data: ` 로 시작하는 줄만 파싱한다.
 
-**`레이아웃분석` 산출의 `coordinates` 가 0~1 로 정규화된 네 꼭짓점이다.** 올린 PDF 위에 박스를
-그려 "이 값이 저 자리에서 나왔다"를 보여줄 수 있다. 지금 화면은 아직 안 쓰고 있다 — 붙일 값이 있다.
+**`레이아웃분석` 산출의 `coordinates` 가 0~1 로 정규화된 꼭짓점이다.** 화면은 이를 별도 도식
+지면에 표시하며, 실제 PDF 위 오버레이가 아니라는 문구를 함께 보여준다.
 
-## Studio 에이전트
+## Studio 워크플로우
 
-문서 종류마다 **전용 Studio 에이전트**가 붙는다. 화면의 `레이아웃분석` 단계 카드에 어느
-에이전트가 읽었는지 뜨고, 그 아래 지면 그림에 읽어낸 영역이 상자로 그려진다.
+Studio는 문서 종류마다 `document-parse → information-extract` 두 단계를 소유한다.
+앱은 그 결과의 `validation → review`를 소유하고, 이어 현장 추천·청킹·임베딩·색인을 수행한다.
+화면의 영역 상자는 실제 PDF 위 오버레이가 아니라 별도의 **도식 레이아웃**이며 그렇게 표시한다.
 
 | 종류 | 에이전트 | 역할 |
 | --- | --- | --- |
-| 하도급계약서 | `sitectx-contract` | 계약 조항·금액·공기 판독 |
-| 위험성평가표 | `sitectx-assessment` | 평가표 행·위험도 판독 |
-| TBM회의록 | `sitectx-tbm` | 참석자·중점위험 판독 |
-| 작업표준 | `sitectx-sop` | 작업단계·보호구 판독 |
-| 순회점검일지 | `sitectx-patrol` | 지적사항·조치 판독 |
-| 기타 | `sitectx-general` | 일반 문서 판독 |
+| 하도급계약서 | `sitectx-gatea-20260822-contract` | 계약 조항·금액·공기 판독 |
+| 위험성평가표 | `sitectx-gatea-20260822-assessment` | 평가표 행·위험도 판독 |
+| TBM회의록 | `sitectx-gatea-20260822-tbm` | 참석자·중점위험 판독 |
+| 작업표준 | `sitectx-gatea-20260822-sop` | 작업단계·보호구 판독 |
+| 순회점검일지 | `sitectx-gatea-20260822-patrol` | 지적사항·조치 판독 |
+| 기타 | `sitectx-gatea-20260822-general` | 일반 문서 판독 |
 
 ```bash
-node scripts/provision-agents.mjs   # 멱등. 없는 것만 만든다
+node scripts/studio-reconcile.mjs plan --inventory <redacted-inventory.json>
+node scripts/studio-reconcile.mjs verify --inventory <redacted-inventory.json>
+
+# 실제 계정 읽기 전용 조회는 key-bound identity endpoint가 확인된 뒤에만 사용한다.
+UPSTAGE_API_KEY=... node scripts/studio-reconcile.mjs plan --discover \
+  --account <stable-account-or-project-id> \
+  --identity-url https://<verified-api-origin>/<verified-identity-path> \
+  --agents-url https://<verified-api-origin>/<verified-agents-path> \
+  --capability-receipt <gate-b-readonly-inventory-receipt.json>
 ```
 
-### 왜 에이전트를 나눴나 — 체인이 안 돈다
+두 명령은 계정을 변경하지 않는다. `apply`/`rollback`은 합성 capability spike로 계정 정체성,
+업로드 비활성성, 불변 config 바인딩, served identity, 정리 및 rollback을 증명하기 전까지 잠겨 있다.
+파일 inventory를 쓰는 출력은 `source: offline`, `authoritative: false`라 실제 계정 검증이 아니며
+`verify`도 성공 종료하지 않는다. `--discover`는 명시한
+HTTPS identity endpoint가 같은 API origin에서 키에 결속된 stable ID를 반환할 때만 목록 조회를
+이어가며, cursor를 끝까지 순회한다. 현재 정확한 Upstage identity endpoint는 외부 Gate B 증거라
+identity/list endpoint 모두 이 저장소에서 추측하거나 기본값으로 두지 않았다.
+2026-08-22 공개 문서에는 Studio agent/config 목록이나 key→account/project identity endpoint가 없다.
+문서화된 `GET /v2/files`는 agent가 업로드한 **파일** 목록이며 agent 목록이 아니다. 따라서 현재
+`--discover`는 검증된 비공개/추후 공개 API 계약을 입력받기 위한 fail-closed 어댑터일 뿐이고,
+Gate B 영수증이 같은 account/두 endpoint와 읽기 전용 inventory capability를 명시해야만 실행된다.
+공개 API만으로 실계정 reconciliation을 완료했다고 주장할 수 없다.
+공식 계약의 체인 링크는 `next_steps: [{ "step_name": "..." }]`이다. 예전 문서의 “체인이 안 돈다”,
+“publish API가 없다”, “step ID가 계정 전역 유일하다”는 보편 명제는 증명되지 않았으므로 폐기한다.
 
-하나의 에이전트에 `document-parse → information-extract` 를 체인으로 엮는 것이 이상적이고
-Studio UI 도 그런 config 를 만들어 준다. **그런데 런타임이 그 체인을 실행하지 못한다:**
-
-```
-Step 'parse' next_steps references unknown step 'None'. Defined steps: ['extract', 'parse']
-```
-
-확인한 것 (2026-08-22 실측):
-
-- `next_steps` 참조 형식 세 가지(`[{id,name}]` · `[{name}]` · `[{id}]`)를 모두 시도 — 전부 같은 실패
-- config publish 는 API 에 없다 (`/publish` 404, `PATCH published_config_id` 는 200 이지만 반영 안 됨)
-- `information-extract` · `document-classify` · `instruct` · `schema-generate` 는 단독 실행 시
-  전부 `parse_result is required` — 즉 체인 없이는 쓸 수 없다
-- **단독으로 도는 스텝은 `document-parse` 하나뿐이다** (실측 7~8초, coordinates 포함)
-
-그래서 역할별 단일 스텝 에이전트를 나눠 두고 **파이프라인이 종류에 맞는 것을 골라 부른다.**
-Studio 가 체인을 고치면 각 에이전트에 extract 스텝만 이어 붙이면 되도록 형태를 맞춰 뒀다.
-
-가용한 스텝 타입 전체 (오류 메시지에서 확인):
-`class-generate · class-update · document-classify · document-parse · export ·
-information-extract · instruct · instruct-generate · match · merge · review ·
-schema-generate · schema-update · validate`
-
-**스텝 ID 는 계정 전역에서 유일해야 한다.** 재사용하면 409 로 막힌다 — 프로비저닝 스크립트가
-`randomUUID()` 를 쓰는 이유다.
-
-### 필드 추출은 왜 직접 API 인가
-
-위 이유로 Studio 의 `information-extract` 를 단독으로 못 쓴다. `/v1/information-extraction` 을
-직접 부르고 문서 종류별 스키마를 넘긴다. Upstage 안내에 따르면 Studio 외 API 사용은
-서비스 완성도 관점에서 평가되므로, 역할에 맞게 쓰는 것 자체는 문제가 없다.
+런타임은 검증된 요청 필드를 그대로 전달하며 config 필드명을 추측하지 않는다. 원격 파일은 모든
+종료 경로의 `finally`에서 DELETE하고, 삭제가 확인되지 않으면 성공으로 보지 않으며 저장도 막는다.
+직접 v1 Information Extract 경로는 구현에서 제거했다. Embedding만 Studio 밖의 보조 v1
+기능으로 유지한다.
 
 ## 왜 이 모양인가
 
@@ -169,8 +178,9 @@ recall 도 100% 다. 느려지면 표현식 인덱스로 한 줄이면 붙는다
 무대에서 네트워크가 흔들려도 화면이 멎지 않게 하는 경로다.
 
 - **올린 파일은 그대로 보인다.** 미리보기는 `URL.createObjectURL` 이라 브라우저 안에서 끝난다.
-- **분석 결과는 고정이다.** `lib/context/demo-fixture.json` 을 재생한다. 8단계가 순서대로 켜지고
-  소요시간은 녹화값의 1/4 로 줄여 보여준다(0.3~2.6초 사이로 자른다).
+- **분석 결과는 고정이다.** `lib/context/demo-fixtures.json` 에서 선택한 6종 계약의 필드 값을 읽고,
+  `lib/context/demo-fixture.json` 의 정제된 8단계 골격을 재생한다. 소요시간은 녹화값의 1/4 로
+  줄여 보여준다(0.3~2.6초 사이로 자른다).
 - **Upstage 호출 0회.** `ingest_jobs.upstage_calls` 가 0 으로 남는다 — 브라우저 네트워크 탭으로는
   증명할 수 없다. Upstage 호출은 서버에서 나가므로 라이브 모드에서도 탭에 뜨지 않기 때문이다.
 - **저장이 막힌다.** 고정 결과를 문서함에 넣으면 사실이 아닌 항목이 남는다. 저장 API 가 409 를
@@ -184,18 +194,24 @@ npm run dev
 node scripts/record-demo.mjs <문서.pdf> [종류]
 ```
 
-**손으로 쓰지 마라.** 라이브 실행에서 뽑아야 이벤트 형태가 라이브와 같다는 게 검증된 사실이 된다.
-스크립트는 완료 이벤트가 없으면 저장하지 않고, 녹화에 쓴 잡은 지운다.
+**손으로 쓰지 마라.** Gate B/C가 완료되어 라이브가 명시적으로 활성화된 환경에서만 실행한다.
+라이브 실행에서 뽑아야 이벤트 형태가 라이브와 같다는 게 검증된 사실이 된다. 스크립트는 완료
+이벤트가 없으면 저장하지 않고, 녹화에 쓴 잡은 지운다.
 Vercel 파일시스템은 읽기 전용이라 **로컬에서만** 돈다 — 픽스처는 커밋해서 번들에 싣는다.
 
 ## 함정
 
 시간을 태운 것들.
 
-**① Upstage 문서 파싱은 동기 경로를 쓴다.** `POST /v1/document-digitization` 이 한 번의 요청으로
-끝나고 `coordinates` 와 `category` 를 준다. Studio 에이전트 경로(`/v2/files` 업로드 → `/v2/responses`
-잡 생성 → 3초 폴링, 데드라인 180초)로 가면 반나절을 태운다. 그 3단 구조가 참조 구현에 남아 있어
-그대로 옮기기 쉬운데, 얻는 게 없다.
+**① 라이브는 기능 플래그 하나로 켜지지 않는다.** `STUDIO_LIVE_INGEST_ENABLED=true`와 유효한
+schema-v3 Gate C 영수증이 모두 필요하다. production receipt는 HTTPS API endpoint에서 관찰한
+`api-project-id/v1` project ID를 담아야 하고 `STUDIO_EXPECTED_PROJECT_ID`와 일치해야 한다. localhost receipt는
+`credential-scope/v1`의 `sha256:<현재 UPSTAGE_API_KEY>` key fingerprint와 inventory digest를 담아야 하며,
+개발 환경에서 `STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED=true`일 때만 허용된다. 이 localhost scope는 project/account
+identity 주장이 아니다. 영수증은 발급 후 24시간 안이고 만료 전이어야 하며 sweeper 증거는 15분 안이어야 한다
+(각 증거의 미래 시각 허용치는 1분). 요청 `config_id` 바인딩은 문서 증거와 희생적 differential spike로 증명하고,
+응답 config echo는 검증되지 않은 `false`로 유지한다. 현재 매니페스트, `tbm-check` 정리 마이그레이션,
+`cleanup-only-v1` sweeper 상태까지 하나라도 없으면 파일 바이트를 읽거나 DB 행을 만들기 전에 503을 반환한다.
 
 **② `EventSource` 를 쓰지 마라.** 연결이 비정상 종료되면 브라우저가 알아서 재접속하고, 그러면 새
 함수 인스턴스가 파이프라인을 처음부터 돌려 청크가 두 번 들어가고 Upstage 도 두 번 불린다.
@@ -213,10 +229,15 @@ Vercel 파일시스템은 읽기 전용이라 **로컬에서만** 돈다 — 픽
 로 막는다. `await` 경계 뒤로 옮기고 `cancelled` 플래그를 두면 통과한다 —
 `site-context-panel.tsx` 의 두 effect 가 그 형태다.
 
-## 남은 일
+## 남은 production 배포 게이트
 
-- **Studio 체인.** 부스에 물어보고 되는 방법이 있으면 각 에이전트에 extract 스텝을 이어라.
-  그러면 "여러 Studio 기능을 실제 workflow 로 엮는 구조"가 된다.
+- **production Studio project identity와 readiness.** localhost의 Gate B differential spike와 Gate C
+  `tbm-check` 정리·sweeper 증거는 완료됐다. production에는 별도로 HTTPS API 관찰 기반
+  `api-project-id/v1` identity, `STUDIO_EXPECTED_PROJECT_ID`, production readiness receipt와 현재
+  배포 환경의 fresh sweeper 증거가 필요하다. localhost credential scope는 production identity를 대신하지 않는다.
+- **production `tbm-check` 배포 확인.** 로컬 마이그레이션/`cleanup-only-v1` sweeper는 완료됐지만,
+  production DB에 같은 `file_id`/`response_id`, cleanup 상태/기한, lease/fence/version, 바이트 scrub/TTL 및
+  sweeper가 배포·검증되기 전에는 production 라이브 적재를 열지 않는다.
 - **챗봇에 문서 검색 툴 붙이기.** `POST /api/context/search` 의 `citations[]` 가
   `documentId · title · page · excerpt · score · source` 로 나간다. 법령 툴 옆에
   `search_site_documents` 를 하나 더 다는 형태가 자연스럽다 — 법은 국가법령정보센터에서,

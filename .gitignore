@@ -4,6 +4,7 @@
 # next.js
 /.next/
 /out/
+/tmp/test-dist/
 
 # production
 /build
@@ -14,6 +15,7 @@
 .env.local
 /.omc/
 /.omx/
+/.studio-provision/
 
 # debug
 npm-debug.log*

@@ -1,307 +1,355 @@
-import type { DocumentKind, LayoutElement } from "@/lib/context/types";
+import type { DocumentKind, LayoutElement } from "./types.ts";
+import { StudioRunMetrics, type StudioOperation } from "./studio-metrics.ts";
+import { parseStudioWorkflowResponse, StudioParseError, type ParsedStudioWorkflow } from "./studio-parser.ts";
 
 const UPSTAGE_BASE = "https://api.upstage.ai/v2";
+const MAX_RETRIES = 3;
 const POLL_INTERVAL_MS = 1_500;
 
-export class StudioError extends Error {}
+export class StudioError extends Error {
+  readonly code: string;
+  constructor(
+    code: string,
+    message = code,
+    readonly cause?: unknown,
+    readonly failure?: StudioWorkflowFailure,
+  ) {
+    super(message);
+    this.name = "StudioError";
+    this.code = code;
+  }
+}
+export { StudioParseError };
 
-export type StudioAgent = {
-  id: string;
-  name: string;
-  role: string;
+export type StudioAgent = { id: string; name: string; role: string };
+export type StudioCleanupStatus = "not_started" | "deleted" | "pending" | "failed";
+export type StudioIdentity = {
+  agentId: string;
+  agentName?: string;
+  role?: string;
+  /** A verified immutable binding/config capability receipt, never an operator label. */
+  capabilityReceiptId: string;
+  manifestSha: string;
+  configFingerprint: string;
+  configId?: string;
+  /** Capability-proven response field and expected value for immutable served identity. */
+  servedIdentity: string;
+  servedIdentityField: string;
+  /** Account-proven request fields, e.g. `{ config_id: "..." }`; passed through without guessing API fields. */
+  requestFields: Record<string, unknown>;
 };
-
-/**
- * 문서 종류별 Studio 에이전트.
- *
- * **정정 (2026-08-22 실측):** 여기 적혀 있던 "체인이 안 돈다"는 **틀렸다.**
- * `document-parse → information-extract` 는 Studio 안에서 돈다 — 실제 PDF 로
- * `status=completed`, 첫 실행 약 16초. 원인은 두 가지였다:
- *
- * 1. `next_steps` 는 **`step_name`** 으로 잇는다. 시도했던 `[{id,name}]`·`[{name}]`·`[{id}]`
- *    셋 다 그 키가 없었고, 실패 문구의 *"unknown step **'None'**"* 이 바로 그 뜻이었다.
- * 2. `information-extract` 의 `data.json_schema` 는 v1 의 `{name, schema:{…}}` 래퍼가 아니라
- *    **스키마 본체**(`{type, properties}`)를 받는다.
- *
- * 재현 절차는 `docs/studio-findings.md` 에 있다.
- */
-export const STUDIO_AGENTS: Record<DocumentKind, { slug: string; role: string }> = {
-  하도급계약서: { slug: "sitectx-contract", role: "계약 조항·금액·공기 판독" },
-  위험성평가표: { slug: "sitectx-assessment", role: "평가표 행·위험도 판독" },
-  TBM회의록: { slug: "sitectx-tbm", role: "참석자·중점위험 판독" },
-  작업표준: { slug: "sitectx-sop", role: "작업단계·보호구 판독" },
-  순회점검일지: { slug: "sitectx-patrol", role: "지적사항·조치 판독" },
-  메일: { slug: "sitectx-mail", role: "발신자·요청사항·첨부 판독" },
-  기타: { slug: "sitectx-general", role: "일반 문서 판독" },
+export type StudioWorkflowOptions = {
+  deadline: number;
+  identity: StudioIdentity;
+  fetch?: typeof fetch;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+  metrics?: StudioRunMetrics;
+  /** Absolute host-owned deadline for DELETE retries; must be after `deadline`. */
+  cleanupDeadline: number;
+  /** Durable lifecycle checkpoints. Each callback must finish before the next upstream operation. */
+  lifecycle?: {
+    onFileUploaded?: (fileId: string) => Promise<void>;
+    onResponseCreated?: (responseId: string) => Promise<void>;
+    /** Invoked only after the completed response's identity has been verified. */
+    onServedIdentityValidated?: (servedIdentity: string) => Promise<void>;
+    onCleanup?: (cleanup: { status: StudioCleanupStatus; attempts: number }) => Promise<void>;
+    assertActive?: () => Promise<void>;
+  };
+};
+export type StudioWorkflowProvenance = {
+  manifestSha: string;
+  configFingerprint: string;
+  /** Config sent in the request; the response did not echo or attest to it. */
+  requestedConfigId?: string;
+  /** Immutable request binding established by the readiness receipt. */
+  boundByReceipt: { id: string; scheme: "request-config-id-v1" };
+  /** The observed response shape has no config echo to verify. */
+  servedConfigEchoVerified: false;
+  agentId: string;
+  responseId: string;
+  /** Agent identity observed in the response, verified independently of config. */
+  servedIdentity?: string;
+  stepNames: string[];
+};
+export type StudioWorkflowResult = {
+  agent: StudioAgent; jobId: string; fileId: string; elements: LayoutElement[]; fullText: string; pageCount: number;
+  parse: ParsedStudioWorkflow["parse"];
+  extracted: ParsedStudioWorkflow["extracted"];
+  validation: ParsedStudioWorkflow["validation"];
+  review: ParsedStudioWorkflow["review"];
+  provenance: StudioWorkflowProvenance; metrics: ReturnType<StudioRunMetrics["snapshot"]>;
+  cleanup: { status: StudioCleanupStatus; attempts: number };
+};
+export type StudioWorkflowFailure = {
+  agent: StudioAgent;
+  fileId?: string;
+  responseId?: string;
+  provenance: Omit<StudioWorkflowProvenance, "responseId" | "stepNames"> & {
+    responseId?: string;
+    stepNames: string[];
+  };
+  cleanup: { status: StudioCleanupStatus; attempts: number };
+  metrics: ReturnType<StudioRunMetrics["snapshot"]>;
 };
 
 function apiKey(): string {
   const key = process.env.UPSTAGE_API_KEY;
-  if (!key) throw new StudioError("UPSTAGE_API_KEY 가 없습니다.");
+  if (!key) throw new StudioError("API_KEY_MISSING", "UPSTAGE_API_KEY 가 없습니다.");
   return key;
 }
-
 function headers(json = true): Record<string, string> {
-  const base: Record<string, string> = { Authorization: `Bearer ${apiKey()}` };
-  if (json) base["Content-Type"] = "application/json";
-  return base;
+  const value: Record<string, string> = { Authorization: `Bearer ${apiKey()}` };
+  if (json) value["Content-Type"] = "application/json";
+  return value;
 }
-
-async function fail(res: Response, what: string): Promise<never> {
-  throw new StudioError(`${what} 실패 (${res.status}) ${(await res.text().catch(() => "")).slice(0, 300)}`);
+function remaining(now: () => number, deadline: number): number {
+  return deadline - now();
 }
-
-/** 계정의 에이전트 목록에서 slug 로 찾는다. 매 실행마다 만들지 않기 위해서다. */
-export async function findAgents(): Promise<Map<string, string>> {
-  const res = await fetch(`${UPSTAGE_BASE}/agents`, { headers: headers(false), cache: "no-store" });
-  if (!res.ok) await fail(res, "에이전트 목록");
-  const body = (await res.json()) as { data?: Array<{ id: string; name: string }> };
-  return new Map((body.data ?? []).map((a) => [a.name, a.id]));
+function retryableStatus(status: number): boolean { return status === 408 || status === 409 || status === 429 || status >= 500; }
+function retryDelay(response: Response | undefined, attempt: number, remainingMs: number): number {
+  const retryAfter = Number(response?.headers.get("retry-after"));
+  const requested = Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter * 1_000 : Math.min(5_000, 250 * 2 ** attempt);
+  return Math.max(0, Math.min(requested, Math.max(0, remainingMs - 1)));
 }
-
-export async function resolveAgent(kind: DocumentKind): Promise<StudioAgent> {
-  const wanted = STUDIO_AGENTS[kind] ?? STUDIO_AGENTS.기타;
-  const found = await findAgents();
-  const id = found.get(wanted.slug);
-  if (!id) {
-    throw new StudioError(
-      `Studio 에이전트 "${wanted.slug}" 가 없습니다. \`node scripts/provision-agents.mjs\` 로 만드세요.`,
-    );
-  }
-  return { id, name: wanted.slug, role: wanted.role };
-}
-
-async function uploadFile(bytes: Uint8Array, filename: string, mime: string): Promise<string> {
-  const form = new FormData();
-  form.append("purpose", "user_data");
-  form.append("file", new Blob([bytes as unknown as BlobPart], { type: mime }), filename);
-  const res = await fetch(`${UPSTAGE_BASE}/files`, {
-    method: "POST",
-    headers: headers(false),
-    body: form,
-    cache: "no-store",
-  });
-  if (!res.ok) await fail(res, "파일 업로드");
-  return ((await res.json()) as { id: string }).id;
-}
-
-/* ------------------------------------------------------------------ *
- * 체인 실행
- *
- * 지금까지는 parse 만 Studio 로 하고 extract 를 v1 으로 다시 불렀다. 같은 문서를 Upstage 에
- * **두 번 올리는** 낭비였고, 무엇보다 Studio 워크플로우가 아니었다.
- *
- * 아래는 config 에 정의된 체인을 통째로 돌리고 최종 출력을 돌려준다. 중간 스텝의 출력은
- * 응답에 담기지 않는다(`include` 로 꺼내지 못했다) — 그래서 화면에는 **config 에서 읽은 체인
- * 정의**와 **실행 증거**(에이전트·config id · 최종 스텝 이름 · 실측 시간 · 캐시 여부)를 보인다.
- * 없는 중간 결과를 지어내지 않는다.
- * ------------------------------------------------------------------ */
-
-/** config 에 적힌 체인 한 칸. 화면이 "무엇을 거쳤는지" 를 말할 때 쓴다. */
-export type ChainStep = { name: string; type: string; isFirst: boolean; next: string[] };
-
-export type StudioChainResult = {
-  /** 최종 스텝이 뱉은 텍스트. information-extract 면 JSON 문자열이다. */
-  text: string;
-  agentId: string;
-  configId: string;
-  /** 응답이 밝힌 최종 스텝 이름(`output[].model`). */
-  finalStep: string | null;
-  /** config 에서 읽은 체인 순서. */
-  chain: ChainStep[];
-  elapsedMs: number;
-  /** Upstage 가 캐시로 돌려줬는지. 소요시간을 정직하게 읽으려면 필요하다. */
-  cached: boolean;
-};
-
-type ConfigResponse = {
-  id: string;
-  steps: Array<{
-    name: string;
-    type: string;
-    is_first: boolean;
-    next_steps: Array<{ step_name?: string; name?: string }>;
-  }>;
-};
-
-/** 에이전트의 기본 config 를 읽어 체인 모양을 확인한다. 실행 전에 무엇을 돌릴지 알아야 한다. */
-export async function readChain(agentId: string, configId: string): Promise<ChainStep[]> {
-  const res = await fetch(`${UPSTAGE_BASE}/agents/${agentId}/configs/${configId}`, {
-    headers: headers(false),
-    cache: "no-store",
-  });
-  if (!res.ok) await fail(res, "config 조회");
-  const cfg = (await res.json()) as ConfigResponse;
-
-  return cfg.steps.map((s) => ({
-    name: s.name,
-    type: s.type,
-    isFirst: s.is_first,
-    // 런타임이 읽는 키는 step_name 이다. name 은 예전 형식이라 함께 본다.
-    next: (s.next_steps ?? []).map((n) => n.step_name ?? n.name ?? "").filter(Boolean),
-  }));
-}
-
-
-/**
- * 에이전트의 체인을 통째로 돌린다. `parse → extract` 가 **Studio 안에서** 이어진다.
- *
- * 기존 `runStudioParse` 와 나란히 둔다. 한 번에 갈아치우면 무엇이 깨졌는지 못 가린다.
- *
- * 파일은 **끝나면 지운다.** 올린 것은 하도급계약서라 계약금액·담당자명이 들어 있고,
- * 성공하든 실패하든 남길 이유가 없다. 삭제 실패가 본 작업을 무너뜨리지는 않게 한다.
- */
-export async function runStudioChain(
-  agentId: string,
-  configId: string,
-  bytes: Uint8Array,
-  filename: string,
-  mime: string,
+async function boundedSleep(
+  sleep: (ms: number) => Promise<void>,
+  now: () => number,
   deadline: number,
-): Promise<StudioChainResult> {
-  const 시작 = Date.now();
-  const chain = await readChain(agentId, configId);
-  const fileId = await uploadFile(bytes, filename, mime);
+  requestedMs: number,
+): Promise<void> {
+  const left = remaining(now, deadline);
+  if (left <= 0) throw new StudioError("DEADLINE_EXCEEDED");
+  const delay = Math.max(0, Math.min(requestedMs, left - 1));
+  if (delay === 0) return;
+  await sleep(delay);
+}
+function verifiedIdentity(identity: StudioIdentity): StudioIdentity {
+  const value = identity;
+  const requestFields = value.requestFields && typeof value.requestFields === "object" && !Array.isArray(value.requestFields)
+    ? Object.keys(value.requestFields)
+    : [];
+  if (
+    !value.agentId ||
+    !value.capabilityReceiptId ||
+    !value.manifestSha ||
+    !value.configFingerprint ||
+    !value.servedIdentity ||
+    !value.servedIdentityField ||
+    requestFields.length === 0 ||
+    requestFields.some((field) => !["config_id", "config_external_id", "revision_id", "version_id"].includes(field))
+  ) {
+    throw new StudioError("IDENTITY_UNVERIFIED", "검증된 불변 Studio 워크플로우 바인딩이 필요합니다.");
+  }
+  return value;
+}
 
+async function boundedFetch(fetchImpl: typeof fetch, now: () => number, deadline: number, input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  const budget = remaining(now, deadline);
+  if (budget <= 0) throw new StudioError("DEADLINE_EXCEEDED");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), budget);
+  try { return await fetchImpl(input, { ...init, signal: controller.signal }); }
+  catch (cause) { if (controller.signal.aborted) throw new StudioError("DEADLINE_EXCEEDED", "Studio 요청 시간이 초과되었습니다.", cause); throw new StudioError("NETWORK_ERROR", "Studio 네트워크 요청에 실패했습니다.", cause); }
+  finally { clearTimeout(timeout); }
+}
+
+async function requestWithRetry(
+  operation: StudioOperation, method: "GET" | "DELETE", url: string, init: RequestInit, options: Required<Pick<StudioWorkflowOptions, "fetch" | "now" | "sleep">>, deadline: number, metrics: StudioRunMetrics,
+): Promise<Response> {
+  const metric = metrics.begin(operation); let attempts = 0; let lastStatus: number | undefined; let retryReason: string | undefined;
   try {
-    const created = await fetch(`${UPSTAGE_BASE}/responses`, {
-      method: "POST",
+    for (;;) {
+      attempts++;
+      try {
+        const response = await boundedFetch(options.fetch, options.now, deadline, url, { ...init, method, cache: "no-store" });
+        lastStatus = response.status;
+        if (response.ok || !retryableStatus(response.status) || attempts > MAX_RETRIES || remaining(options.now, deadline) <= 0) return response;
+        retryReason = `HTTP_${response.status}`;
+        await boundedSleep(options.sleep, options.now, deadline, retryDelay(response, attempts - 1, remaining(options.now, deadline)));
+      } catch (error) {
+        if (!(error instanceof StudioError) || error.code === "DEADLINE_EXCEEDED" || attempts > MAX_RETRIES || remaining(options.now, deadline) <= 0) throw error;
+        retryReason = error.code;
+        await boundedSleep(options.sleep, options.now, deadline, retryDelay(undefined, attempts - 1, remaining(options.now, deadline)));
+      }
+    }
+  } finally { metric.finish({ attempts, retries: Math.max(0, attempts - 1), status: lastStatus, retryReason }); }
+}
+
+async function json(response: Response, errorCode: string): Promise<Record<string, unknown>> {
+  const value: unknown = await response.json().catch(() => null);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new StudioError(errorCode);
+  return value as Record<string, unknown>;
+}
+async function postOnce(operation: StudioOperation, url: string, init: RequestInit, options: Required<Pick<StudioWorkflowOptions, "fetch" | "now">>, deadline: number, metrics: StudioRunMetrics): Promise<Response> {
+  const metric = metrics.begin(operation);
+  try { const response = await boundedFetch(options.fetch, options.now, deadline, url, { ...init, method: "POST", cache: "no-store" }); metric.finish({ status: response.status }); return response; }
+  catch (error) { metric.finish(); throw error; }
+}
+async function assertOk(response: Response, code: string): Promise<void> {
+  if (!response.ok) throw new StudioError(code, `${code} (${response.status})`);
+}
+
+async function uploadFile(bytes: Uint8Array, filename: string, mime: string, options: Required<Pick<StudioWorkflowOptions, "fetch" | "now">>, deadline: number, metrics: StudioRunMetrics): Promise<string> {
+  const form = new FormData(); form.append("purpose", "user_data"); form.append("file", new Blob([bytes as unknown as BlobPart], { type: mime }), filename);
+  const response = await postOnce("files.upload", `${UPSTAGE_BASE}/files`, { headers: headers(false), body: form }, options, deadline, metrics); await assertOk(response, "FILE_UPLOAD_FAILED");
+  const body = await json(response, "FILE_UPLOAD_INVALID"); if (typeof body.id !== "string") throw new StudioError("FILE_UPLOAD_INVALID"); return body.id;
+}
+function isReadyFileMetadata(body: Record<string, unknown>, fileId: string): boolean {
+  return !Object.hasOwn(body, "status") &&
+    body.id === fileId &&
+    typeof body.bytes === "number" && Number.isFinite(body.bytes) && body.bytes >= 0 &&
+    typeof body.created_at === "number" && Number.isFinite(body.created_at) &&
+    (body.expires_at === null || (typeof body.expires_at === "number" && Number.isFinite(body.expires_at))) &&
+    body.object === "file" &&
+    typeof body.purpose === "string" && body.purpose.length > 0;
+}
+async function waitForFile(fileId: string, options: Required<Pick<StudioWorkflowOptions, "fetch" | "now" | "sleep">>, deadline: number, metrics: StudioRunMetrics): Promise<void> {
+  while (remaining(options.now, deadline) > 0) {
+    const response = await requestWithRetry("files.readiness", "GET", `${UPSTAGE_BASE}/files/${encodeURIComponent(fileId)}`, { headers: headers(false) }, options, deadline, metrics);
+    if (response.status === 409) { await boundedSleep(options.sleep, options.now, deadline, POLL_INTERVAL_MS); continue; }
+    await assertOk(response, "FILE_READINESS_FAILED"); const body = await json(response, "FILE_READINESS_INVALID"); const status = typeof body.status === "string" ? body.status.toLowerCase() : "";
+    if (["ready", "completed", "uploaded"].includes(status)) return;
+    if (isReadyFileMetadata(body, fileId)) return;
+    if (["failed", "cancelled", "expired"].includes(status)) throw new StudioError("FILE_NOT_READY_FAILED");
+    if (status === "processing" || status === "pending" || status === "queued" || !status) { await boundedSleep(options.sleep, options.now, deadline, POLL_INTERVAL_MS); continue; }
+    throw new StudioError("FILE_NOT_READY_UNKNOWN");
+  }
+  throw new StudioError("FILE_NOT_READY_TIMEOUT");
+}
+async function deleteFile(fileId: string, options: Required<Pick<StudioWorkflowOptions, "fetch" | "now" | "sleep">>, cleanupDeadline: number, metrics: StudioRunMetrics): Promise<{ status: StudioCleanupStatus; attempts: number }> {
+  try {
+    const response = await requestWithRetry("files.delete", "DELETE", `${UPSTAGE_BASE}/files/${encodeURIComponent(fileId)}`, { headers: headers(false) }, options, cleanupDeadline, metrics);
+    const operation = metrics.snapshot().operations.at(-1);
+    return {
+      status: response.ok || response.status === 404 ? "deleted" : "failed",
+      attempts: operation?.operation === "files.delete" ? operation.attempts : 1,
+    };
+  } catch {
+    const operation = metrics.snapshot().operations.at(-1);
+    return {
+      status: remaining(options.now, cleanupDeadline) <= 0 ? "pending" : "failed",
+      attempts: operation?.operation === "files.delete" ? operation.attempts : 1,
+    };
+  }
+}
+
+export async function runStudioWorkflow(kind: DocumentKind, bytes: Uint8Array, filename: string, mime: string, supplied: StudioWorkflowOptions): Promise<StudioWorkflowResult> {
+  const options = { fetch: supplied.fetch ?? fetch, now: supplied.now ?? Date.now, sleep: supplied.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))) };
+  if (
+    !Number.isFinite(supplied.deadline) ||
+    !Number.isFinite(supplied.cleanupDeadline) ||
+    supplied.deadline <= options.now() ||
+    supplied.cleanupDeadline <= supplied.deadline
+  ) {
+    throw new StudioError("HOST_BUDGET_INVALID", "Studio 정리 기한은 처리 기한 뒤여야 합니다.");
+  }
+  const identity = verifiedIdentity(supplied.identity); const metrics = supplied.metrics ?? new StudioRunMetrics(options.now); const agent: StudioAgent = { id: identity.agentId, name: identity.agentName ?? identity.agentId, role: identity.role ?? "pinned Studio workflow" };
+  let fileId: string | undefined; let cleanup: { status: StudioCleanupStatus; attempts: number } = { status: "not_started", attempts: 0 };
+  let responseId: string | undefined;
+  let servedIdentity: string | undefined;
+  let stepNames: string[] = [];
+  let completedResult: Omit<StudioWorkflowResult, "cleanup" | "metrics"> | undefined;
+  let primaryError: unknown;
+  let lifecycleOwnershipLost = false;
+  const assertActive = async () => {
+    try {
+      await supplied.lifecycle?.assertActive?.();
+    } catch (error) {
+      lifecycleOwnershipLost = true;
+      throw error;
+    }
+  };
+  try {
+    await assertActive();
+    fileId = await uploadFile(bytes, filename, mime, options, supplied.deadline, metrics);
+    await supplied.lifecycle?.onFileUploaded?.(fileId);
+    await assertActive();
+    await waitForFile(fileId, options, supplied.deadline, metrics);
+    await assertActive();
+    const created = await postOnce("responses.create", `${UPSTAGE_BASE}/responses`, {
       headers: headers(),
       body: JSON.stringify({
-        model: agentId,
+        ...identity.requestFields,
+        model: identity.agentId,
         input: [{ role: "user", content: [{ type: "input_file", file_id: fileId }] }],
         include: ["all"],
       }),
-      cache: "no-store",
-      // 데드라인을 요청 자체에도 건다. 폴링 루프만 막으면 첫 요청이 매달릴 수 있다.
-      signal: AbortSignal.timeout(Math.max(1_000, deadline - Date.now())),
-    });
-    if (!created.ok) await fail(created, "체인 실행");
-    const job = (await created.json()) as { id: string };
-
-    while (Date.now() < deadline) {
-      const polled = await fetch(`${UPSTAGE_BASE}/responses/${job.id}`, {
-        headers: headers(false),
-        cache: "no-store",
-        signal: AbortSignal.timeout(Math.max(1_000, deadline - Date.now())),
-      });
-      if (!polled.ok) await fail(polled, "체인 상태 조회");
-
-      const data = (await polled.json()) as {
-        status: string;
-        error?: { message?: string; step?: string };
-        metadata?: { cached?: string };
-        // 최종 스텝 이름이 `model` 로 온다. 스텝별 중간 출력은 담기지 않는다.
-        output?: Array<{ model?: string; content?: Array<{ text?: string }> }>;
-      };
-
-      if (data.status === "failed") {
-        throw new StudioError(
-          `Studio 체인 실패 (${data.error?.step ?? "?"}): ${data.error?.message ?? "이유 없음"}`,
-        );
-      }
-      if (data.status === "completed") {
-        const last = data.output?.[data.output.length - 1];
-        const text = last?.content?.[0]?.text;
-        if (!text) throw new StudioError("체인 응답이 비었습니다.");
-        return {
-          text,
-          agentId,
-          configId,
-          finalStep: last?.model ?? null,
-          chain,
-          elapsedMs: Date.now() - 시작,
-          // 캐시로 온 것을 실측 소요시간인 척하지 않는다.
-          cached: data.metadata?.cached === "true",
-        };
-      }
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }, options, supplied.deadline, metrics);
+    await assertOk(created, "RESPONSE_CREATE_FAILED"); const job = await json(created, "RESPONSE_CREATE_INVALID"); if (typeof job.id !== "string") throw new StudioError("RESPONSE_CREATE_INVALID");
+    responseId = job.id;
+    await supplied.lifecycle?.onResponseCreated?.(responseId);
+    let completed: Record<string, unknown> | undefined;
+    while (remaining(options.now, supplied.deadline) > 0) {
+      await assertActive();
+      const response = await requestWithRetry("responses.get", "GET", `${UPSTAGE_BASE}/responses/${encodeURIComponent(job.id)}?include[]=all`, { headers: headers(false) }, options, supplied.deadline, metrics);
+      await assertOk(response, "RESPONSE_GET_FAILED"); const body = await json(response, "RESPONSE_GET_INVALID"); const status = typeof body.status === "string" ? body.status.toLowerCase() : "";
+      if (status === "completed") { completed = body; break; }
+      if (["failed", "cancelled", "expired"].includes(status)) throw new StudioError("RESPONSE_FAILED");
+      if (!["queued", "in_progress", "processing", "pending"].includes(status)) throw new StudioError("RESPONSE_STATUS_UNKNOWN");
+      await boundedSleep(options.sleep, options.now, supplied.deadline, POLL_INTERVAL_MS);
     }
-    throw new StudioError("체인이 제한시간 안에 끝나지 않았습니다.");
+    if (!completed) throw new StudioError("RESPONSE_TIMEOUT");
+    const parsed = parseStudioWorkflowResponse(completed, kind);
+    const responseServedIdentity = completed[identity.servedIdentityField];
+    const servedModel = completed.model;
+    if (
+      typeof responseServedIdentity !== "string" ||
+      responseServedIdentity !== identity.servedIdentity ||
+      (typeof servedModel === "string" && servedModel !== identity.agentId)
+    ) {
+      throw new StudioError("SERVED_IDENTITY_MISMATCH");
+    }
+    servedIdentity = responseServedIdentity;
+    await supplied.lifecycle?.onServedIdentityValidated?.(servedIdentity);
+    stepNames = parsed.steps.map((step) => step.stepName);
+    completedResult = { agent, jobId: job.id, fileId, elements: parsed.parse.elements, fullText: parsed.parse.fullText, pageCount: parsed.parse.elements.reduce((max, element) => Math.max(max, element.page), 0) || 1, parse: parsed.parse, extracted: parsed.extracted, validation: parsed.validation, review: parsed.review, provenance: { manifestSha: identity.manifestSha, configFingerprint: identity.configFingerprint, requestedConfigId: identity.configId, boundByReceipt: { id: identity.capabilityReceiptId, scheme: "request-config-id-v1" }, servedConfigEchoVerified: false, agentId: identity.agentId, responseId: job.id, servedIdentity, stepNames } };
+  } catch (error) {
+    primaryError = error;
   } finally {
-    // 성공·실패·시간초과 모두에서 지운다.
-    await fetch(`${UPSTAGE_BASE}/files/${fileId}`, { method: "DELETE", headers: headers(false) }).catch(
-      () => {
-        /* 삭제 실패로 본 작업을 실패시키지 않는다. 다만 남는다는 것은 알고 있어야 한다. */
-      },
+    if (fileId && !lifecycleOwnershipLost) {
+      // A reclaimed runner must leave remote cleanup to the durable sweeper.
+      // It may not issue DELETE after losing its fence.
+      await assertActive();
+      cleanup = await deleteFile(fileId, options, supplied.cleanupDeadline, metrics);
+      await supplied.lifecycle?.onCleanup?.(cleanup);
+    }
+  }
+  const failure: StudioWorkflowFailure = {
+    agent,
+    fileId,
+    responseId,
+    provenance: {
+      manifestSha: identity.manifestSha,
+      configFingerprint: identity.configFingerprint,
+      requestedConfigId: identity.configId,
+      boundByReceipt: { id: identity.capabilityReceiptId, scheme: "request-config-id-v1" },
+      servedConfigEchoVerified: false,
+      agentId: identity.agentId,
+      responseId,
+      servedIdentity,
+      stepNames,
+    },
+    cleanup,
+    metrics: metrics.snapshot(),
+  };
+  if (cleanup.status !== "deleted") {
+    throw new StudioError(
+      "REMOTE_CLEANUP_INCOMPLETE",
+      `Studio 원격 파일 정리가 ${cleanup.status} 상태입니다.`,
+      primaryError,
+      failure,
     );
   }
-}
-
-export type StudioParseResult = {
-  agent: StudioAgent;
-  jobId: string;
-  fileId: string;
-  elements: LayoutElement[];
-  fullText: string;
-  pageCount: number;
-};
-
-/**
- * Studio 에이전트로 문서를 읽는다.
- *
- * 응답의 `output[0].content[0].text` 가 `/v1/document-digitization` 과 같은 JSON 이라
- * 청킹·좌표 코드를 그대로 쓸 수 있다. 실측 7~8초.
- */
-export async function runStudioParse(
-  kind: DocumentKind,
-  bytes: Uint8Array,
-  filename: string,
-  mime: string,
-  deadline: number,
-): Promise<StudioParseResult> {
-  const agent = await resolveAgent(kind);
-  const fileId = await uploadFile(bytes, filename, mime);
-
-  const created = await fetch(`${UPSTAGE_BASE}/responses`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({
-      model: agent.id,
-      input: [{ role: "user", content: [{ type: "input_file", file_id: fileId }] }],
-      include: ["all"],
-    }),
-    cache: "no-store",
-  });
-  if (!created.ok) await fail(created, "에이전트 실행");
-  const job = (await created.json()) as { id: string };
-
-  while (Date.now() < deadline) {
-    const polled = await fetch(`${UPSTAGE_BASE}/responses/${job.id}`, {
-      headers: headers(false),
-      cache: "no-store",
-    });
-    if (!polled.ok) await fail(polled, "에이전트 상태 조회");
-    const data = (await polled.json()) as {
-      status: string;
-      error?: { message?: string; step?: string };
-      output?: Array<{ content?: Array<{ text?: string }> }>;
-    };
-
-    if (data.status === "failed") {
-      throw new StudioError(
-        `Studio 에이전트 실패 (${data.error?.step ?? "?"}): ${data.error?.message ?? "이유 없음"}`,
-      );
+  if (primaryError) {
+    if (primaryError instanceof StudioParseError) {
+      throw new StudioError(primaryError.code, primaryError.message, primaryError, failure);
     }
-    if (data.status === "completed") {
-      const text = data.output?.[0]?.content?.[0]?.text;
-      if (!text) throw new StudioError("에이전트 응답이 비었습니다.");
-      const parsed = JSON.parse(text) as {
-        elements?: LayoutElement[];
-        content?: { html?: string; markdown?: string; text?: string };
-      };
-      const elements = parsed.elements ?? [];
-      return {
-        agent,
-        jobId: job.id,
-        fileId,
-        elements,
-        fullText: parsed.content?.markdown ?? parsed.content?.text ?? "",
-        pageCount: elements.reduce((max, e) => Math.max(max, e.page ?? 1), 0) || 1,
-      };
+    if (primaryError instanceof StudioError) {
+      throw new StudioError(primaryError.code, primaryError.message, primaryError.cause, failure);
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    throw new StudioError("WORKFLOW_FAILED", "Studio 워크플로우가 실패했습니다.", primaryError, failure);
   }
-
-  throw new StudioError("Studio 에이전트가 예산 안에 끝나지 않았습니다.");
+  if (!completedResult) throw new StudioError("WORKFLOW_INCOMPLETE");
+  return { ...completedResult, cleanup, metrics: metrics.snapshot() };
 }

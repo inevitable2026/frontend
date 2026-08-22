@@ -15,10 +15,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ documentId: st
   if (!UUID.test(documentId)) return new Response("bad document id", { status: 400 });
 
   const sql = db();
-  const [file] = await sql<Array<{ mime: string; original_filename: string; bytes: Buffer }>>`
+  const [file] = await sql<Array<{ mime: string; original_filename: string; bytes: Buffer | null }>>`
     select mime, original_filename, bytes from document_files where document_id = ${documentId} limit 1
   `;
   if (!file) return new Response("no such file", { status: 404 });
+  if (!file.bytes) return new Response("file bytes were scrubbed", { status: 410 });
 
   const mime = file.mime || "application/pdf";
   const disposition = INLINE_MIME.has(mime) ? "inline" : "attachment";
