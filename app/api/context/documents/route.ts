@@ -22,10 +22,23 @@ export async function POST(req: Request) {
 
   const sql = db();
   const [job] = await sql<
-    Array<{ id: string; kind: DocumentKind | null; status: string; document_id: string | null; steps: IngestStage[] | null }>
-  >`select id, kind, status, document_id, steps from ingest_jobs where id = ${jobId} limit 1`;
+    Array<{
+      id: string;
+      kind: DocumentKind | null;
+      status: string;
+      mode: string;
+      document_id: string | null;
+      steps: IngestStage[] | null;
+    }>
+  >`select id, kind, status, mode, document_id, steps from ingest_jobs where id = ${jobId} limit 1`;
 
   if (!job) return Response.json({ error: "그런 잡이 없습니다." }, { status: 404, headers: HEADERS });
+  if (job.mode === "demo") {
+    return Response.json(
+      { error: "데모 모드 결과는 문서함에 저장하지 않습니다. 고정된 응답이라 저장하면 문서함에 사실이 아닌 항목이 남습니다." },
+      { status: 409, headers: HEADERS },
+    );
+  }
   if (job.status !== "done") {
     return Response.json({ error: `잡이 아직 ${job.status} 입니다.` }, { status: 409, headers: HEADERS });
   }

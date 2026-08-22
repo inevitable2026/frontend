@@ -1810,3 +1810,18 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.context-demo-note {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--purple-primary);
+  border-radius: 12px;
+  background: rgba(92, 82, 255, 0.06);
+  color: var(--text-sidebar);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.context-demo-note b {
+  color: var(--purple-primary);
+}
