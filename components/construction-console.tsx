@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
 import { useLatestPin } from "./chat/use-latest-pin";
@@ -64,7 +64,6 @@ function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
 export function ConstructionConsole() {
   const [activeNav, setActiveNav] = useState(NAV_BOARD);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const uploadInput = useRef<HTMLInputElement>(null);
   // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
   const chat = useLawChat();
   // 답이 길어질 때 화면을 따라 내리는 규칙. 사용자가 위로 올라가 있으면 끌어내리지 않는다.
@@ -222,17 +221,14 @@ export function ConstructionConsole() {
                 and we will convert them into executable flows
               </p>
             </div>
-            <input
-              ref={uploadInput}
-              className="sr-only"
-              type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
-              multiple
-            />
             <button
               className="upload-button"
               type="button"
-              onClick={() => uploadInput.current?.click()}
+              onClick={() => {
+                setActiveNav(NAV_SITE_CONTEXT);
+                setSidebarOpen(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             >
               문서 업로드 하기
             </button>
