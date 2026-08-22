@@ -1825,3 +1825,609 @@ button {
 .context-demo-note b {
   color: var(--purple-primary);
 }
+
+/* ===========================================================================
+   위험성평가 (risk-*)
+   형제 탭(.context-*)과 같은 뼈대를 쓴다. 같은 콘솔 안에서 탭마다 다르게 생기면
+   쓰는 사람이 매번 다시 배워야 한다.
+
+   2-pane 을 쓰지 않는 이유 — .context-panel 이 max-width 960px 이고, 여기를 좌우로
+   나누면 표 쪽이 460px 남는다. 위험요인·빈도·강도·위험도·대책·조문 6개가 들어갈 폭이
+   아니다. 넓은 화면에서도 한 컬럼으로 두고 행을 카드로 그린다.
+   =========================================================================== */
+
+:root {
+  --risk-high: #e5484d;
+  --risk-mid: #f5a524;
+  --risk-low: #12a594;
+}
+
+.risk-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 960px;
+  padding: 48px 40px 80px;
+  overflow-y: auto;
+}
+
+.risk-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.risk-head h1 {
+  margin: 6px 0 8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.risk-sub {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.risk-demo-note {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.risk-demo-note.is-live {
+  border-color: color-mix(in srgb, var(--purple-primary) 32%, transparent);
+  background: color-mix(in srgb, var(--purple-primary) 6%, transparent);
+}
+
+/* --- 업로드 ------------------------------------------------------------- */
+
+.risk-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--sidebar-surface);
+}
+
+/* 현장에서 장갑 낀 손으로 누른다. 44px 아래로 내리지 않는다. */
+.risk-upload .upload-button {
+  min-height: 44px;
+}
+
+/* --- 에이전트 패널 ------------------------------------------------------ */
+
+.risk-agents {
+  display: grid;
+  gap: 14px;
+}
+
+.risk-agent {
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.risk-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--sidebar-surface);
+}
+
+.risk-agent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-agent-engine {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--border-soft);
+  color: var(--text-sidebar);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.risk-badge.is-실행중 {
+  background: color-mix(in srgb, var(--purple-primary) 14%, transparent);
+  color: var(--purple-primary);
+}
+
+.risk-badge.is-완료 {
+  background: color-mix(in srgb, var(--risk-low) 16%, transparent);
+  color: var(--risk-low);
+}
+
+.risk-badge.is-실패 {
+  background: color-mix(in srgb, var(--risk-high) 14%, transparent);
+  color: var(--risk-high);
+}
+
+.risk-agent-body {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+}
+
+.risk-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--sidebar-surface);
+}
+
+.risk-preview.is-empty,
+.risk-preview-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 132px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.risk-preview img,
+.risk-preview object {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 요청이 실제로 날아가 있는 동안에만 돈다. 없는 분석을 하는 척하지 않는다. */
+.risk-scanline {
+  position: absolute;
+  inset-inline: 0;
+  height: 34px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--purple-primary) 45%, transparent),
+    transparent
+  );
+  animation: risk-scan 1.5s ease-in-out infinite;
+}
+
+@keyframes risk-scan {
+  0% { transform: translateY(-34px); }
+  100% { transform: translateY(132px); }
+}
+
+.risk-fields {
+  display: grid;
+  gap: 5px;
+}
+
+.risk-field-row {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.risk-field-name {
+  flex-shrink: 0;
+  width: 44px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.risk-field-value {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.risk-skeleton {
+  border-radius: 4px;
+  background: var(--border-soft);
+  color: transparent;
+  animation: risk-pulse 1.2s ease-in-out infinite;
+}
+
+.risk-field-value.risk-skeleton {
+  height: 15px;
+}
+
+@keyframes risk-pulse {
+  50% { opacity: 0.45; }
+}
+
+.risk-agent-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-agent-note.is-error {
+  color: var(--risk-high);
+}
+
+.risk-agent-memo {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* --- 입력 --------------------------------------------------------------- */
+
+.risk-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.risk-inputs label {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-sidebar);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-inputs input,
+.risk-inputs select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 400;
+}
+
+.risk-chips {
+  display: grid;
+  gap: 16px;
+}
+
+.risk-chips ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.risk-chips li button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.risk-chip-empty {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* --- 실행 --------------------------------------------------------------- */
+
+.risk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.risk-generate {
+  min-height: 48px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-generate:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.risk-export {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  color: var(--text-sidebar);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.risk-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-error {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--risk-high) 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--risk-high) 7%, transparent);
+  color: var(--risk-high);
+  font-size: 14px;
+}
+
+/* --- 평가표 ------------------------------------------------------------- */
+
+.risk-progress {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--sidebar-surface);
+}
+
+.risk-progress > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.risk-progress strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-progress-pct {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.risk-progress-bar {
+  flex: 1 1 160px;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border-soft);
+}
+
+.risk-progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--purple-primary);
+  transition: width 0.25s ease;
+}
+
+.risk-saving {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-rows {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-row {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.risk-row.is-done {
+  border-color: color-mix(in srgb, var(--risk-low) 40%, transparent);
+  background: color-mix(in srgb, var(--risk-low) 4%, transparent);
+}
+
+.risk-row-main {
+  display: flex;
+  gap: 12px;
+}
+
+.risk-row-no {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.risk-row-step {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-row-hazard {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.risk-row-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.risk-row-scores label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--sidebar-surface);
+}
+
+.risk-score b {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-score em {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.risk-score small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.risk-score.is-high { background: color-mix(in srgb, var(--risk-high) 12%, transparent); color: var(--risk-high); }
+.risk-score.is-mid  { background: color-mix(in srgb, var(--risk-mid) 16%, transparent); color: #8a5a00; }
+.risk-score.is-low  { background: color-mix(in srgb, var(--risk-low) 13%, transparent); color: var(--risk-low); }
+
+.risk-controls,
+.risk-clauses {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-inline-start: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.risk-clauses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+/* 조문은 검색으로 붙인 것만 나온다. 모델이 쓴 조문은 여기에 없다. */
+.risk-clauses li {
+  padding: 4px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--text-sidebar);
+  font-size: 12px;
+}
+
+.risk-row-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.risk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-check input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--purple-primary);
+}
+
+.risk-owner input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  font: inherit;
+}
+
+@media (max-width: 1023px) {
+  .risk-panel {
+    padding: 28px 20px 64px;
+  }
+
+  .risk-head {
+    flex-direction: column;
+  }
+
+  /* 좁은 화면에서 미리보기가 세로를 다 먹지 않게 위아래로 쌓는다. */
+  .risk-agent-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .risk-preview {
+    min-height: 160px;
+  }
+}

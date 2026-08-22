@@ -5,6 +5,7 @@ import { FormEvent, type CSSProperties, useEffect, useRef, useState } from "reac
 
 import { JsonViewer } from "@/components/json-viewer";
 import { MarkdownContent, type CitationSource } from "@/components/markdown-content";
+import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
 import { SiteContextPanel } from "@/components/site-context-panel";
 
 const navigation = [
@@ -471,6 +472,8 @@ export function ConstructionConsole() {
       <section className="workspace">
         {activeNav === 1 ? (
           <SiteContextPanel />
+        ) : activeNav === 3 ? (
+          <RiskAssessmentPanel />
         ) : (
         <div className={`content-stack${lastQuestion ? " is-chatting" : ""}`}>
           {!lastQuestion ? <>
