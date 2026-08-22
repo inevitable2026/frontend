@@ -357,10 +357,18 @@ async function main() {
     const 새카드 = await 카드적재(sql, items);
     console.log(`카드 ${items.length}건 가운데 이번에 새로 꽂힌 것 ${새카드}건.`);
 
-    // 감지는 엔진을 직접 돌려 얻는다. 카드는 버린다.
+    // 감지는 엔진을 직접 돌려 얻는다.
+    //
+    // generate 를 넘기지 않으므로 모델을 부르지 않고, 따라서 카드도 문장도 만들지 않는다.
+    // 시드가 하는 일은 "이 시나리오에서 어떤 조건이 서는가" 를 기록해 두는 것까지이고,
+    // 카드와 초안은 위에서 적재한 seed-items.json 이 들고 있다. 감지까지 모델에 태우면
+    // 시드를 넣을 때마다 결과가 달라져 시나리오가 고정되지 않는다.
+    //
+    // runDetect 는 생성 훅을 받게 되면서 async 가 되었다. await 를 빼면 run 이 Promise 라
+    // run.detections 가 undefined 가 된다.
     const { triggerRules, runDetect } = loadDetectEngine();
-    const run = runDetect({ siteId: SITE_ID, now: DETECT_AT, facts, rules: triggerRules });
-    console.log(`감지 ${run.detections.length}건 · 엔진이 만든 카드 ${run.created.length}장(버립니다) · runId=${run.runId}`);
+    const run = await runDetect({ siteId: SITE_ID, now: DETECT_AT, facts, rules: triggerRules });
+    console.log(`감지 ${run.detections.length}건 · 엔진이 만든 카드 ${run.created.length}장 · runId=${run.runId}`);
     if (run.detections.length !== 기대.detections) {
       console.warn(`⚠ 감지가 ${기대.detections}건이 아니라 ${run.detections.length}건입니다.`);
     }
