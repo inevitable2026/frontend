@@ -1914,6 +1914,9 @@ button {
 .docview-body {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  /* 행을 1fr 로 묶어 두지 않으면 청크가 많을 때 격자가 뷰어 밖으로 자라나고,
+     그러면 오른쪽 칸의 overflow-y 가 작동하지 않아 아래쪽 청크를 누를 수 없다. */
+  grid-template-rows: minmax(0, 1fr);
   gap: 18px;
   min-height: 0;
   flex: 1;
@@ -2561,9 +2564,35 @@ button {
   transform: rotate(180deg);
 }
 
+/* 여닫는 애니메이션.
+   높이를 auto 로 두면 전환이 걸리지 않으므로 격자 한 칸의 비율을 0fr 에서 1fr 로 옮긴다.
+   내용의 높이를 미리 재지 않아도 되고, 접을 때와 펼 때가 같은 곡선을 탄다. */
+.board-rsn-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.board-rsn.is-open .board-rsn-fold {
+  grid-template-rows: 1fr;
+}
+
+/* 자르는 상자다. 여백과 구분선을 여기 두면 접혔을 때 1px 선이 남는다. */
 .board-rsn-body {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.board-rsn-inner {
   padding: 2px 12px 14px;
   border-top: 1px solid var(--board-hairline-2);
+}
+
+.board-rsn.is-open .board-rsn-body {
+  opacity: 1;
+  transition-delay: 0.06s;
 }
 
 .board-rsn-grid {
@@ -3785,6 +3814,11 @@ button {
   .board-column-body,
   .board-rsn-chevron,
   .board-draft-chevron {
+    transition: none;
+  }
+
+  .board-rsn-fold,
+  .board-rsn-body {
     transition: none;
   }
 

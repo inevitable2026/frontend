@@ -201,9 +201,12 @@ export function BriefingItem({
         <Chevron />
       </button>
 
-      {isOpen ? (
+      {/* 접힌 상태에서도 자리를 유지한다. 여닫는 동안 높이가 이어져야 애니메이션이 붙고,
+          닫혀 있는 동안에는 inert 로 초점과 보조기술에서 함께 빠진다. */}
+      <div className="board-rsn-fold" inert={!isOpen}>
         <RefNumberProvider numbers={refNumbers}>
         <div className="board-rsn-body" id={bodyId}>
+          <div className="board-rsn-inner">
           <dl className="board-rsn-grid">
             {SLOT_ORDER.map((entry) => {
               if (entry.key === "produced") {
@@ -247,9 +250,10 @@ export function BriefingItem({
               <b>{condition.note.label}</b> — {condition.note.text}
             </p>
           )}
+          </div>
         </div>
         </RefNumberProvider>
-      ) : null}
+      </div>
     </div>
   );
 }
