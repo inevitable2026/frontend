@@ -59,7 +59,9 @@ export default function RiskTable({
     <section className="risk-table-wrap">
       <header className="risk-progress">
         <div>
-          <span className="eyebrow">이행확인</span>
+          {/* `.eyebrow` 를 쓰지 않는다 — 그 클래스는 `min-width: 100%`(globals.css:424) 라
+              블록 문맥용이고, flex 행 안에 넣으면 폭을 다 먹어 정작 숫자가 찌그러진다. */}
+          <span className="risk-progress-label">이행확인</span>
           <strong>
             {완료} / {전체}
           </strong>

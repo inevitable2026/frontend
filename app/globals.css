@@ -2219,10 +2219,21 @@ button {
   background: var(--sidebar-surface);
 }
 
+/* 숫자 묶음은 줄이지 않는다. 줄이면 "이행확인 3 / 9 33%" 가 잘린다 — 대신 막대가 줄어든다. */
 .risk-progress > div:first-child {
   display: flex;
+  flex-shrink: 0;
   align-items: baseline;
   gap: 8px;
+}
+
+/* `.eyebrow` 를 빌려 쓰지 않는 이유: 그쪽은 `min-width: 100%` 라 flex 행에서 폭을
+   전부 먹는다. 실제로 그렇게 썼다가 "0 / 8" 이 13px 로 찌그러졌다. */
+.risk-progress-label {
+  color: var(--purple-copy);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .risk-progress strong {
