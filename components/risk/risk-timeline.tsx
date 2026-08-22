@@ -1,6 +1,5 @@
 "use client";
 
-import { 카드로 } from "@/components/task-board/adapt";
 import type { WorkItem } from "@/lib/board/types";
 
 /**
@@ -95,7 +94,6 @@ export default function RiskTimeline({
 
             <ol>
               {목록.map((item) => {
-                const card = 카드로(item, new Map(), 기준시각);
                 const 종류 = 종류판정(item);
                 const { 기호, 라벨, 클래스 } = 사건표시[종류];
 
@@ -111,17 +109,17 @@ export default function RiskTimeline({
 
                       {/* 변경 사건은 무엇이 바뀌었고 무엇이 무너졌는지를 그대로 보인다.
                           이 두 줄이 이 제품이 무엇인지를 말한다. */}
-                      {card.rationale === null ? null : (
-                        <span className="risk-tl-why">{card.rationale.text}</span>
+                      {item.trigger === null ? null : (
+                        <span className="risk-tl-why">{item.trigger.condition}</span>
                       )}
 
-                      {card.invalidates.map((inv) => (
-                        <span className="risk-tl-invalid" key={`${inv.docId}-${inv.scope ?? ""}`}>
-                          ↳ <b>{inv.docId}</b> {inv.scope ?? "전체"} 의 전제가 무너졌습니다
+                      {item.invalidates.map((inv) => (
+                        <span className="risk-tl-invalid" key={`${inv.docId}-${inv.scope}`}>
+                          ↳ <b>{inv.docId}</b> {inv.scope || "전체"} 의 전제가 무너졌습니다
                         </span>
                       ))}
 
-                      {card.produces.length > 0 ? (
+                      {item.produces.length > 0 ? (
                         <span className="risk-tl-produces">
                           ↳ 파생 {item.produces.map((p) => p.form).join(" · ")}
                         </span>

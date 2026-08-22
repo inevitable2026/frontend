@@ -1,5 +1,6 @@
 import {
   WORK_ITEM_STATUS_ORDER,
+  type DraftEdit,
   type ItemPatch,
   type WorkItem,
   type WorkItemOrigin,
@@ -17,6 +18,7 @@ export type TransitionErrorCode =
   | "invalidConfirmedBy"
   | "rejectReasonRequired"
   | "confirmedByRequired"
+  | "invalidEdits"
   | "notDelegable"
   | "alreadyConfirmed"
   | "confirmedLocked"
@@ -56,6 +58,11 @@ export type TransitionPlan = {
   nextOrigin: WorkItemOrigin;
   nextConfirmedBy: string | null;
   nextConfirmedAt: string | null;
+  /**
+   * 초안 대비 수정분. 확정(kind === "confirm")일 때만 채워진다.
+   * 라우트가 이 값을 'edited' 이력 한 줄로 옮긴다.
+   */
+  edits: DraftEdit[];
 };
 
 export type TransitionInput = {
@@ -64,6 +71,7 @@ export type TransitionInput = {
   rejectReason?: unknown;
   laneOrder?: unknown;
   assignee?: unknown;
+  edits?: unknown;
 };
 
 export type TransitionContext = {
@@ -159,6 +167,10 @@ export function planTransition(
     confirmedBy = input.confirmedBy.trim();
   }
 
+  // 수정분은 확정에만 실린다. 이동이나 기각에 실려 오면 조용히 버리지 않고 되돌려 보낸다 —
+  // 버리면 화면은 고친 값이 남았다고 믿고 이력에는 아무것도 없는 상태가 된다.
+  const edits = 수정분읽기(input.edits);
+
   let rejectReason: string | null = null;
   if (input.rejectReason !== undefined && input.rejectReason !== null) {
     if (typeof input.rejectReason !== "string") {
@@ -212,6 +224,14 @@ export function planTransition(
   else if (to === "done") kind = confirmedBy ? "confirm" : "move";
   else kind = "move";
 
+  if (edits.length > 0 && kind !== "confirm") {
+    throw new TransitionError(
+      "invalidEdits",
+      400,
+      "초안 수정분은 승인 확정에만 실을 수 있습니다.",
+    );
+  }
+
   const nextOrigin = nextOriginFor(from, to, item.origin);
   const nextConfirmedBy = kind === "confirm" ? confirmedBy : null;
   const nextConfirmedAt = kind === "confirm" ? now : null;
@@ -230,5 +250,36 @@ export function planTransition(
     nextOrigin,
     nextConfirmedBy,
     nextConfirmedAt,
+    edits,
   };
+}
+
+/**
+ * 초안 수정분을 읽는다. 세 칸이 모두 문자열인 항목만 받는다.
+ * 모양이 틀린 값을 통과시키면 이력에 읽을 수 없는 줄이 쌓이고, 나중에 무엇을 고쳤는지
+ * 되짚을 수 없게 된다.
+ */
+function 수정분읽기(value: unknown): DraftEdit[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new TransitionError("invalidEdits", 400, "edits 는 배열이어야 합니다.");
+  }
+
+  return value.map((entry) => {
+    const 후보 = entry as Partial<DraftEdit> | null;
+    if (
+      !후보 ||
+      typeof 후보.path !== "string" ||
+      !후보.path.trim() ||
+      typeof 후보.before !== "string" ||
+      typeof 후보.after !== "string"
+    ) {
+      throw new TransitionError(
+        "invalidEdits",
+        400,
+        "edits 의 각 항목은 path · before · after 를 문자열로 가져야 합니다.",
+      );
+    }
+    return { path: 후보.path.trim(), before: 후보.before, after: 후보.after };
+  });
 }

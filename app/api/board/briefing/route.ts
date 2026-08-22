@@ -1,9 +1,14 @@
 import { buildBriefing, kstIsoOf, kstNowIso } from "@/lib/board/briefing";
+import { 브리핑문단 } from "@/lib/board/briefing-narrative";
 import { BOARD_STORE_ERROR_STATUS, boardStore, isBoardStoreError } from "@/lib/board/store";
+import { db } from "@/lib/context/db";
 import { triggerRules } from "@/lib/detect/rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// 캐시가 빗나간 첫 요청만 모델을 부른다. 그 한 번이 기본 상한에 걸리지 않게 열어 둔다.
+export const maxDuration = 120;
 
 const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
 
@@ -13,6 +18,27 @@ const WINDOW_HOURS = 24;
 
 // 규칙 이름표는 규칙 자신이 들고 있다. 여기서 다시 적으면 두 곳이 갈라진다.
 const RULE_LABELS = Object.fromEntries(triggerRules.map((rule) => [rule.id, rule.label]));
+
+/**
+ * 창 안에 들어온 문서 수. 브리핑 첫 문장의 "문서 N건을 읽어" 가 이 값을 쓴다.
+ *
+ * 문서함은 보드 store 와 다른 곳(`lib/context/db`)에 있고, 보드가 JSON store 로 돌 때는
+ * 아예 없을 수도 있다. 그래서 실패는 삼키고 `undefined` 로 돌린다 — 0 으로 돌리면 브리핑이
+ * "한 건도 들어오지 않았다" 고 적어 사실과 어긋난다.
+ */
+async function 읽은문서수(siteId: string, 창시작: string, 기준: string): Promise<number | undefined> {
+  try {
+    const sql = db();
+    const [row] = await sql<Array<{ n: string }>>`
+      select count(*)::text as n from documents
+       where site_id = ${siteId} and created_at >= ${창시작} and created_at <= ${기준}
+    `;
+    const n = Number(row?.n);
+    return Number.isFinite(n) ? n : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function fail(message: string, status: number) {
   return Response.json({ error: message }, { status, headers: HEADERS });
@@ -36,9 +62,10 @@ export async function GET(req: Request) {
 
   const store = boardStore();
   try {
-    const [detections, page] = await Promise.all([
+    const [detections, page, documentCount] = await Promise.all([
       store.listDetections(siteId, 창시작),
       store.listItems({ siteId }),
+      읽은문서수(siteId, 창시작, at),
     ]);
 
     if (page.total === 0 && detections.length === 0) {
@@ -47,15 +74,20 @@ export async function GET(req: Request) {
       }
     }
 
-    // 문장은 여기서 지어내지 않는다. 조립은 lib/board/briefing.ts 한 곳에서만 한다.
-    const briefing = buildBriefing({
+    const 재료 = {
       siteId,
       at,
       windowHours: WINDOW_HOURS,
       detections,
       items: page.items,
+      documentCount,
       labels: RULE_LABELS,
-    });
+    };
+
+    // 근거 패널은 감지 시점에 저장된 서사를 그대로 쓴다. 세는 일과 조립은
+    // lib/board/briefing.ts 가 하고, 이 라우트는 문단만 따로 채워 넣는다.
+    const briefing = buildBriefing(재료);
+    briefing.paragraphs = await 브리핑문단(store, 재료, briefing.paragraphs);
 
     return Response.json({ briefing }, { headers: HEADERS });
   } catch (error) {

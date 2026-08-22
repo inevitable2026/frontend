@@ -3,7 +3,6 @@ import type {
   Detection,
   Evidence,
   FactType,
-  Produces,
   SnapshotFact,
   TriggerRule,
 } from "@/lib/board/types";
@@ -211,14 +210,6 @@ export const t06Inspection: TriggerRule = {
         })),
       ];
 
-      const produces: Produces[] = [
-        {
-          form: "점검표",
-          ...(대상문서.length > 0 ? { count: 대상문서.length } : {}),
-          for: "제출 자료 목록과 문서별 결재 완료 상태",
-        },
-      ];
-
       const 상태문장 =
         대상문서.length === 0
           ? "제출 대상 문서의 결재 상태가 아직 확인되지 않았습니다."
@@ -234,7 +225,9 @@ export const t06Inspection: TriggerRule = {
         evidence,
         // 점검 예고는 어떤 문서도 틀리게 만들지 않는다. 드러나는 것은 제출 가능 여부뿐이다.
         invalidates: [],
-        produces,
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `${기관} 점검 예고 — ${일정 || `대상 기간 ${시작} ~ ${끝}`}. ${상태문장}`,
       };
 

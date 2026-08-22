@@ -27,8 +27,10 @@ const OBSERVATION_WINDOW_HOURS = 48;
 // 한 곳에서만 정의한다. 공식 근거가 없는 현장 설정값이라 발주처 기준이 있으면 환경변수로 덮는다.
 const DEFAULT_RAIN_THRESHOLD_MM = SLOPE_INSPECTION_MM;
 
-// 기상청 격자 기준 김포 근사값. 정확한 좌표가 확정되면 환경변수로 덮는다.
-const DEFAULT_GRID = { nx: 55, ny: 128 };
+// 현장(김포시 고촌읍)의 단기예보 격자다. 고촌읍 중심 좌표(37.6021, 126.7686)를 기상청 LCC
+// 변환식에 넣으면 (56, 127) 이 나온다. 예전 기본값 (55, 128) 은 김포시청 자리라 현장에서 한
+// 칸(5km) 벗어나 있었다. 부지 좌표가 확정되면 환경변수로 덮는다.
+const DEFAULT_GRID = { nx: 56, ny: 127 };
 
 // 단기예보 발표 시각(KST). 발표 후 10분쯤 지나야 조회된다.
 const BASE_TIMES = ["2300", "2000", "1700", "1400", "1100", "0800", "0500", "0200"];
@@ -42,23 +44,37 @@ const SEED_RAIN_WINDOWS: Array<{
   시작: string;
   종료: string;
   밀리미터: number;
+  표기: string;
   출처: string;
 }> = [
   {
     시작: "2026-08-15T00:00:00+09:00",
     종료: "2026-08-17T00:00:00+09:00",
     밀리미터: 41,
+    // 화면 근거줄에 그대로 실리는 문구다. 종료가 17일 00시라 날짜를 기계적으로 잘라 쓰면
+    // 「8월 17일에도 비가 왔다」로 읽히므로 시나리오가 말한 그대로 적는다.
+    표기: "2026-08-15 ~ 2026-08-16 (주말)",
     출처: "감지 규칙 사양 T-01 — 주말 누적 41mm",
   },
 ];
 
+/**
+ * 필드 이름은 data/board/seed-facts.json 의 강우 사실과 같은 모양이다.
+ *
+ * T-01 규칙이 읽는 이름(`누적강우량mm` · `기간` · `관측소`)이 그 시드에서 나왔기 때문에,
+ * 커넥터가 자기 이름(`밀리미터` · `기간시작`)을 쓰면 실연동 값을 넣는 순간 규칙이 강우량을
+ * 읽지 못하고 조용히 발동하지 않는다. 기계가 비교에 쓰는 `기간시작` · `기간종료` 는 사람이
+ * 읽는 `기간` 과 쓰임이 달라 둘 다 남긴다.
+ */
 export type RainfallFactValue = {
   구분: "관측" | "예보";
-  밀리미터: number;
+  관측소: string;
+  기간: string;
+  누적강우량mm: number;
+  임계치mm: number;
+  초과: boolean;
   기간시작: string;
   기간종료: string;
-  임계치밀리미터: number;
-  임계치초과: boolean;
   격자: { nx: number; ny: number };
   비고: string;
   실패사유?: string;
@@ -70,6 +86,12 @@ export type PrecipitationChanceValue = {
   기간종료: string;
   격자: { nx: number; ny: number };
 };
+
+/** 근거줄에 실리는 '2026-08-22 20시' 표기. 분까지 적으면 문장이 길어지기만 한다. */
+function 사람시각(epochMs: number): string {
+  const stamp = kstStamp(new Date(epochMs));
+  return `${stamp.slice(0, 10)} ${stamp.slice(11, 13)}시`;
+}
 
 function rainThresholdMm(): number {
   const raw = Number(process.env.WEATHER_RAIN_THRESHOLD_MM);
@@ -117,11 +139,15 @@ function seedRainfall(at: Date, 실패사유?: string): RainfallFactValue {
 
   return {
     구분: "관측",
-    밀리미터,
+    관측소: "김포 고촌",
+    기간: 겹친칸.length
+      ? 겹친칸.map((칸) => 칸.표기).join(" · ")
+      : `${kstStamp(new Date(시작)).slice(0, 10)} ~ ${kstStamp(new Date(종료)).slice(0, 10)}`,
+    누적강우량mm: 밀리미터,
+    임계치mm: 임계치,
+    초과: 밀리미터 >= 임계치,
     기간시작: kstStamp(new Date(시작)),
     기간종료: kstStamp(new Date(종료)),
-    임계치밀리미터: 임계치,
-    임계치초과: 밀리미터 >= 임계치,
     격자: grid(),
     비고,
     ...(실패사유 ? { 실패사유 } : {}),
@@ -179,6 +205,15 @@ export function latestBaseSlot(at: Date): { base_date: string; base_time: string
   }
   const 전날 = kstCompact(new Date(at.getTime() - 24 * 60 * 60 * 1000));
   return { base_date: 전날.날짜, base_time: "2300" };
+}
+
+/** 발표분('20260822' · '2000')을 그 시각의 Date 로 되돌린다. */
+export function slotDate(slot: { base_date: string; base_time: string }): Date {
+  const d = slot.base_date;
+  const t = slot.base_time;
+  return new Date(
+    `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T${t.slice(0, 2)}:${t.slice(2, 4)}:00+09:00`,
+  );
 }
 
 /**
@@ -272,6 +307,7 @@ function liveRainfall(items: JsonRecord[], at: Date): {
   const 시작 = at.getTime();
   const 종료 = 시작 + FORECAST_HORIZON_HOURS * 60 * 60 * 1000;
   const 임계치 = rainThresholdMm();
+  const 격자 = grid();
 
   let 밀리미터 = 0;
   let 최대확률 = 0;
@@ -296,12 +332,16 @@ function liveRainfall(items: JsonRecord[], at: Date): {
   return {
     강우: {
       구분: "예보",
-      밀리미터,
+      관측소: `기상청 단기예보 격자 (${격자.nx}, ${격자.ny})`,
+      // 근거줄에 「관측인지 예보인지」가 드러나야 한다. 지난 주말에 실제로 내린 비와 앞으로
+      // 내릴 것으로 본 비는 담당자가 판단을 다르게 하는 값이다.
+      기간: `${사람시각(시작)} ~ ${사람시각(종료)} (앞으로 ${FORECAST_HORIZON_HOURS}시간 예보)`,
+      누적강우량mm: 밀리미터,
+      임계치mm: 임계치,
+      초과: 밀리미터 >= 임계치,
       기간시작: kstStamp(new Date(시작)),
       기간종료: kstStamp(new Date(종료)),
-      임계치밀리미터: 임계치,
-      임계치초과: 밀리미터 >= 임계치,
-      격자: grid(),
+      격자: 격자,
       비고: `기상청 단기예보 ${FORECAST_HORIZON_HOURS}시간 합계입니다. 구간값은 아래쪽 경계로 셌습니다.`,
     },
     강수확률: 강수확률있음
@@ -309,7 +349,7 @@ function liveRainfall(items: JsonRecord[], at: Date): {
           최대확률,
           기간시작: kstStamp(new Date(시작)),
           기간종료: kstStamp(new Date(종료)),
-          격자: grid(),
+          격자: 격자,
         }
       : null,
   };
@@ -342,7 +382,15 @@ async function fetchWeatherFacts(siteId: string, at: Date): Promise<SnapshotFact
     const items = await fetchVilageFcst(at);
     const slot = latestBaseSlot(at);
     const sourceDocId = `kma_vilagefcst_${slot.base_date}_${slot.base_time}`;
-    const { 강우, 강수확률 } = liveRainfall(items, at);
+
+    // 기준 시각을 호출 시각이 아니라 **발표 시각**으로 잡는다. 예보는 3시간마다 한 번
+    // 발표되므로 같은 발표분을 몇 번 불러도 값이 같아야 하는데, 호출 시각을 기준으로 두면
+    // 예보 창과 observedAt 이 초 단위로 달라져 부를 때마다 사실이 한 행씩 쌓이고 그때마다
+    // 없던 델타가 생긴다. 발표 시각으로 맞추면 (site_id, fact_type, key, observed_at) 유일
+    // 제약에 걸려 같은 발표분은 한 행으로 덮인다.
+    const 발표 = slotDate(slot);
+    const observedAtOfSlot = kstStamp(발표);
+    const { 강우, 강수확률 } = liveRainfall(items, 발표);
 
     const facts = [
       makeFact({
@@ -350,7 +398,7 @@ async function fetchWeatherFacts(siteId: string, at: Date): Promise<SnapshotFact
         factType: "weatherObservation",
         key: "누적강우",
         value: 강우,
-        observedAt,
+        observedAt: observedAtOfSlot,
         sourceDocId,
         // 예보라 관측보다 낮게 잡는다.
         confidence: 0.8,
@@ -363,7 +411,7 @@ async function fetchWeatherFacts(siteId: string, at: Date): Promise<SnapshotFact
           factType: "weatherObservation",
           key: "강수확률",
           value: 강수확률,
-          observedAt,
+          observedAt: observedAtOfSlot,
           sourceDocId,
           confidence: 0.8,
         }),

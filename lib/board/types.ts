@@ -124,11 +124,37 @@ export type RiskRowDraft = {
   derivedFrom: { evidenceIds: string[]; contextDocRefs: string[] };
 };
 
+/**
+ * 초안 여섯 서식.
+ *
+ * 회의자료의 `회의시각` 과 TBM자료의 `사용시각` · `구호` 는 화면이 채우던 값이었다.
+ * components/task-board/presentation.ts 에 "T14:00:00+09:00" 과 "T06:40:00+09:00" 이
+ * 현장 상수로 박혀 있었고, 초안의 dueBy 에 시각이 없으면 화면이 그것을 붙여 "오후 2시
+ * 협의체" 라고 적었다. 회의를 오전에 하는 현장에서도 똑같이 적었다.
+ *
+ * 그 값을 초안 자신이 들고 오게 바꾼 이유가 그것이다. 시각은 그 회의의 사실이지 화면의
+ * 문구가 아니고, 화면이 모르는 것을 지어내면 담당자는 어긋난 시각을 그대로 결재에 올린다.
+ */
 export type Draft =
   | { form: "회의록"; 제목: string; supersedes: string | null; rows: RiskRowDraft[] }
   | { form: "공문"; 수신: string; 제목: string; 본문: string; 첨부: string[] }
-  | { form: "회의자료"; 제목: string; 안건: Array<{ 번호: number; 제목: string; 문항: string[] }> }
-  | { form: "TBM자료"; 팀: string; 항목: string[]; 통역필요인원: number }
+  | {
+      form: "회의자료";
+      제목: string;
+      /** 회의 예정 시각. ISO8601 (KST) */
+      회의시각: string;
+      안건: Array<{ 번호: number; 제목: string; 문항: string[] }>;
+    }
+  | {
+      form: "TBM자료";
+      팀: string;
+      /** 이 자료를 쓰는 TBM 시각. ISO8601 (KST) */
+      사용시각: string;
+      항목: string[];
+      /** 그날 TBM 에서 함께 외는 구호 */
+      구호: string;
+      통역필요인원: number;
+    }
   | { form: "점검표"; 제목: string; 항목: Array<{ 확인: string; done: boolean }> }
   | { form: "기록"; 제목: string; 본문: string };
 
@@ -157,6 +183,22 @@ export type WorkItem = {
 };
 
 export type WorkItemEventType = "created" | "moved" | "approved" | "rejected" | "edited";
+
+/**
+ * 승인 직전에 사람이 초안에서 고친 자리.
+ *
+ * 화면의 DraftEdit 와 같은 모양이고, WorkItemEvent.diff 로 옮길 때 이름만 바뀐다
+ * (path → field · before → from · after → to). 위험도 점수는 제품이 확정하지 않고 사람이
+ * 고친 차이가 이력으로 남아야 한다는 계약이 이 타입이 있는 이유다. 받을 자리가 없으면
+ * 라우트가 알 수 없는 키를 조용히 버리고, 그 순간 카드에 적힌 "숫자를 고쳐 승인하면 그
+ * 차이가 이력으로 남습니다" 가 거짓말이 된다.
+ */
+export type DraftEdit = {
+  /** 고친 칸을 가리키는 경로. "rows[2].value" · "body" */
+  path: string;
+  before: string;
+  after: string;
+};
 
 export type WorkItemEvent = {
   eventId: string;
@@ -195,6 +237,24 @@ export type Evidence = {
   excerpt: string;
 };
 
+/**
+ * 감지 한 건을 사람 말로 옮긴 것. 언어 모델이 감지 시점에 한 번 쓰고 그대로 저장된다.
+ *
+ * 무효화 칸이 여기 없는 것은 빠뜨린 것이 아니다. 그 칸은 `docId — scope` 라는 좌표이고
+ * 규칙이 이미 정확히 짚어 두었으므로, 다시 쓰게 하면 문서 이름이 흔들린다.
+ *
+ * 생성에 실패하면 null 로 남고, 브리핑은 lib/board/briefing-fallback.ts 의 템플릿
+ * 조립으로 되돌아간다. 문장을 못 쓴 것이지 감지를 못 한 것이 아니기 때문이다.
+ */
+export type DetectionNarrative = {
+  headline: string;
+  관측: string[];
+  대조: string[];
+  판단: string[];
+  만든것: string[];
+  불확실성: string[];
+};
+
 export type Detection = {
   ruleId: RuleId;
   siteId: string;
@@ -202,8 +262,17 @@ export type Detection = {
   confidence: number;
   evidence: Evidence[];
   invalidates: Invalidation[];
+  /**
+   * 이 조건이 만들어 낼 산출물.
+   *
+   * 규칙은 이 배열을 채우지 않는다 — 무엇을 만들지는 현장과 상황에 따라 달라지므로
+   * lib/generate/cards.ts 가 카드 계획과 함께 정하고, 엔진이 그 결과를 여기 모아 둔다.
+   * 규칙이 내는 Detection 에서는 언제나 빈 배열이다.
+   */
   produces: Produces[];
   summary: string;
+  /** 감지 시점에 생성된 문장. 아직 만들지 않았거나 생성에 실패했으면 null */
+  narrative?: DetectionNarrative | null;
 };
 
 export type DetectLookup = {
@@ -279,6 +348,14 @@ export type Briefing = {
   conditionCount: number;
   createdCount: number;
   draftedCount: number;
+  /**
+   * 창 안의 새 카드 가운데 사람 확인이 필요한 건수.
+   *
+   * 머리글 문장과 화면의 계량 칸이 같은 값을 말해야 해서 여기 한 번만 센다. 예전에는 화면이
+   * 카드 목록에서 다시 셌는데 세는 기준이 서로 달라, 같은 패널에서 머리글이 6건이라고 적고
+   * 바로 아래 계량 칸이 5 를 그렸다.
+   */
+  confirmationCount: number;
   paragraphs: string[];
   entries: BriefingEntry[];
 };
@@ -318,4 +395,18 @@ export type BoardStore = {
   latestSnapshotAt(siteId: string): Promise<string | null>;
   appendDetections(run: DetectionRun): Promise<void>;
   listDetections(siteId: string, since?: string): Promise<Detection[]>;
+  /**
+   * 브리핑 문단 캐시를 읽는다. 없으면 null 이다.
+   *
+   * 열쇠는 창 안 감지들의 서명과 카드 수를 이어 해싱한 값이고 시각이 들어가지 않는다.
+   * 자세한 사정은 docs/migration-board.sql 의 [8] 블록에 적혀 있다.
+   */
+  readBriefingNarrative(cacheKey: string): Promise<string[] | null>;
+  writeBriefingNarrative(cacheKey: string, siteId: string, paragraphs: string[]): Promise<void>;
+  /**
+   * 초안 대비 수정분을 'edited' 이력 한 줄로 남긴다. 확정 직전에만 불린다.
+   * docs/migration-board.sql 이 work_item_events 의 type 체크에 'edited' 를 미리 넣어 둔
+   * 자리가 여기다.
+   */
+  recordDraftEdits(itemId: string, actor: string, edits: DraftEdit[]): Promise<void>;
 };

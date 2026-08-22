@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import { 카드로 } from "@/components/task-board/adapt";
 import type { RiskRowDraft, WorkItem } from "@/lib/board/types";
 
 /**
@@ -64,7 +63,6 @@ export default function RiskWorkspace({
   const [승인된행, set승인된행] = useState<Set<string>>(new Set());
   const [보류행, set보류행] = useState<Set<string>>(new Set());
 
-  const card = 카드로(item);
   const draft = item.draft;
   const rows: RiskRowDraft[] = draft?.form === "회의록" ? draft.rows : [];
 
@@ -94,20 +92,20 @@ export default function RiskWorkspace({
       </header>
 
       {/* 왜 이 평가가 열렸는지. 규칙이 만든 문구를 그대로 보인다. */}
-      {card.rationale === null ? null : (
+      {item.trigger === null ? null : (
         <p className="board-card-why risk-ws-why">
-          <b>{card.rationale.label}</b> · {card.rationale.text}
+          <b>{item.trigger.ruleId}</b> · {item.trigger.condition}
           {item.trigger?.requiresHumanConfirmation ? (
             <em> · 기계 판단만으로 확정할 수 없어 사람 확인이 필요합니다.</em>
           ) : null}
         </p>
       )}
 
-      {card.invalidates.length > 0 ? (
+      {item.invalidates.length > 0 ? (
         <ul className="risk-ws-invalidates">
-          {card.invalidates.map((inv) => (
-            <li key={`${inv.docId}-${inv.scope ?? "all"}`}>
-              <b>{inv.docId}</b> {inv.scope ?? "전체"} — {inv.reason}
+          {item.invalidates.map((inv) => (
+            <li key={`${inv.docId}-${inv.scope}`}>
+              <b>{inv.docId}</b> {inv.scope || "전체"} — {inv.reason}
             </li>
           ))}
         </ul>

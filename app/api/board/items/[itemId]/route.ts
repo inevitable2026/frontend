@@ -58,6 +58,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ itemId: strin
         ? await store.rejectItem(itemId, plan.rejectReason, plan.actor ?? "user")
         : await store.moveItem(itemId, plan.patch);
 
+    // 확정과 함께 올라온 초안 수정분을 'edited' 이력 한 줄로 남긴다. 확정 이력과 별개로
+    // 적는 이유는 무엇을 고쳤는지가 나중에 방어 근거가 되기 때문이고, 카드에 적힌
+    // "숫자를 고쳐 승인하면 그 차이가 이력으로 남습니다" 가 이 한 줄로 참이 된다.
+    if (plan.edits.length > 0) {
+      await store.recordDraftEdits(itemId, plan.actor ?? "user", plan.edits);
+    }
+
     return Response.json({ item: updated }, { headers: HEADERS });
   } catch (error) {
     if (isBoardStoreError(error)) return fail(error.message, BOARD_STORE_ERROR_STATUS[error.code]);

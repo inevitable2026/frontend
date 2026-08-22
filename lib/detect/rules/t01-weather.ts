@@ -1,4 +1,4 @@
-import type { Detection, Evidence, Invalidation, Produces, SnapshotFact, TriggerRule } from "@/lib/board/types";
+import type { Detection, Evidence, Invalidation, SnapshotFact, TriggerRule } from "@/lib/board/types";
 import {
   latestFacts,
   readNumber,
@@ -40,7 +40,9 @@ function readWeather(value: unknown): WeatherObservation | null {
   return {
     누적강우량mm,
     관측기간: readString(value, "관측기간", "기간"),
-    관측지점: readString(value, "관측지점", "지점"),
+    // 시드 사실과 커넥터가 관측 지점을 `관측소` 로 적는다. 이름을 하나만 보면 실연동 값의
+    // 지점이 통째로 비어 버린다.
+    관측지점: readString(value, "관측지점", "지점", "관측소"),
   };
 }
 
@@ -170,14 +172,6 @@ export const t01Weather: TriggerRule = {
         reason: `${rainText} 뒤에도 등재된 대책이 그대로 유효한지가 확인되지 않았습니다.`,
       }));
 
-      const produces: Produces[] = [
-        { form: "기록", for: `강우 뒤 대책 유효성 확인 — ${labels.join(" · ")}`, count: rows.length },
-      ];
-      // 법면이 걸려 있으면 추락방지 조치를 따로 확인한다.
-      if (labels.some((label) => label.includes("법면") || label.includes("사면"))) {
-        produces.push({ form: "기록", for: "법면 구간 추락방지 휀스 설치 여부 확인" });
-      }
-
       detections.push({
         ruleId: "T-01",
         siteId: input.siteId,
@@ -187,7 +181,9 @@ export const t01Weather: TriggerRule = {
         confidence: 0.9,
         evidence,
         invalidates,
-        produces,
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `${rainText} 뒤에 ${labels.join(" · ")} 작업이 오늘 예정되어 있어, 등재된 대책이 그대로 유효한지 확인해야 합니다.`,
       });
     }

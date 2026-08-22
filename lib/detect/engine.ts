@@ -1,10 +1,10 @@
 import type {
   Detection,
+  DetectionNarrative,
   DetectInput,
   DetectLookup,
   DetectionRun,
   Draft,
-  DraftForm,
   FactDelta,
   FactType,
   Invalidation,
@@ -199,58 +199,18 @@ export function detectionSignature(detection: Detection): string {
 // 감지를 카드로 옮기기
 //
 // produces 의 항목 수만큼 카드가 생기는 것이 아니다. 하나의 감지가 여러 카드를 만들고
-// 그 카드들은 같은 trigger 를 공유한다. 어느 열로 가는지는 사람이 무엇을 해야 하는지가
-// 정한다 — 몸을 움직여야 하면 todo, 문서 초안이면 approval, 판단이 필요 없는 자동
-// 처리면 done 이다.
-
-const FORM_LANE: Record<DraftForm, WorkItemStatus> = {
-  회의록: "approval",
-  공문: "approval",
-  회의자료: "approval",
-  TBM자료: "approval",
-  점검표: "approval",
-  // 기록은 현장에서 확인하고 적는 것이라 초안을 미리 만들 수 없다.
-  기록: "todo",
-};
-
-const FORM_SLUG: Record<DraftForm, string> = {
-  회의록: "minutes",
-  공문: "letter",
-  회의자료: "agenda",
-  TBM자료: "tbm",
-  점검표: "checklist",
-  기록: "record",
-};
-
-type DueContext = { 당일: string; 익일: string };
-
-const FORM_DUE: Record<DraftForm, (ctx: DueContext) => string | null> = {
-  // 회의록의 기한은 결재 일정이 정하므로 감지가 임의로 못 박지 않는다.
-  회의록: () => null,
-  공문: (ctx) => `${ctx.당일} 중 발송`,
-  회의자료: (ctx) => `${ctx.당일} 회의 전`,
-  TBM자료: (ctx) => `${ctx.익일}T06:40:00+09:00`,
-  점검표: (ctx) => `${ctx.당일} 작업 착수 전`,
-  기록: (ctx) => `${ctx.당일} 작업 착수 전`,
-};
-
-type RuleShaping = {
-  timing?: WorkItemTiming;
-  // 규칙 사양이 준 예상 소요. 감지 한 건 전체의 값이라 대표 카드 한 장에만 붙인다.
-  estimatedMinutes?: number;
-  dueBy?: (ctx: DueContext, form: DraftForm) => string | null;
-};
-
-const RULE_SHAPING = new Map<RuleId, RuleShaping>([
-  ["T-01", { estimatedMinutes: 60, dueBy: (ctx) => `${ctx.당일} 작업 착수 전` }],
-  ["T-02", { estimatedMinutes: 40, dueBy: (ctx) => `${ctx.익일} 작업 전 (익일 TBM 06:40 이전)` }],
-  ["T-03", { estimatedMinutes: 240 }],
-  ["T-04", { estimatedMinutes: 180 }],
-  ["T-05", { estimatedMinutes: 210, dueBy: (ctx) => `${ctx.익일} TBM 전파 전` }],
-  ["T-06", { estimatedMinutes: 90 }],
-  ["T-07", { estimatedMinutes: 120 }],
-  ["T-08", { estimatedMinutes: 15 }],
-]);
+// 그 카드들은 같은 trigger 를 공유한다.
+//
+// **어느 카드를 몇 장 만들지, 어느 열에 놓을지, 기한을 언제로 잡을지는 이 파일이 정하지
+// 않는다.** 예전에는 FORM_LANE · FORM_SLUG · FORM_DUE · RULE_SHAPING 네 개의 표가 그것을
+// 정했고, 그래서 자재가 바뀌면 현장이 어디든 언제나 같은 카드 다섯 장이 같은 기한으로
+// 떴다. 지금은 lib/generate/cards.ts 가 근거를 읽고 정하며, 이 파일은 그 계획을 받아
+// WorkItem 으로 옮기는 일만 한다.
+//
+// 옮기는 과정에서 이 파일이 지키는 것은 셋뿐이고, 전부 안전과 식별자에 관한 것이다.
+//   1. itemId 는 (규칙 · 카드 key · 근거 서명)으로 결정한다 — 재실행이 안전해야 한다
+//   2. 위험도 판정이 걸린 카드는 위임할 수 없다 — 모델이 뭐라 하든 잠근다
+//   3. done 이 아닌 카드는 사람 확인이 필요하다 — 모델이 자기 산출물을 면제하지 못한다
 
 export type CardBlueprint = {
   // 감지 안에서 고유한 이름. itemId 를 만드는 재료이고 blockedBy 를 잇는 고리다.
@@ -267,113 +227,20 @@ export type CardBlueprint = {
   blockedByKeys: string[];
 };
 
-function produceTitle(produce: Produces): string {
-  // 규칙은 카드 제목을 Produces.for 에 담는다. 없으면 서식으로 최소한의 이름을 짓는다.
-  if (produce.for) return produce.for;
-  switch (produce.form) {
-    case "회의록":
-      return produce.count ? `위험성평가 회의록 ${produce.count}행 초안` : "위험성평가 회의록 초안";
-    case "공문":
-      return produce.to ? `${produce.to} 앞 공문 초안` : "공문 초안";
-    case "회의자료":
-      return "협의체 안건 자료";
-    case "TBM자료":
-      return produce.teams?.length ? `TBM 자료 ${produce.teams.length}건` : "TBM 자료";
-    case "점검표":
-      return "작업 전 점검표";
-    default:
-      return "확인 기록";
-  }
-}
-
-// 위험도 판정이 걸린 감지는 그 감지가 만든 카드 전부를 위임할 수 없다. 숫자를 매기는
-// 책임이 안전관리자에게 있기 때문이다.
-function involvesRiskJudgement(detection: Detection): boolean {
-  if (detection.produces.some((produce) => produce.form === "회의록")) return true;
+/**
+ * 위험도 판정이 걸린 감지인지 본다.
+ *
+ * 걸려 있으면 그 감지가 만든 카드 **전부** 를 위임할 수 없다. 숫자를 매기는 책임이
+ * 안전관리자에게 있기 때문이다. 모델이 계획에서 delegable 을 true 로 냈더라도 여기서
+ * 잠근다 — 안전한 쪽으로만 덮으므로, 모델이 이미 false 로 낸 것을 풀어 주지는 않는다.
+ *
+ * produces 를 보는 자리가 모델 산출 뒤로 옮겨졌다. 예전에는 규칙이 채운 배열을 봤지만
+ * 이제 그 배열도 계획에서 오므로, 판정 시점이 카드를 다 받은 뒤여야 한다.
+ */
+export function involvesRiskJudgement(detection: Detection, produces: Produces[]): boolean {
+  if (produces.some((produce) => produce.form === "회의록")) return true;
   const text = detection.invalidates.map((item) => `${item.scope} ${item.reason}`).join(" ");
   return /위험도|위험성평가|위험성 평가/.test(text);
-}
-
-export type PlanCardsOptions = {
-  // 근거 문서를 파싱해 등록하는 단계는 사람의 판단이 필요 없어 done 으로 들어온다.
-  includeAutoCards?: boolean;
-  // 기한을 세는 기준 날. 감지 시각과 보드 날짜는 다르다 — 조건은 어제 저녁에 감지되고
-  // 사람이 그 카드를 보는 날은 오늘이다. 기한은 사람이 손을 대는 날을 기준으로 센다.
-  now?: string;
-};
-
-export function planCards(detection: Detection, options: PlanCardsOptions = {}): CardBlueprint[] {
-  const base = options.now ?? detection.detectedAt;
-  const 당일 = dayKey(base);
-  const 익일 = shiftDay(base, 1);
-  const shaping = RULE_SHAPING.get(detection.ruleId) ?? {};
-  const locked = involvesRiskJudgement(detection);
-  const cards: CardBlueprint[] = [];
-
-  if (options.includeAutoCards !== false) {
-    const extracted = detection.evidence.filter((item) => item.factType === "documentExtraction");
-    if (extracted.length > 0) {
-      const docs = [...new Set(extracted.map((item) => item.sourceDocId ?? item.key))];
-      cards.push({
-        key: "intake",
-        title: "근거 문서 파싱과 등록",
-        status: "done",
-        summary: `사람의 판단이 필요 없는 단계입니다. ${docs.join(" · ")} 를 읽어 근거로 등록했습니다.`,
-        produces: [],
-        invalidates: [],
-        draft: null,
-        dueBy: null,
-        estimatedMinutes: null,
-        delegable: false,
-        blockedByKeys: [],
-      });
-    }
-  }
-
-  const used = new Map<string, number>();
-  const primaryIndex = cards.length;
-
-  detection.produces.forEach((produce) => {
-    const slug = FORM_SLUG[produce.form] ?? "record";
-    const seq = (used.get(slug) ?? 0) + 1;
-    used.set(slug, seq);
-
-    const status = FORM_LANE[produce.form] ?? "todo";
-    const dueBy =
-      shaping.dueBy?.({ 당일, 익일 }, produce.form) ?? FORM_DUE[produce.form]({ 당일, 익일 });
-
-    cards.push({
-      key: seq === 1 ? slug : `${slug}${seq}`,
-      title: produceTitle(produce),
-      status,
-      summary: detection.summary,
-      produces: [produce],
-      invalidates: [],
-      draft: null,
-      dueBy,
-      estimatedMinutes: null,
-      delegable: !locked,
-      blockedByKeys: [],
-    });
-  });
-
-  const primary = cards[primaryIndex];
-  if (primary) {
-    // 무효화와 예상 소요는 감지 한 건의 성질이라 대표 카드 한 장이 들고 간다.
-    primary.invalidates = detection.invalidates;
-    primary.estimatedMinutes = shaping.estimatedMinutes ?? null;
-  }
-
-  // TBM 자료는 회의록이 먼저 확정되어야 내용이 정해진다.
-  const minutes = cards.filter((card) => card.produces.some((p) => p.form === "회의록"));
-  if (minutes.length > 0) {
-    for (const card of cards) {
-      if (!card.produces.some((p) => p.form === "TBM자료")) continue;
-      card.blockedByKeys = minutes.map((item) => item.key);
-    }
-  }
-
-  return cards;
 }
 
 function hash32(text: string): string {
@@ -389,18 +256,18 @@ function ruleSlug(ruleId: RuleId): string {
   return ruleId.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export type ToWorkItemsOptions = PlanCardsOptions & {
+export type ToWorkItemsOptions = {
+  /** 무엇을 만들지 정해 둔 계획. lib/generate/cards.ts 가 만든다 */
+  plan: CardBlueprint[];
   // 카드가 만들어진 시각. 없으면 감지 시각을 쓴다.
   now?: string;
   assignee?: string | null;
   laneStart?: number;
   laneStep?: number;
-  // 기본 계획 대신 직접 짠 계획을 쓸 때.
-  plan?: CardBlueprint[];
 };
 
-export function toWorkItems(detection: Detection, options: ToWorkItemsOptions = {}): WorkItem[] {
-  const cards = options.plan ?? planCards(detection, options);
+export function toWorkItems(detection: Detection, options: ToWorkItemsOptions): WorkItem[] {
+  const cards = options.plan;
   if (cards.length === 0) return [];
 
   const stamp = options.now ?? detection.detectedAt;
@@ -431,7 +298,7 @@ export function toWorkItems(detection: Detection, options: ToWorkItemsOptions = 
     return {
       itemId: idOf(card.key),
       siteId: detection.siteId,
-      timing: RULE_SHAPING.get(detection.ruleId)?.timing ?? timingOf(detection.ruleId),
+      timing: timingOf(detection.ruleId),
       status: card.status,
       origin: "machine",
       title: card.title,
@@ -460,17 +327,37 @@ function timingOf(ruleId: RuleId): WorkItemTiming {
 
 // 한 번 돌리기
 
+/**
+ * 감지 하나를 사람이 읽을 것과 할 것으로 옮기는 함수.
+ *
+ * 이 파일은 모델을 직접 부르지 않는다. 부르는 쪽을 주입받는 이유는 두 가지다. 첫째로
+ * 규칙 실행과 문장 생성은 실패하는 방식이 전혀 다르다 — 규칙은 사실이 없으면 조용히
+ * 판단을 유보하지만 생성은 네트워크와 사용량 제한에 걸린다. 둘째로 이 파일이
+ * lib/generate 를 알게 되면 감지 로직을 모델 없이 돌려 볼 방법이 사라진다.
+ *
+ * null 을 돌려주면 "만들지 못했다" 는 뜻이다. 빈 계획과 구별해야 한다 — 빈 계획은
+ * "할 일이 없다" 이고 그 둘은 담당자에게 전혀 다른 상황이다.
+ */
+export type DetectionGenerator = (detection: Detection) => Promise<{
+  cards: CardBlueprint[];
+  /** 이 감지가 만들어 낼 산출물 전부. 카드마다 흩어진 produces 를 모은 것이다 */
+  produces: Produces[];
+  /** 감지를 사람 말로 옮긴 문장. 문장 생성만 실패했으면 null 이고 카드는 그대로 산다 */
+  narrative: DetectionNarrative | null;
+} | null>;
+
 export type DetectRunOptions = {
   siteId: string;
   now: string;
   facts: SnapshotFact[];
   rules: TriggerRule[];
+  /** 감지를 카드와 문장으로 옮기는 쪽. 없으면 감지만 하고 카드는 만들지 않는다 */
+  generate?: DetectionGenerator;
   // 없으면 facts 에서 직접 계산한다.
   deltas?: FactDelta[];
   previousDetections?: Detection[];
   runId?: string;
   assignee?: string | null;
-  includeAutoCards?: boolean;
 };
 
 function runIdOf(now: string): string {
@@ -479,7 +366,34 @@ function runIdOf(now: string): string {
   return `run_${matched[1]}${matched[2]}${matched[3]}_${matched[4]}${matched[5]}`;
 }
 
-export function runDetect(options: DetectRunOptions): DetectionRun {
+export type DetectRunResult = DetectionRun & {
+  /**
+   * 카드를 만들지 못한 감지의 요약. 비어 있으면 전부 성공한 것이다.
+   *
+   * 실패를 감추지 않는 이유는 이 경로가 안전관리 기록을 만들기 때문이다. 조건은 감지됐는데
+   * 카드가 없으면 담당자는 "할 일이 없다" 고 읽는다. 그것이 사실이 아니라면 화면이
+   * 거짓말을 한 것이므로, 라우트가 그 사실을 응답에 실어 보낼 수 있어야 한다.
+   */
+  generationFailures: Array<{ ruleId: RuleId; summary: string; reason: string }>;
+};
+
+/**
+ * 이미 카드를 만들어 둔 감지인지 본다.
+ *
+ * 서명이 같고 서사가 있으면 지난번에 끝까지 성공한 것이다. 서명만 같고 서사가 없으면
+ * 그때 생성이 중간에 엎어진 것이므로 다시 시도한다. itemId 가 서명에서 나오므로 다시
+ * 만들어도 같은 카드를 덮어쓸 뿐 두 장이 되지 않는다.
+ */
+function 이미만든것(previous: Detection[] | undefined): Map<string, Detection> {
+  const 완료 = new Map<string, Detection>();
+  for (const detection of previous ?? []) {
+    if (!detection.narrative) continue;
+    완료.set(detectionSignature(detection), detection);
+  }
+  return 완료;
+}
+
+export async function runDetect(options: DetectRunOptions): Promise<DetectRunResult> {
   const facts = options.facts.filter((fact) => fact.siteId === options.siteId);
   const deltas = options.deltas ?? computeDeltas(facts, { siteId: options.siteId });
 
@@ -492,13 +406,65 @@ export function runDetect(options: DetectRunOptions): DetectionRun {
     previousDetections: options.previousDetections,
   });
 
+  const 완료 = 이미만든것(options.previousDetections);
   const created: WorkItem[] = [];
   const seen = new Set<string>();
+  const generationFailures: DetectRunResult["generationFailures"] = [];
+  const 최종: Detection[] = [];
+
   for (const detection of detections) {
-    for (const item of toWorkItems(detection, {
+    const 서명 = detectionSignature(detection);
+
+    // 지난번에 끝까지 성공한 조건은 다시 만들지 않는다. 모델을 부르지 않는 것이 값을
+    // 아끼려는 것만은 아니다 — 같은 조건의 문장이 볼 때마다 달라지면 담당자는 브리핑이
+    // 어제와 무엇이 달라졌는지를 문장으로 읽을 수 없게 된다.
+    const 지난것 = 완료.get(서명);
+    if (지난것) {
+      최종.push({ ...detection, produces: 지난것.produces, narrative: 지난것.narrative });
+      continue;
+    }
+
+    if (!options.generate) {
+      최종.push(detection);
+      continue;
+    }
+
+    let 결과: Awaited<ReturnType<DetectionGenerator>>;
+    try {
+      결과 = await options.generate(detection);
+    } catch (error) {
+      결과 = null;
+      generationFailures.push({
+        ruleId: detection.ruleId,
+        summary: detection.summary,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (!결과) {
+      if (generationFailures.every((f) => f.summary !== detection.summary)) {
+        generationFailures.push({
+          ruleId: detection.ruleId,
+          summary: detection.summary,
+          reason: "생성이 아무것도 돌려주지 않았습니다.",
+        });
+      }
+      // 카드 없이 감지만 남긴다. 다음 실행이 다시 시도한다.
+      최종.push(detection);
+      continue;
+    }
+
+    const 채운감지: Detection = {
+      ...detection,
+      produces: 결과.produces,
+      narrative: 결과.narrative,
+    };
+    최종.push(채운감지);
+
+    for (const item of toWorkItems(채운감지, {
+      plan: 결과.cards,
       now: options.now,
       assignee: options.assignee ?? null,
-      includeAutoCards: options.includeAutoCards,
     })) {
       if (seen.has(item.itemId)) continue;
       seen.add(item.itemId);
@@ -510,7 +476,8 @@ export function runDetect(options: DetectRunOptions): DetectionRun {
     runId: options.runId ?? runIdOf(options.now),
     siteId: options.siteId,
     startedAt: options.now,
-    detections,
+    detections: 최종,
     created,
+    generationFailures,
   };
 }

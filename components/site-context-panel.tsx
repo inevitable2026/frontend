@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DocumentViewer } from "@/components/document-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
+import type { MailThread } from "@/lib/context/mail-threads";
 import {
   DOCUMENT_KINDS,
   STAGE_ORDER,
@@ -45,6 +47,24 @@ function seconds(ms: number | null): string {
   return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}초`;
 }
 
+function mailStamp(iso: string): string {
+  const at = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getMonth() + 1}월 ${at.getDate()}일 ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
+const THREAD_STATE_SLUG: Record<MailThread["상태"], string> = {
+  "맥락 반영됨": "applied",
+  "검토 대기": "pending",
+  보류: "held",
+};
+
+const ATTACH_STATE_SLUG: Record<MailThread["messages"][number]["첨부"][number]["상태"], string> = {
+  적재됨: "stored",
+  적재대기: "queued",
+  제외: "skipped",
+};
+
 function emptyStages(): IngestStage[] {
   return STAGE_ORDER.map((name) => ({ 이름: name, 상태: "대기", 시작: null, 소요ms: null }));
 }
@@ -70,6 +90,9 @@ export function SiteContextPanel() {
   const [saving, setSaving] = useState(false);
   const [ranAsDemo, setRanAsDemo] = useState(false);
   const [activeRegion, setActiveRegion] = useState<number | null>(null);
+  const [openedDocument, setOpenedDocument] = useState<string | null>(null);
+  const [mailThreads, setMailThreads] = useState<MailThread[]>([]);
+  const [openedThread, setOpenedThread] = useState<string | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -114,6 +137,22 @@ export function SiteContextPanel() {
       cancelled = true;
     };
   }, [siteFilter, kindFilter]);
+
+  // 메일함은 아직 목업이라 종류 필터와 무관하게 현장만 따진다. 문서함과 같은 방식으로
+  // 라우트에서 받아 두면 커넥터가 붙을 때 화면을 고치지 않아도 된다.
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (siteFilter) params.set("siteId", siteFilter);
+    void (async () => {
+      const res = await fetch(`/api/context/mail?${params}`);
+      if (cancelled || !res.ok) return;
+      setMailThreads((await res.json()).threads ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [siteFilter]);
 
   useEffect(
     () => () => {
@@ -384,6 +423,108 @@ export function SiteContextPanel() {
 
       {message ? <p className="context-message">{message}</p> : null}
 
+      {kindFilter === "" || kindFilter === "메일" ? (
+        <section className="context-mail">
+          <header>
+            <h2>메일함</h2>
+            <span className="mail-badge">목업 — 메일 서버 커넥터는 아직 붙지 않았습니다</span>
+          </header>
+
+          {mailThreads.length === 0 ? (
+            <p className="context-empty">이 현장으로 분류된 메일 스레드가 없습니다.</p>
+          ) : (
+            <ul className="mail-list">
+              {mailThreads.map((thread) => {
+                const open = openedThread === thread.id;
+                const attachmentCount = thread.messages.reduce((n, m) => n + m.첨부.length, 0);
+                return (
+                  <li key={thread.id} className={`mail-thread${open ? " is-open" : ""}`}>
+                    <button
+                      type="button"
+                      className="mail-thread-head"
+                      aria-expanded={open}
+                      onClick={() => setOpenedThread(open ? null : thread.id)}
+                    >
+                      <span className="mail-subject">
+                        {thread.안읽음 ? <span className="mail-dot" aria-label="안 읽음" /> : null}
+                        {thread.제목}
+                      </span>
+                      <span className="mail-meta">
+                        <span className={`mail-state mail-state--${THREAD_STATE_SLUG[thread.상태]}`}>
+                          {thread.상태}
+                        </span>
+                        <span>{thread.siteName}</span>
+                        <span>메일 {thread.messages.length}통</span>
+                        {attachmentCount > 0 ? <span>첨부 {attachmentCount}개</span> : null}
+                        <span>{mailStamp(thread.마지막수신)}</span>
+                      </span>
+                    </button>
+
+                    {open ? (
+                      <div className="mail-thread-body">
+                        <p className="context-note">{thread.판정메모}</p>
+
+                        <ol className="mail-messages">
+                          {thread.messages.map((m) => (
+                            <li key={m.id} className="mail-message">
+                              <p className="mail-message-head">
+                                <span className="mail-from">{m.발신자.이름}</span>
+                                <span className="mail-address">{m.발신자.주소}</span>
+                                <span className="mail-time">{mailStamp(m.보낸시각)}</span>
+                              </p>
+                              <p className="mail-recipients">
+                                받는 사람 {m.수신.join(", ")}
+                                {m.참조.length > 0 ? ` · 참조 ${m.참조.join(", ")}` : ""}
+                              </p>
+                              <p className="mail-body">{m.본문}</p>
+                              {m.첨부.length > 0 ? (
+                                <ul className="mail-attachments">
+                                  {m.첨부.map((a) => (
+                                    <li key={a.id}>
+                                      <span className="mail-file">{a.이름}</span>
+                                      <span className="mail-file-meta">
+                                        {a.쪽수}쪽 · {a.종류}
+                                      </span>
+                                      <span
+                                        className={`mail-attach mail-attach--${ATTACH_STATE_SLUG[a.상태]}`}
+                                      >
+                                        {a.상태}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+
+                        {thread.추출 ? (
+                          <div className="mail-extracted">
+                            <h3>읽어낸 값</h3>
+                            <dl>
+                              {Object.entries(thread.추출)
+                                .filter(([, value]) =>
+                                  Array.isArray(value) ? value.length > 0 : Boolean(value),
+                                )
+                                .map(([key, value]) => (
+                                  <div key={key}>
+                                    <dt>{key}</dt>
+                                    <dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd>
+                                  </div>
+                                ))}
+                            </dl>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
       <section className="context-library">
         <header>
           <h2>문서함</h2>
@@ -418,6 +559,7 @@ export function SiteContextPanel() {
                 <th>제목</th>
                 <th>쪽</th>
                 <th>청크</th>
+                <th>원본</th>
               </tr>
             </thead>
             <tbody>
@@ -425,15 +567,40 @@ export function SiteContextPanel() {
                 <tr key={doc.id}>
                   <td>{doc.site_name}</td>
                   <td>{doc.kind}</td>
-                  <td>{doc.title}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="context-doc-title"
+                      onClick={() => setOpenedDocument(doc.id)}
+                    >
+                      {doc.title}
+                    </button>
+                  </td>
                   <td>{doc.page_count ?? "-"}</td>
                   <td>{doc.chunk_count}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="context-doc-open"
+                      onClick={() => setOpenedDocument(doc.id)}
+                    >
+                      열기
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
+
+      {openedDocument ? (
+        <DocumentViewer
+          key={openedDocument}
+          documentId={openedDocument}
+          onClose={() => setOpenedDocument(null)}
+        />
+      ) : null}
     </div>
   );
 }

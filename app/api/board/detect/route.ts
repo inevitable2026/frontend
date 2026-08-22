@@ -1,12 +1,16 @@
 import { kstIsoOf, kstNowIso } from "@/lib/board/briefing";
 import { BOARD_STORE_ERROR_STATUS, boardStore, isBoardStoreError } from "@/lib/board/store";
-import type { DetectionRun, SnapshotFact } from "@/lib/board/types";
-import { runDetect } from "@/lib/detect/engine";
+import type { SnapshotFact } from "@/lib/board/types";
+import { runDetect, type DetectRunResult } from "@/lib/detect/engine";
 import { triggerRules } from "@/lib/detect/rules";
+import { createDetectionGenerator, isGenerationConfigured } from "@/lib/generate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 감지 한 번에 모델 호출이 (카드 계획 1) + (초안 N) + (서사 1) 만큼 붙는다. 조건이 여러
+// 건이면 분 단위로 넘어가므로 Fluid Compute 의 기본 상한까지 열어 둔다. 사용자가 화면
+// 앞에서 기다리는 경로가 아니라 배치라서 이 시간이 체감 지연이 되지는 않는다.
+export const maxDuration = 300;
 
 const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
 
@@ -56,14 +60,24 @@ export async function POST(req: Request) {
   }
 }
 
-async function 감지실행(siteId: string, at: string): Promise<DetectionRun> {
+async function 감지실행(siteId: string, at: string): Promise<DetectRunResult> {
   const store = boardStore();
   const 기준 = Date.parse(at);
 
-  const [전체사실, previousDetections] = await Promise.all([
+  const [전체사실, 지난감지] = await Promise.all([
     store.listFacts(siteId),
     store.listDetections(siteId),
   ]);
+
+  // **끝까지 처리된 감지만 "지난 감지" 로 친다.**
+  //
+  // 규칙 여럿이 lookup.lastDetection 으로 직전 감지를 되짚어 같은 근거를 두 번 보고하지
+  // 않는다. 그 억제는 옳지만, 지난번에 생성이 엎어져 카드가 한 장도 없는 감지까지 억제에
+  // 걸리면 그 조건은 영영 카드를 얻지 못한다. 조건은 기록에 남아 있는데 보드에는 아무것도
+  // 없는 상태가 되고, 담당자는 그 조건이 처리된 줄 안다.
+  //
+  // 서사가 있는 것이 곧 끝까지 간 것이다 (lib/detect/engine.ts 의 이미만든것 참조).
+  const previousDetections = 지난감지.filter((d) => d.narrative);
 
   // at 을 과거로 넣으면 그 시점의 사실만 본다. 같은 인자로 다시 불렀을 때 같은 답이
   // 나와야 감지 기록이 나중에 방어 근거로 쓸모가 있다.
@@ -72,21 +86,27 @@ async function 감지실행(siteId: string, at: string): Promise<DetectionRun> {
     return Number.isFinite(t) && t <= 기준;
   });
 
-  // 규칙 실행과 카드 조립은 lib/detect/engine.ts 가 한다. 라우트는 사실을 모아 주고
-  // 결과를 저장소에 밀어 넣는 일만 한다 — 감지 규칙이 늘어도 이 파일은 그대로다.
-  const run = runDetect({
+  // 규칙 실행은 lib/detect/engine.ts 가, 카드와 문장은 lib/generate 가 만든다. 라우트는
+  // 사실을 모아 주고 결과를 저장소에 밀어 넣는 일만 한다 — 감지 규칙이 늘어도 이 파일은
+  // 그대로다.
+  //
+  // 모델 설정이 없으면 generate 를 넘기지 않는다. 그러면 조건은 감지해 기록하되 카드를
+  // 만들지 않고, 응답의 generationFailures 가 그 사실을 말한다. 빈 카드를 올려 두면
+  // 담당자가 "이 조건은 할 일이 없다" 로 읽기 때문에 아무것도 만들지 않는 편이 낫다.
+  const run = await runDetect({
     siteId,
     now: at,
     facts,
     rules: triggerRules,
     previousDetections,
+    generate: isGenerationConfigured() ? createDetectionGenerator({ now: at }) : undefined,
     runId: `run_${압축시각(기준)}_${짧은해시(siteId)}`,
   });
 
   // itemId 가 (현장 · 규칙 · 근거)로 정해지므로 같은 조건을 두 번 감지해도 저장소가
   // 같은 행을 다시 쓴다. 카드가 두 장 생기지 않는 근거가 여기다.
   const created = run.created.length > 0 ? await store.upsertItems(run.created) : [];
-  const 기록: DetectionRun = { ...run, created };
+  const 기록: DetectRunResult = { ...run, created };
 
   await store.appendDetections(기록);
   return 기록;

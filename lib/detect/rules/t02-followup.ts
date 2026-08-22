@@ -243,8 +243,9 @@ export const t02Followup: TriggerRule = {
             reason: "제기 사항이 두 회차 연속 미조치라 확인 표시를 붙일 수 없습니다.",
           },
         ],
-        // 초안 없이 확인 기록만 만든다. 조치 결과는 제기한 작업자에게 되돌려 준다.
-        produces: [{ form: "기록", for: `${내용} 조치 확인과 작업자 피드백`, teams: [팀] }],
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `${팀} 팀의 "${내용}" 제기 사항이 ${previous.value.회차} · ${current.value.회차} 두 회차 연속 미조치입니다.`,
       });
     }

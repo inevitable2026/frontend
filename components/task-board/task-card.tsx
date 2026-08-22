@@ -169,14 +169,22 @@ export function TaskCardView({
       )}
 
       {card.rationale === null ? null : (
-        <div className="board-card-why">
-          <b>{card.rationale.label}</b> · {card.rationale.text}
-        </div>
+        <div className="board-card-why">{card.rationale.text}</div>
       )}
 
       {blockedReason === null ? null : <div className="board-card-blocked">{blockedReason}</div>}
 
-      {card.draft === null ? null : (
+      {/*
+        승인·기각은 **승인 열에서만** 한다. 예전에는 초안이 붙어 있기만 하면 열을 가리지
+        않고 두 단추를 그렸는데, 그러면 Todo 열의 카드를 승인 열을 거치지 않고 곧바로
+        확정할 수 있었고 완료 카드에도 단추가 떠 있었다.
+
+        기각은 거기서 한 번 더 좁혀 **기계가 올린 초안**에만 그린다. 서버는 그 경우에만
+        기각으로 읽어 사유를 이력에 남기고(lib/board/transition.ts 의 isRejection), 사람이
+        올려 둔 카드는 같은 요청을 그냥 이동으로 처리해 사유를 버린다. 단추를 그대로 두면
+        화면은 "사유가 기록되었습니다" 라고 말하는데 아무 데도 남지 않는다.
+      */}
+      {card.status !== "approval" || card.draft === null ? null : (
         <div className="board-card-actions">
           <button
             type="button"
@@ -187,9 +195,11 @@ export function TaskCardView({
           >
             승인
           </button>
-          <button type="button" className="board-button-reject" onClick={() => onRequestReject(card)}>
-            기각
-          </button>
+          {card.origin !== "machine" ? null : (
+            <button type="button" className="board-button-reject" onClick={() => onRequestReject(card)}>
+              기각
+            </button>
+          )}
         </div>
       )}
 

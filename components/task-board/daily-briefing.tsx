@@ -3,9 +3,12 @@
 import { useState, type JSX } from "react";
 
 import { BriefingItem, RichLine } from "./briefing-item";
-import type { DailyBriefing } from "./types";
+import type { BriefingCondition, DailyBriefing } from "./types";
 
 const BRIEFING_TITLE = "오늘의 브리핑";
+
+/** 접혀 있을 때 곧바로 드러내는 조건의 개수다. 나머지는 "전체 보기"가 열어 준다. */
+const HEAD_COUNT = 3;
 
 function BriefAvatar(): JSX.Element {
   return (
@@ -31,6 +34,23 @@ function BriefAvatar(): JSX.Element {
   );
 }
 
+function MoreChevron(): JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      className="board-brief-more-chevron"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 type DailyBriefingProps = {
   briefing: DailyBriefing;
   /** 컨테이너가 펼침 상태를 들고 있을 때만 넘긴다. 없으면 이 컴포넌트가 직접 든다. */
@@ -52,8 +72,13 @@ export function DailyBriefingPanel({
       .filter((condition) => condition.defaultOpen)
       .map((condition) => condition.conditionId),
   );
+  // 넷째 항목부터는 "전체 보기"를 누른 뒤에야 보인다. 감지 조건이 열 몇 건씩 잡히는 날에도
+  // 브리핑 카드가 화면을 통째로 밀어내지 않게 하려는 것이다.
+  const [showAll, setShowAll] = useState(false);
 
   const openIds = openConditionIds ?? ownOpenIds;
+  const headConditions = briefing.conditions.slice(0, HEAD_COUNT);
+  const restConditions = briefing.conditions.slice(HEAD_COUNT);
 
   function toggle(conditionId: string): void {
     if (onToggleCondition) {
@@ -64,6 +89,18 @@ export function DailyBriefingPanel({
       previous.includes(conditionId)
         ? previous.filter((id) => id !== conditionId)
         : [...previous, conditionId],
+    );
+  }
+
+  function renderCondition(condition: BriefingCondition): JSX.Element {
+    return (
+      <BriefingItem
+        condition={condition}
+        isOpen={openIds.includes(condition.conditionId)}
+        key={condition.conditionId}
+        onFocusCard={onFocusCard}
+        onToggle={toggle}
+      />
     );
   }
 
@@ -82,9 +119,15 @@ export function DailyBriefingPanel({
           </span>
         </div>
 
-        <p className="board-brief-lede">
-          <RichLine runs={briefing.lede} />
-        </p>
+        <div className="board-brief-lede">
+          {briefing.lede.map((paragraph, index) => (
+            // 문단 순서는 서버가 정하고 여기서는 바꾸지 않는다. 서로 자리를 바꾸지 않으므로
+            // 차례를 열쇠로 써도 화면이 어긋나지 않는다.
+            <p key={`lede-${index}`}>
+              <RichLine runs={paragraph} />
+            </p>
+          ))}
+        </div>
 
         <div className="board-brief-metrics">
           {briefing.metrics.map((metric) => (
@@ -96,7 +139,8 @@ export function DailyBriefingPanel({
                     : "board-brief-metric-value"
                 }
               >
-                {metric.value}
+                {/* 세지 못한 칸에 0 을 그리면 "한 건도 없었다" 는 단언이 된다. */}
+                {metric.value === null ? "—" : metric.value}
               </span>
               <span className="board-brief-metric-label">{metric.label}</span>
             </div>
@@ -104,15 +148,42 @@ export function DailyBriefingPanel({
         </div>
 
         <div className="board-brief-list">
-          {briefing.conditions.map((condition) => (
-            <BriefingItem
-              condition={condition}
-              isOpen={openIds.includes(condition.conditionId)}
-              key={condition.conditionId}
-              onFocusCard={onFocusCard}
-              onToggle={toggle}
-            />
-          ))}
+          {headConditions.map(renderCondition)}
+
+          {restConditions.length === 0 ? null : (
+            <>
+              {/* 항목 하나하나의 여닫이와 같은 방식이다. 접힌 동안에도 자리를 유지해야
+                  높이가 이어지고, inert 로 초점과 보조기술에서 함께 빠진다. */}
+              <div
+                className={
+                  showAll
+                    ? "board-brief-more-fold is-open"
+                    : "board-brief-more-fold"
+                }
+                id="board-brief-rest"
+                inert={!showAll}
+              >
+                <div className="board-brief-more-body">
+                  <div className="board-brief-more-inner">
+                    {restConditions.map(renderCondition)}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                aria-controls="board-brief-rest"
+                aria-expanded={showAll}
+                className={
+                  showAll ? "board-brief-more is-open" : "board-brief-more"
+                }
+                onClick={() => setShowAll((previous) => !previous)}
+                type="button"
+              >
+                {showAll ? "접기" : `전체 보기 (${restConditions.length}개 더)`}
+                <MoreChevron />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </section>

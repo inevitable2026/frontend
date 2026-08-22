@@ -690,9 +690,9 @@ button {
 
 .ask-bar textarea {
   position: absolute;
-  inset: 20px 90px 18px 20px;
+  inset: 20px 90px 44px 20px;
   width: calc(100% - 110px);
-  height: 85px;
+  height: 59px;
   resize: none;
   overflow: auto;
   padding: 2.35px 2px;
@@ -709,6 +709,33 @@ button {
 .ask-bar textarea::placeholder {
   color: #9a9aaa;
   opacity: 1;
+}
+
+.model-indicator {
+  position: absolute;
+  bottom: 16px;
+  left: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.35px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.model-indicator-mark {
+  display: block;
+  width: 23px;
+  height: 20px;
+}
+
+.model-indicator-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .submit-question {
@@ -1633,10 +1660,27 @@ button {
   }
 
   .ask-bar textarea {
-    inset: 16px 72px 16px 16px;
+    inset: 16px 72px 42px 16px;
     width: calc(100% - 88px);
-    height: 80px;
+    height: 54px;
     font-size: 16px;
+  }
+
+  .model-indicator {
+    bottom: 15px;
+    left: 16px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .model-indicator-mark {
+    width: 21px;
+    height: 18px;
+  }
+
+  .model-indicator-mark img {
+    width: 100%;
+    height: 100%;
   }
 
   .submit-question {
@@ -1970,6 +2014,216 @@ button {
   font-weight: 500;
 }
 
+.context-doc-title,
+.context-doc-open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--purple-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-doc-title:hover,
+.context-doc-open:hover {
+  text-decoration: underline;
+}
+
+/* 문서 뷰어 — 문서함에서 원본과 청크를 나란히 확인한다 */
+
+.docview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  /* 행을 1fr 로 고정해야 화면 높이가 기준이 된다. 행을 auto 로 두면 청크 목록의
+     전체 높이만큼 자라고, 가운데 정렬이 상자를 화면 아래로 밀어낸다. */
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  padding: 32px;
+  background: rgba(20, 22, 28, 0.42);
+}
+
+.docview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(1280px, 100%);
+  height: min(860px, 100%);
+  padding: 24px;
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 32px 64px -24px rgba(29, 74, 141, 0.34);
+}
+
+.docview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.docview-head h2 {
+  margin: 4px 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.docview-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.docview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.docview-link,
+.docview-close {
+  padding: 8px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-default);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.docview-link:hover,
+.docview-close:hover {
+  background: var(--sidebar-surface);
+}
+
+.docview-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  /* 행을 1fr 로 묶어 두지 않으면 청크가 많을 때 격자가 뷰어 밖으로 자라나고,
+     그러면 오른쪽 칸의 overflow-y 가 작동하지 않아 아래쪽 청크를 누를 수 없다. */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 18px;
+  min-height: 0;
+  flex: 1;
+}
+
+.docview-file {
+  display: grid;
+  min-height: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--sidebar-surface);
+  overflow: hidden;
+}
+
+.docview-file iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.docview-file .context-empty {
+  align-self: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.docview-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.docview-side h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.docview-fields {
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+}
+
+.docview-fields dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.docview-fields dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.docview-fields dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.docview-chunks ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docview-chunks button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text-default);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.docview-chunks button:hover {
+  background: var(--sidebar-surface);
+}
+
+.docview-chunks button.is-active {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(92, 82, 255, 0.12);
+}
+
+.docview-chunk-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.docview-chunk-text {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 1080px) {
+  .docview-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(240px, 1fr) minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 1080px) {
   .context-analysis {
     grid-template-columns: minmax(0, 1fr);
@@ -2101,34 +2355,6 @@ button {
   letter-spacing: -0.4px;
 }
 
-.board-view-toggle {
-  display: flex;
-  margin-left: auto;
-  flex: none;
-  padding: 3px;
-  border: 1px solid var(--border-soft);
-  border-radius: 9px;
-  background: var(--sidebar-surface);
-}
-
-.board-view-toggle-button {
-  padding: 6px 13px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-sidebar);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.45px;
-}
-
-.board-view-toggle-button.is-on {
-  background: #ffffff;
-  color: var(--purple-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(29, 74, 141, 0.1);
-}
-
 /* 카운터 3개 — 아티팩트의 .mini-stat 을 헤더 줄 아래에 가로로 눕힌 것 */
 .board-counters {
   display: flex;
@@ -2175,14 +2401,18 @@ button {
   letter-spacing: -0.35px;
 }
 
-/* 연결된 맥락 — 아티팩트의 .watch-card 를 가로로 눕힌 것 */
+/* 연결된 맥락 — 왼쪽 사이드바의 차림 아래에 선다. 폭이 좁으므로 소스는 한 줄에
+   하나씩 쌓이고, 제목 · 목록 · 각주가 위에서 아래로 이어진다. */
+.sidebar > .board-watch {
+  width: 100%;
+  flex: none;
+}
+
 .board-watch {
   display: flex;
-  flex: 2 1 460px;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  padding: 12px 14px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: #ffffff;
@@ -2193,7 +2423,7 @@ button {
   flex: none;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -2210,9 +2440,8 @@ button {
 
 .board-watch-list {
   display: flex;
-  flex: 1 1 260px;
-  flex-wrap: wrap;
-  gap: 6px 14px;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .board-watch-row {
@@ -2232,6 +2461,7 @@ button {
 }
 
 .board-watch-time {
+  margin-left: auto;
   font-family: var(--board-numeral);
   font-style: normal;
   color: #b0b2c4;
@@ -2239,7 +2469,7 @@ button {
 }
 
 .board-watch-foot {
-  flex-basis: 100%;
+  margin: 0;
   padding-top: 9px;
   border-top: 1px solid var(--board-hairline);
   color: var(--text-muted);
@@ -2328,13 +2558,33 @@ button {
   background: currentColor;
 }
 
+/* 머리글은 세 줄이고 한 줄이 한 가지만 말한다(lib/board/briefing-fallback.ts 의 폴백문단들).
+   줄 사이를 넉넉히 벌려 세 줄이 한 덩어리로 뭉쳐 보이지 않게 한다. */
 .board-brief-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
   margin: 0;
-  padding: 15px 16px 0;
+  padding: 16px 16px 0;
   color: var(--board-strong-ink);
   font-size: 14.5px;
   letter-spacing: -0.55px;
-  line-height: 1.62;
+  line-height: 1.65;
+}
+
+.board-brief-lede p {
+  margin: 0;
+}
+
+/* 첫 줄은 오늘이 얼마나 되는 일인지 세는 줄이라 조금 더 눌러 둔다. */
+.board-brief-lede p:first-child {
+  font-weight: 500;
+}
+
+/* 뒤따르는 두 줄은 크기를 낮추지 않는다. 세 줄뿐이라 벽이 서지 않고, 크기를 낮추면 정작
+   오늘 손대야 할 것과 사람이 봐야 할 것이 덧말처럼 읽힌다. 위계는 색으로만 준다. */
+.board-brief-lede p + p {
+  color: var(--board-body-ink);
 }
 
 .board-brief-lede b {
@@ -2389,6 +2639,71 @@ button {
   flex-direction: column;
   gap: 6px;
   padding: 4px 10px 12px;
+}
+
+/* 넷째 조건부터를 감춰 두는 접이 상자다. 항목 하나하나의 여닫이와 같은 격자 비율 전환을 쓴다.
+   접혀 있는 동안에는 목록이 벌려 놓은 간격 한 칸을 음수 여백으로 되돌려, 높이가 0 인 상자
+   때문에 빈 틈이 생기지 않게 한다. */
+.board-brief-more-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -6px;
+  transition:
+    grid-template-rows 0.24s cubic-bezier(0.22, 0.61, 0.36, 1),
+    margin-top 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.board-brief-more-fold.is-open {
+  grid-template-rows: 1fr;
+  margin-top: 0;
+}
+
+/* 자르는 상자다. 여백을 여기 두면 접혔을 때 그만큼이 남는다. */
+.board-brief-more-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.board-brief-more-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.board-brief-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.board-brief-more:hover {
+  background: #fbfcfe;
+  color: var(--text-sidebar);
+}
+
+.board-brief-more-chevron {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: var(--board-chevron-ink);
+  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.board-brief-more.is-open .board-brief-more-chevron {
+  transform: rotate(180deg);
 }
 
 /* ---------------- 브리핑 항목 ---------------- */
@@ -2501,9 +2816,35 @@ button {
   transform: rotate(180deg);
 }
 
+/* 여닫는 애니메이션.
+   높이를 auto 로 두면 전환이 걸리지 않으므로 격자 한 칸의 비율을 0fr 에서 1fr 로 옮긴다.
+   내용의 높이를 미리 재지 않아도 되고, 접을 때와 펼 때가 같은 곡선을 탄다. */
+.board-rsn-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.board-rsn.is-open .board-rsn-fold {
+  grid-template-rows: 1fr;
+}
+
+/* 자르는 상자다. 여백과 구분선을 여기 두면 접혔을 때 1px 선이 남는다. */
 .board-rsn-body {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.board-rsn-inner {
   padding: 2px 12px 14px;
   border-top: 1px solid var(--board-hairline-2);
+}
+
+.board-rsn.is-open .board-rsn-body {
+  opacity: 1;
+  transition-delay: 0.06s;
 }
 
 .board-rsn-grid {
@@ -2731,15 +3072,15 @@ button {
   border-radius: 8px;
   background: #ffffff;
   color: var(--text-sidebar);
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 500;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.35px;
   white-space: nowrap;
 }
 
 .board-cal-expand svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   stroke: var(--text-muted);
 }
 
@@ -2753,7 +3094,39 @@ button {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-auto-rows: minmax(88px, auto);
+  grid-auto-rows: minmax(76px, auto);
+}
+
+/* 펼치면 한 화면에 다섯 주 · 서른다섯 칸이 들어온다. 주간과 같은 글자 크기로는 세로가
+   너무 길어져 칸반이 화면 밖으로 밀려나므로, 월간에서만 한 단계씩 줄여 밀도를 높인다. */
+.board-month .board-day {
+  gap: 5px;
+  padding: 8px 8px 9px;
+}
+
+.board-month .board-day-dow {
+  font-size: 10.5px;
+}
+
+.board-month .board-day-num {
+  font-size: 14px;
+}
+
+.board-month .board-day-count {
+  font-size: 10px;
+}
+
+.board-month .board-day-flag {
+  font-size: 9px;
+}
+
+.board-month .board-day-chip {
+  padding: 3px 6px;
+  font-size: 10.5px;
+}
+
+.board-month .board-day-more {
+  font-size: 10px;
 }
 
 .board-day {
@@ -3139,15 +3512,15 @@ button {
   opacity: 0.62;
 }
 
+/* 끌고 있는 카드는 제자리에서 흐려질 뿐이다. 커서를 따라가는 그림은 브라우저가
+   따로 그린다. 여기서 position 이나 transform 으로 원본을 흐름 밖으로 빼내면
+   Chromium 이 dragstart 직후 드래그를 취소해 dragover 가 한 번도 오지 않는다. */
 .board-card.is-dragging {
-  position: fixed;
-  z-index: 40;
-  margin: 0;
   border-color: var(--purple-primary);
-  box-shadow: var(--board-card-shadow-drag);
+  border-style: dashed;
+  box-shadow: none;
   cursor: grabbing;
-  pointer-events: none;
-  transform: rotate(-0.7deg);
+  opacity: 0.45;
 }
 
 .board-card:focus-visible {
@@ -3287,11 +3660,6 @@ button {
   font-size: 11px;
   letter-spacing: -0.3px;
   line-height: 1.55;
-}
-
-.board-card-why b {
-  color: var(--board-chip-ink);
-  font-weight: 600;
 }
 
 .board-card-blocked {
@@ -3597,6 +3965,104 @@ button {
   letter-spacing: -0.45px;
 }
 
+/* ---------------- 로딩 뼈대 ---------------- */
+
+/*
+ * 보드를 읽는 동안 세우는 회색 덩어리다.
+ *
+ * 뼈대는 자기만의 격자를 만들지 않고 진짜 화면의 레이아웃 클래스(.board-header ·
+ * .board-brief · .board-cal · .board-kanban) 안에 들어가 앉는다. 그래서 아래 반응형 규칙이
+ * 바뀌어도 뼈대가 따라오고, 데이터가 도착하는 순간 요소가 옆으로 껑충 뛰지 않는다.
+ */
+
+.board-skel {
+  display: block;
+  flex: none;
+  border-radius: 6px;
+  background-color: var(--board-hairline);
+  background-image: linear-gradient(
+    100deg,
+    var(--board-hairline) 18%,
+    var(--board-hairline-3) 40%,
+    var(--board-hairline) 62%
+  );
+  background-size: 200% 100%;
+  animation: board-skel-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes board-skel-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 글줄 두 개를 위아래로 세우는 자리. 브리핑 머리글과 지표 칸이 같은 모양이다. */
+.board-skel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* .board-brief-lede 의 여백을 그대로 쓰되, 문단 대신 줄 두 개를 눕힌다. */
+.board-skel-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px 16px 0;
+}
+
+/* 접힌 브리핑 항목 한 줄. .board-rsn-summary 의 테두리와 여백을 본떴다. */
+.board-skel-rsn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.board-skel-rsn > :last-child {
+  margin-left: auto;
+}
+
+/* 달력 막대의 오른쪽 끝. 진짜 화면에서는 범례와 펼치기 단추가 서는 자리다. */
+.board-skel-legend {
+  display: flex;
+  margin-left: auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.board-skel-day-top {
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 카드 한 장. .board-card 의 상자만 가져오고 끌기와 관련된 성질은 두지 않는다. */
+.board-skel-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: var(--board-card-shadow);
+}
+
+.board-skel-card-top,
+.board-skel-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 /* ---------------- 반응형 ---------------- */
 
 @media (max-width: 1439px) {
@@ -3615,8 +4081,7 @@ button {
 }
 
 @media (max-width: 1199px) {
-  .board-counters,
-  .board-watch {
+  .board-counters {
     flex-basis: 100%;
   }
 
@@ -3647,10 +4112,6 @@ button {
   .board-header-phase {
     flex-basis: 100%;
     margin-left: 0;
-  }
-
-  .board-view-toggle {
-    margin-left: auto;
   }
 
   .board-week,
@@ -3728,8 +4189,26 @@ button {
     transition: none;
   }
 
+  .board-rsn-fold,
+  .board-rsn-body {
+    transition: none;
+  }
+
+  .board-brief-more-fold,
+  .board-brief-more,
+  .board-brief-more-chevron {
+    transition: none;
+  }
+
   .board-card.is-dragging {
     transform: none;
+  }
+
+  /* 훑고 지나가는 빛만 거두고 회색 덩어리는 그대로 둔다. 자리를 잡아 두는 일이 뼈대의
+     본래 목적이고, 그 목적은 움직임 없이도 달성된다. */
+  .board-skel {
+    background-image: none;
+    animation: none;
   }
 }
 
@@ -3913,6 +4392,888 @@ button {
   width: 12px;
   height: 12px;
   border-radius: 3px;
+}
+
+/* ---------------- 참조 칩과 팝오버 ---------------- */
+
+.board-ref {
+  position: relative;
+  display: inline;
+}
+
+.board-ref-trigger {
+  display: inline-flex;
+  min-width: 20px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  margin: 0 1px 0 2px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  cursor: help;
+  font-family: var(--board-numeral);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: 2px;
+}
+
+.board-ref-trigger:hover,
+.board-ref-trigger.is-open,
+.board-ref-trigger:focus-visible {
+  border-color: var(--purple-primary);
+  background: rgba(92, 82, 255, 0.12);
+  color: var(--purple-primary);
+}
+
+.board-ref-trigger:focus-visible {
+  outline: 2px solid var(--purple-primary);
+  outline-offset: 2px;
+}
+
+/* 브리핑 카드에 overflow: hidden 이 걸려 있어 문서 흐름 안에 두면 잘린다.
+   화면 기준으로 띄우고 자리는 스크립트가 잰다. */
+.board-ref-pop {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  width: 340px;
+  max-height: 320px;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(20, 22, 28, 0.16);
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  text-align: left;
+  white-space: normal;
+  animation: board-ref-in 120ms ease-out;
+}
+
+@keyframes board-ref-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.board-ref-pop.is-above {
+  justify-content: flex-end;
+}
+
+.board-ref-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-ref-pop-kind {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(92, 82, 255, 0.1);
+  color: var(--purple-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.board-ref-pop-origin {
+  padding: 1px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+.board-ref-pop-title {
+  color: var(--text-default);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.board-ref-pop-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.board-ref-pop-row {
+  display: flex;
+  gap: 8px;
+}
+
+.board-ref-pop-term {
+  flex: none;
+  width: 62px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.board-ref-pop-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.board-ref-pop-excerpt {
+  color: var(--text-sidebar);
+}
+
+.board-ref-pop-id {
+  color: var(--text-muted);
+  font-family: var(--board-numeral);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-ref-pop {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   보드의 AI 사이드바 — 메인 화면 오른쪽에 서는 대화 패널
+   ------------------------------------------------------------
+   기획안(docs/plan-task-board.md 1.1)대로 **보드 위를 덮는다.** 왼쪽 영역은 폭이
+   줄지 않으므로 칸반 열 너비도 그대로다. 좁은 화면에서는 뒷막을 깐 서랍이 된다.
+   ============================================================ */
+
+.board-assistant {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 14;
+  display: flex;
+  width: min(420px, 100vw);
+  flex-direction: column;
+  visibility: hidden;
+  border-left: 1px solid var(--border-soft);
+  background: #ffffff;
+  box-shadow: -18px 0 48px rgba(29, 74, 141, 0.14);
+  transform: translateX(100%);
+  /* 닫힐 때는 미끄러진 뒤에 숨는다. `visibility` 를 함께 보간하면 이산 전환이라
+     절반 지점에서 튀고, 열릴 때는 focus() 가 거부된다. */
+  transition: transform 200ms ease, visibility 0s linear 200ms;
+}
+
+.board-assistant.is-open {
+  visibility: visible;
+  transform: translateX(0);
+  transition: transform 200ms ease, visibility 0s linear 0s;
+}
+
+/* ---------------- 머리 ---------------- */
+
+.board-assistant-head {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 14px 14px 20px;
+  border-bottom: 1px solid var(--board-hairline);
+}
+
+.board-assistant-heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.board-assistant-eyebrow {
+  margin: 0;
+  color: var(--purple-copy);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.board-assistant-title {
+  margin: 0;
+  color: var(--board-strong-ink);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.board-assistant-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.board-assistant-close:hover {
+  border-color: var(--board-accent-border);
+  background: var(--board-ai-tint);
+}
+
+.board-assistant-close span,
+.board-assistant-close span::after {
+  display: block;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--text-sidebar);
+  content: "";
+}
+
+.board-assistant-close span {
+  transform: rotate(45deg);
+}
+
+.board-assistant-close span::after {
+  transform: rotate(90deg);
+}
+
+/* ---------------- 몸통 ---------------- */
+
+.board-assistant-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 16px 28px;
+}
+
+.board-assistant .chat-area {
+  width: 100%;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+/* 답은 박스 없이 글로만 선다. 폭이 좁아 테두리가 겹치면 오히려 읽기 어렵다.
+   라벨이 맨 위에 서고 그 아래로 확인 과정과 본문이 차례로 쌓인다. */
+.board-assistant .chat-message-assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-right: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* 간격은 위쪽 flex 의 gap 이 잡는다. 라벨의 아래 여백은 그래서 지운다. */
+.board-assistant .chat-message-assistant > .chat-message-label {
+  margin-bottom: 0;
+}
+
+.board-assistant .assistant-pending {
+  font-size: 13.5px;
+  letter-spacing: -0.3px;
+}
+
+/* 내 질문 — 오른쪽에 붙는 회색 말풍선. 답과 달리 한눈에 구분되기만 하면 된다. */
+.board-assistant-question {
+  max-width: 88%;
+  margin: 2px 0 2px auto;
+  padding: 7px 11px;
+  border-radius: 12px 12px 3px 12px;
+  background: var(--board-chip-surface);
+  color: var(--board-title-ink);
+  font-size: 13.5px;
+  letter-spacing: -0.2px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.board-assistant .assistant-answer {
+  font-size: 15px;
+  letter-spacing: -0.4px;
+}
+
+.board-assistant .tool-card-header {
+  padding: 12px 14px;
+}
+
+.board-assistant-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.board-assistant-intro-copy {
+  margin: 0;
+  color: var(--board-body-ink);
+  font-size: 14px;
+  letter-spacing: -0.3px;
+  line-height: 1.65;
+}
+
+.board-assistant-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-assistant-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  text-align: left;
+}
+
+.board-assistant-prompt:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.board-assistant-prompt.is-enabled:hover,
+.board-assistant-prompt.is-enabled:focus-visible {
+  border-color: var(--board-accent-border);
+  background: var(--board-ai-tint);
+}
+
+.board-assistant-prompt img {
+  flex: none;
+  margin-top: 2px;
+}
+
+.board-assistant-prompt > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.board-assistant-prompt strong {
+  color: var(--board-title-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.board-assistant-prompt em {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-style: normal;
+  letter-spacing: -0.2px;
+  line-height: 1.5;
+}
+
+/* ---------------- 입력줄 (좁은 폭에 맞춘 변형) ---------------- */
+
+.ask-bar.board-assistant-ask {
+  position: relative;
+  bottom: auto;
+  width: auto;
+  height: 96px;
+  margin: 0 16px 16px;
+  border-radius: 14px;
+}
+
+.ask-bar.board-assistant-ask textarea {
+  inset: 14px 62px 14px 16px;
+  width: calc(100% - 78px);
+  height: 68px;
+  font-size: 15px;
+  letter-spacing: -0.4px;
+}
+
+.ask-bar.board-assistant-ask .submit-question {
+  top: 48px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+}
+
+.ask-bar.board-assistant-ask .submit-question img {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------------- 닫힌 상태의 버튼과 뒷막 ---------------- */
+
+.board-assistant-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--board-accent-border);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(29, 74, 141, 0.16);
+  color: var(--board-strong-ink);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  transition: visibility 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.board-assistant-fab:hover {
+  border-color: var(--purple-primary);
+  background: var(--board-ai-tint);
+}
+
+.board-assistant-fab kbd {
+  padding: 2px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+  font-family: var(--board-numeral);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.board-assistant-fab.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.board-assistant-backdrop {
+  display: none;
+}
+
+/* ---------------- 좁은 화면: 뒷막을 깐 서랍 ---------------- */
+
+@media (max-width: 1279px) {
+  .board-assistant-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 13;
+    display: block;
+    visibility: hidden;
+    border: 0;
+    background: rgba(24, 28, 46, 0.32);
+    opacity: 0;
+    pointer-events: none;
+    transition: visibility 200ms ease, opacity 200ms ease;
+  }
+
+  .board-assistant-backdrop.is-visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 639px) {
+  .board-assistant {
+    width: 100vw;
+  }
+
+  .board-assistant-fab {
+    right: 16px;
+    bottom: 16px;
+    padding: 10px 14px;
+  }
+
+  .board-assistant-fab kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-assistant,
+  .board-assistant-backdrop,
+  .board-assistant-fab {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   AI 사이드바 — 스트리밍 표시
+   ------------------------------------------------------------
+   도구가 도는 동안에는 글 한 줄만 어른거리게 두고, 끝난 뒤에야 주고받은 값을
+   펼칠 수 있게 한다. 답은 글자가 들어오는 대로 이어 붙으므로 끝에 막대를 세운다.
+   ============================================================ */
+
+.board-assistant-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.board-assistant-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 1px 0;
+  color: var(--board-note-ink);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.45;
+}
+
+.board-assistant-step.is-error {
+  color: var(--board-alert-ink);
+}
+
+/* 실행 중인 줄은 글자 위로 빛이 지나간다. */
+.board-assistant-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--text-muted) 20%,
+    var(--purple-primary) 45%,
+    var(--text-muted) 70%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  background-size: 220% 100%;
+  color: transparent;
+  animation: board-assistant-shimmer 1.6s linear infinite;
+}
+
+@keyframes board-assistant-shimmer {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+.board-assistant-step-details {
+  margin: 0;
+}
+
+.board-assistant-step-details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.board-assistant-step-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.board-assistant-step-chevron {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-right: 1.5px solid var(--board-chevron-ink);
+  border-bottom: 1.5px solid var(--board-chevron-ink);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 140ms ease;
+}
+
+.board-assistant-step-details[open] .board-assistant-step-chevron {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+
+.board-assistant-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 2px 0 6px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--board-hairline);
+}
+
+/* 글자가 아직 들어오는 중이라는 표시. 마지막 문단 끝에 선다. */
+.board-assistant-typing .assistant-answer > :last-child::after {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  background: var(--purple-primary);
+  content: "";
+  vertical-align: -0.15em;
+  animation: board-assistant-caret 1s steps(2, jump-none) infinite;
+}
+
+@keyframes board-assistant-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-assistant-shimmer {
+    background: none;
+    color: var(--purple-copy);
+    animation: none;
+  }
+
+  .board-assistant-step-chevron,
+  .board-assistant-typing .assistant-answer > :last-child::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* 메일함 — 현장 맥락 관리의 메일 스레드 목록. 데이터는 아직 목업이다. */
+
+.context-mail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.context-mail > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.context-mail h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mail-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+  font-size: 12px;
+}
+
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-thread {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.mail-thread.is-open {
+  border-color: var(--board-accent-border);
+}
+
+.mail-thread-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mail-thread-head:hover {
+  background: var(--sidebar-surface);
+}
+
+.mail-subject {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--board-title-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mail-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--purple-primary);
+}
+
+.mail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mail-state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.mail-state--applied {
+  background: var(--board-ok-surface);
+  color: var(--board-ok-ink);
+}
+
+.mail-state--pending {
+  background: var(--board-due-surface);
+  color: var(--board-due-ink);
+}
+
+.mail-state--held {
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+}
+
+.mail-thread-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 16px 18px;
+  border-top: 1px solid var(--board-hairline);
+}
+
+.mail-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-message {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+}
+
+.mail-message-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.mail-from {
+  color: var(--board-strong-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mail-address,
+.mail-time,
+.mail-recipients {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mail-recipients {
+  margin: 4px 0 0;
+}
+
+.mail-body {
+  margin: 10px 0 0;
+  color: var(--board-body-ink);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.mail-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-attachments li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.mail-file {
+  color: var(--board-title-ink);
+  font-weight: 500;
+}
+
+.mail-file-meta {
+  color: var(--text-muted);
+}
+
+.mail-attach {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.mail-attach--stored {
+  background: var(--board-ok-surface);
+  color: var(--board-ok-ink);
+}
+
+.mail-attach--queued {
+  background: var(--board-ai-surface);
+  color: var(--purple-copy);
+}
+
+.mail-attach--skipped {
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+}
+
+.mail-extracted {
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+}
+
+.mail-extracted h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mail-extracted dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.mail-extracted dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mail-extracted dd {
+  margin: 2px 0 0;
+  font-size: 13px;
 }
 
 /* ===========================================================================

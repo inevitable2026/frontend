@@ -4,6 +4,7 @@ import type {
   BoardStore,
   Detection,
   DetectionRun,
+  DraftEdit,
   FactDelta,
   FactType,
   ItemPatch,
@@ -102,6 +103,19 @@ function lazyPgBoardStore(): BoardStore {
     },
     async listDetections(siteId: string, since?: string): Promise<Detection[]> {
       return (await real()).listDetections(siteId, since);
+    },
+    async recordDraftEdits(itemId: string, actor: string, edits: DraftEdit[]): Promise<void> {
+      return (await real()).recordDraftEdits(itemId, actor, edits);
+    },
+    async readBriefingNarrative(cacheKey: string): Promise<string[] | null> {
+      return (await real()).readBriefingNarrative(cacheKey);
+    },
+    async writeBriefingNarrative(
+      cacheKey: string,
+      siteId: string,
+      paragraphs: string[],
+    ): Promise<void> {
+      return (await real()).writeBriefingNarrative(cacheKey, siteId, paragraphs);
     },
   };
 }

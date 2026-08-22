@@ -1,4 +1,4 @@
-import type { Detection, Evidence, Invalidation, Produces, SnapshotFact, TriggerRule } from "@/lib/board/types";
+import type { Detection, Evidence, Invalidation, SnapshotFact, TriggerRule } from "@/lib/board/types";
 import { latestFacts, readBoolean, readString, readStrings } from "@/lib/detect/delta";
 import { dayKey } from "@/lib/detect/engine";
 
@@ -158,22 +158,6 @@ export const t08NewWorker: TriggerRule = {
         }
       }
 
-      const produces: Produces[] = [
-        {
-          form: "기록",
-          for: `${팀} 신규 입장자 ${bucket.length}명 교육 기록`,
-          count: bucket.length,
-          teams: [팀],
-        },
-      ];
-      if (통역인원.length > 0) {
-        produces.push({
-          form: "TBM자료",
-          for: `${팀} 통역 필요 인원 ${통역인원.length}명 전달 방안`,
-          teams: [팀],
-        });
-      }
-
       detections.push({
         ruleId: "T-08",
         siteId: input.siteId,
@@ -182,7 +166,9 @@ export const t08NewWorker: TriggerRule = {
         confidence: 0.97,
         evidence,
         invalidates,
-        produces,
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `${today} ${팀} 출역 인원 가운데 ${bucket.length}명(${names.slice(0, 3).join(" · ")}${
           names.length > 3 ? " 외" : ""
         })이 직전 ${NEW_WORKER_WINDOW_DAYS}일간 출역 기록이 없는 신규 인원입니다.${

@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, type JSX } from "react";
+import { Fragment, useMemo, type JSX } from "react";
 
+import { ReferenceMarker, RefNumberProvider } from "./reference-chip";
 import type {
   BriefingCondition,
   BriefingSlot,
@@ -34,6 +35,28 @@ const SLOT_ORDER = [
 
 const EMPTY_TEXT = "없습니다";
 
+/**
+ * 근거 번호를 매긴다. 칸 순서대로 훑어 처음 나온 자리에서 1부터 붙이므로,
+ * 읽어 내려가면 번호가 언제나 오름차순이다. 같은 근거가 두 번 나오면 같은 번호를 쓴다.
+ */
+function numberReferences(slots: BriefingSlots): Record<string, number> {
+  const numbers: Record<string, number> = {};
+  let next = 1;
+  for (const entry of SLOT_ORDER) {
+    if (entry.key === "produced") continue;
+    const slot = slots[entry.key];
+    if (slot === null) continue;
+    for (const paragraph of slot.paragraphs) {
+      for (const run of paragraph) {
+        if (run.kind !== "ref" || numbers[run.refId] !== undefined) continue;
+        numbers[run.refId] = next;
+        next += 1;
+      }
+    }
+  }
+  return numbers;
+}
+
 const LANE_LABEL: Record<ProducedItem["lane"], string> = {
   approval: "승인",
   todo: "Todo",
@@ -54,6 +77,10 @@ export function RichLine({ runs }: { runs: RichText }): JSX.Element {
       {runs.map((run, index) => {
         if (run.kind === "strong") {
           return <b key={index}>{run.text}</b>;
+        }
+        if (run.kind === "ref") {
+          // 본문에는 번호만 나가고, 마우스를 올리면 그 근거의 실제 내용이 펼쳐진다.
+          return <ReferenceMarker key={index} refId={run.refId} />;
         }
         if (run.kind === "mono") {
           return (
@@ -146,6 +173,7 @@ export function BriefingItem({
   onFocusCard,
 }: BriefingItemProps): JSX.Element {
   const bodyId = `board-rsn-body-${condition.conditionId}`;
+  const refNumbers = useMemo(() => numberReferences(condition.slots), [condition.slots]);
   const rootClass = [
     "board-rsn",
     condition.tone === "due" ? "is-due" : "is-alert",
@@ -173,8 +201,12 @@ export function BriefingItem({
         <Chevron />
       </button>
 
-      {isOpen ? (
+      {/* 접힌 상태에서도 자리를 유지한다. 여닫는 동안 높이가 이어져야 애니메이션이 붙고,
+          닫혀 있는 동안에는 inert 로 초점과 보조기술에서 함께 빠진다. */}
+      <div className="board-rsn-fold" inert={!isOpen}>
+        <RefNumberProvider numbers={refNumbers}>
         <div className="board-rsn-body" id={bodyId}>
+          <div className="board-rsn-inner">
           <dl className="board-rsn-grid">
             {SLOT_ORDER.map((entry) => {
               if (entry.key === "produced") {
@@ -218,8 +250,10 @@ export function BriefingItem({
               <b>{condition.note.label}</b> — {condition.note.text}
             </p>
           )}
+          </div>
         </div>
-      ) : null}
+        </RefNumberProvider>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ export type DocumentKind =
   | "TBM회의록"
   | "작업표준"
   | "순회점검일지"
+  | "메일"
   | "기타";
 
 export const DOCUMENT_KINDS: DocumentKind[] = [
@@ -12,6 +13,7 @@ export const DOCUMENT_KINDS: DocumentKind[] = [
   "TBM회의록",
   "작업표준",
   "순회점검일지",
+  "메일",
   "기타",
 ];
 
@@ -68,6 +70,11 @@ export type ExtractedFields = {
   중점위험요인?: string | null;
   작업명?: string | null;
   보호구?: string[];
+  발신자?: string | null;
+  수신처?: string[];
+  제목?: string | null;
+  요청사항?: string | null;
+  회신기한?: string | null;
 };
 
 export type SiteRecommendation = {

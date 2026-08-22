@@ -100,6 +100,15 @@ const schemaByKind: Record<DocumentKind, JsonSchema> = {
   },
   작업표준: { ...commonFields, 작업명: str("작업표준서의 대상 작업명"), 보호구: strArray("요구되는 개인보호장구") },
   순회점검일지: { ...commonFields },
+  메일: {
+    ...commonFields,
+    발신자: str("보낸 사람. 성명과 소속을 함께 적는다"),
+    수신처: strArray("받는 사람과 참조자의 주소 또는 부서"),
+    제목: str("메일 제목. 원문 표기 그대로"),
+    일자: str("보낸 일시 YYYY-MM-DD"),
+    요청사항: str("본문이 상대에게 요구하는 내용 한 줄"),
+    회신기한: str("회신 또는 반입 목표 일자 YYYY-MM-DD"),
+  },
   기타: { ...commonFields },
 };
 

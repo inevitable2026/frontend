@@ -1,7 +1,6 @@
 "use client";
 
-import { 카드로 } from "@/components/task-board/adapt";
-import type { BadgeTone } from "@/components/task-board/types";
+import { 급함색, 기한문구, 종류라벨 } from "@/components/risk/derive";
 import type { WorkItem } from "@/lib/board/types";
 
 /**
@@ -59,16 +58,6 @@ const 묶음표시: Record<묶음, { 기호: string; 라벨: string }> = {
 
 const 순서: 묶음[] = ["재평가", "작성중", "최신"];
 
-/** 보드와 같은 배지 색 규칙. `task-card.tsx:12-29` 와 짝을 맞춘다. */
-const 배지색: Record<BadgeTone, string> = {
-  neutral: "",
-  alert: " is-alert",
-  due: " is-due",
-  routine: " is-routine",
-  ok: " is-ok",
-  doc: " is-doc",
-};
-
 export default function RiskQueue({
   항목들,
   현장이름,
@@ -122,22 +111,20 @@ export default function RiskQueue({
 
             <ul>
               {목록.map((item) => {
-                const card = 카드로(item, 제목찾기, 기준시각);
-                const 막힘 = card.blockedBy.length > 0;
+                const 기한 = 기한문구(item.dueBy, 기준시각);
+                const 막힘 = item.blockedBy.length > 0;
 
                 return (
-                  <li key={card.itemId}>
+                  <li key={item.itemId}>
                     {/* 보드 카드와 같은 뼈대. 다른 점은 이것이 통째로 누를 수 있는 버튼이라는 것뿐이다. */}
                     <button
                       type="button"
-                      className={`board-card risk-queue-card is-${card.tone}`}
+                      className={`board-card risk-queue-card ${급함색(item)}`}
                       onClick={() => 선택(item)}
                     >
                       <span className="board-card-top">
-                        <span className={`board-card-kind${배지색[card.kind.tone]}`}>
-                          {card.kind.label}
-                        </span>
-                        {card.origin === "machine" ? (
+                        <span className="board-card-kind is-doc">{종류라벨(item)}</span>
+                        {item.origin === "machine" ? (
                           <span className="board-card-ai-mark">
                             <svg
                               viewBox="0 0 24 24"
@@ -157,41 +144,43 @@ export default function RiskQueue({
                           </span>
                         ) : null}
                         <span className="risk-queue-site">
-                          {현장이름.get(card.siteId) ?? card.siteId}
+                          {현장이름.get(item.siteId) ?? item.siteId}
                         </span>
                       </span>
 
-                      <span className="board-card-title">{card.title}</span>
-                      {card.note === null ? null : (
-                        <span className="board-card-note">{card.note}</span>
+                      <span className="board-card-title">{item.title}</span>
+                      {item.summary === null ? null : (
+                        <span className="board-card-note">{item.summary}</span>
                       )}
 
                       <span className="board-card-meta">
-                        {card.tags.map((tag) => (
-                          <span key={tag.label} className={`board-tag${배지색[tag.tone]}`}>
-                            {tag.label}
+                        {item.invalidates.length > 0 ? (
+                          <span className="board-tag is-alert">무효 {item.invalidates.length}</span>
+                        ) : null}
+                        {item.produces.slice(1).map((p) => (
+                          <span key={p.form} className="board-tag is-doc">
+                            {p.form}
                           </span>
                         ))}
                       </span>
 
                       {/* 왜 이 카드가 여기 있는지. 규칙이 만든 문구를 그대로 쓴다. */}
-                      {card.rationale === null ? null : (
+                      {item.trigger === null ? null : (
                         <span className="board-card-why">
-                          <b>{card.rationale.label}</b> · {card.rationale.text}
+                          <b>{item.trigger.ruleId}</b> · {item.trigger.condition}
                         </span>
                       )}
 
                       {막힘 ? (
                         <span className="board-card-blocked">
-                          {card.blockedBy.map((b) => b.title).join(" · ")} 이(가) 먼저 확정돼야 합니다
+                          {item.blockedBy.map((id) => 제목찾기.get(id) ?? id).join(" · ")} 이(가) 먼저
+                          확정돼야 합니다
                         </span>
                       ) : null}
 
-                      {card.dueLabel === null ? null : (
+                      {기한.글 === null ? null : (
                         <span className="board-card-foot">
-                          <span className={`board-card-when${card.dueIsHot ? " is-hot" : ""}`}>
-                            {card.dueLabel}
-                          </span>
+                          <span className={`board-card-when${기한.급함 ? " is-hot" : ""}`}>{기한.글}</span>
                         </span>
                       )}
                     </button>

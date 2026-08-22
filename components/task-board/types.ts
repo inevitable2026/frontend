@@ -1,6 +1,6 @@
-// 화면이 소비하는 뷰 모델이다. 서버가 붙으면 lib/board/types.ts 의 서버 타입을 질의 계층에서
-// 이 모양으로 옮겨 담는다 — 접점은 `GET /api/board` 응답을 BoardSnapshot 하나로 좁힌 지점뿐이고,
-// 화면은 스네이크 케이스도 DB 컬럼도 보지 않는다.
+// 화면이 소비하는 뷰 모델이다. lib/board/types.ts 의 서버 타입을 이 모양으로 옮겨 담는 일은
+// components/task-board/view-model.ts 가 하고, 접점은 board-data.ts 가 세 라우트의 응답을
+// BoardSnapshot 하나로 좁힌 지점뿐이다. 화면은 스네이크 케이스도 DB 컬럼도 보지 않는다.
 
 /* ------------------------------------------------------------------ *
  * 공통 어휘
@@ -40,15 +40,43 @@ export type ConditionSlug =
  * 서식 있는 짧은 글
  *
  * 브리핑 dd 안에는 굵은 글씨와 식별자(mono)가 섞여 있다. HTML 문자열을 그대로
- * 밀어 넣지 않으려고 조각 배열로 받는다. 픽스처가 조각을 만들고 화면은 그리기만 한다.
+ * 밀어 넣지 않으려고 조각 배열로 받는다. 어댑터가 조각을 만들고 화면은 그리기만 한다.
  * ------------------------------------------------------------------ */
 
 export type RichRun =
   | { kind: "text"; text: string }
   | { kind: "strong"; text: string }
-  | { kind: "mono"; text: string };
+  /** 규격이나 수치처럼 그 자체로 읽히는 짧은 값. 내부 식별자는 여기 넣지 않는다. */
+  | { kind: "mono"; text: string }
+  /**
+   * 근거 표시. 화면에는 `[1]` 같은 번호로만 나가고 내부 식별자는 드러내지 않는다.
+   * 번호는 조건마다 나온 차례대로 화면이 매기므로 어댑터가 적지 않는다.
+   */
+  | { kind: "ref"; refId: string };
 
 export type RichText = RichRun[];
+
+/* ------------------------------------------------------------------ *
+ * 참조 사전
+ *
+ * `doc_2_k3f9x1qm` 처럼 식별자만 적혀 있으면 읽는 사람은 그것이 무엇인지 모른다.
+ * 근거를 따로 열어 보지 않고도 판단할 수 있어야 담당자가 보드를 신뢰하므로,
+ * 식별자에 마우스를 올리면 실제 내용이 그 자리에서 뜬다.
+ * ------------------------------------------------------------------ */
+
+export type ReferenceDetail = {
+  /** 사전의 열쇠. `ref` 조각의 `refId` 와 같고 화면에는 나가지 않는다. */
+  refId: string;
+  /** 팝오버 머리의 종류 배지. "메일" · "현장 스냅샷" · "위험성평가표" 처럼 적는다. */
+  kindLabel: string;
+  title: string;
+  /** 발신·수신·첨부처럼 짧은 항목들. 팝오버에서 정의 목록으로 그린다. */
+  meta: { term: string; value: string }[];
+  /** 본문 발췌. 문단 배열이며 여기에는 다시 식별자를 넣지 않는다. */
+  excerpt: string[];
+  /** 출처 등급 배지. 시드 문서는 우리가 만든 것이라 "합성" 이다. */
+  origin: string | null;
+};
 
 /* ------------------------------------------------------------------ *
  * 현장 헤더와 연결된 맥락 소스
@@ -68,7 +96,7 @@ export type ContextSource = {
 
 export type BoardCounterKey = "condition" | "due" | "approval";
 
-/** 헤더 카운터 한 칸. 값은 카드 목록에서 파생하므로 픽스처도 카드와 어긋나면 안 된다. */
+/** 헤더 카운터 한 칸. 값은 카드 목록에서 파생하므로 어댑터가 센 값도 카드와 어긋나면 안 된다. */
 export type BoardCounter = {
   key: BoardCounterKey;
   value: number;
@@ -120,8 +148,13 @@ export type TaskKindBadge = {
   tone: BadgeTone;
 };
 
-/** "왜 올렸나" · "승인이 필요한 이유" · "왜 여기 있나" — 굵은 머리말이 카드마다 다르다. */
+/** 카드가 이 자리에 올라온 까닭을 적는 한 줄. */
 export type TaskRationale = {
+  text: string;
+};
+
+/** 브리핑 본문 아래 덧말. 굵은 머리말과 설명을 한 줄에 붙여 적는다. */
+export type ConditionNote = {
   label: string;
   text: string;
 };
@@ -291,7 +324,11 @@ export type TaskCard = {
 
 export type BriefingMetric = {
   key: string;
-  value: number;
+  /**
+   * 셀 수 없었으면 null 이다. 화면은 그 자리에 숫자 대신 '—' 를 그린다.
+   * 0 으로 바꿔 두면 "한 건도 없었다" 는 단언이 되어 확인하지 못한 것을 확인했다고 말한다.
+   */
+  value: number | null;
   /** "읽은 소스" · "새 문서" · "감지한 조건" · "만든 태스크" · "쓴 초안" · "사람 확인 필요" */
   label: string;
   tone: "neutral" | "ai";
@@ -340,7 +377,7 @@ export type BriefingCondition = {
   defaultOpen: boolean;
   slots: BriefingSlots;
   /** 본문 아래 회색 상자. "왜 이 순서로 붙였나" 같은 덧말. 없으면 null. */
-  note: TaskRationale | null;
+  note: ConditionNote | null;
 };
 
 export type DailyBriefing = {
@@ -348,7 +385,8 @@ export type DailyBriefing = {
   stampLabel: string;
   /** "감지 켜짐" */
   liveLabel: string;
-  lede: RichText;
+  /** 머리글. 문단 하나가 한 줄이며, 조건 요약도 여기에 한 줄씩 들어온다. */
+  lede: RichText[];
   /** 여섯 개. */
   metrics: BriefingMetric[];
   conditions: BriefingCondition[];
@@ -371,6 +409,13 @@ export type CalendarDay = {
   dayNumber: number;
   /** 그날 전체 건수. */
   count: number;
+  /**
+   * 그날 칸에 놓인 카드의 식별자. 칸반의 날짜 거르기가 이 목록을 그대로 쓴다.
+   *
+   * 주간 라우트는 기한이 없는 카드를 생성일에 놓는다. 화면이 dueBy 만 보고 거르면 캘린더가
+   * "1건" 이라고 말한 날의 칸반이 통째로 비어, 같은 화면의 두 숫자가 어긋난다.
+   */
+  itemIds: string[];
   /** 상위 두 건. */
   chips: CalendarChip[];
   /** "+2건" 의 숫자. 0 이면 줄을 그리지 않는다. */
@@ -424,6 +469,8 @@ export type BoardSnapshot = {
   calendar: BoardCalendar;
   columns: BoardColumnMeta[];
   cards: TaskCard[];
+  /** 식별자를 눌렀을 때 뜨는 실제 내용. 열쇠는 mono 조각의 `refId` 또는 `text`. */
+  references: Record<string, ReferenceDetail>;
   /** 처음 선택된 날짜. "2026-08-19" */
   selectedDate: string;
   /** 칸반 머리의 날짜 제목. "8월 19일 수요일" */

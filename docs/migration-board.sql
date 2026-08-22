@@ -1,16 +1,21 @@
 -- ============================================================================
 -- 태스크 보드 스키마 — 초안 (2026-08-22)
 --
---   이 파일은 `inevitable2026/tbm-check` 레포에 넘기는 초안이다.
---   ▸ 스키마의 소유자는 tbm-check 다. 마이그레이션도 그쪽에 있다.
---   ▸ 이 레포(frontend)는 이 파일을 실행하지 않는다. 실행할 수단도 없다 —
---     ORM 도 마이그레이션 도구도 없고, `postgres` 는 package.json 에만 있고
---     node_modules 에는 설치되어 있지 않다.
---   ▸ 여기서 `psql -f` 로 치는 순간 두 레포의 스키마 인식이 갈린다. HANDOFF.md 가
---     같은 이유로 `ALTER TABLE` 을 금지한다. 이 파일도 같은 규칙 아래 있다.
+--   ▸ 이 파일은 2026-08-22 에 이 레포(frontend)에서 Railway Postgres 에 직접
+--     적용되었다. `node scripts/apply-board-migration.mjs` 가 파일 전체를 한 트랜잭션
+--     으로 보낸다. 예전 머리말은 "이 레포는 이 파일을 실행하지 않는다 · 실행할 수단도
+--     없다 · postgres 는 node_modules 에 설치되어 있지 않다" 고 적어 두었는데 셋 다
+--     사실이 아니었다. postgres 는 실제로 설치되어 있고, 사용자가 여기서 적용하기로
+--     정했으며, 실제로 적용했다. 사실과 다른 주석을 남겨 두면 다음 사람이 같은 판단을
+--     다시 뒤집게 되므로 그 문장을 지운다.
+--   ▸ 스키마의 원 소유자는 여전히 tbm-check 다. 이 파일이 만드는 것은 board 스키마
+--     하나뿐이고, public 스키마의 테이블은 읽고 참조하기만 한다.
+--   ▸ 다시 돌려도 안전하다. [5] · [6] 의 add constraint 를 do 블록으로 감싸 두었으므로
+--     두 번째 실행에서 42710 으로 죽지 않는다. create table · create index 는 원래부터
+--     if not exists 였다.
 --
---   받는 쪽에서 할 일: 아래 [0] 확인 블록을 먼저 돌려 실제 컬럼 타입을 보고,
---   [5] 외래 키 블록을 그 값에 맞춘 뒤 전체를 트랜잭션으로 적용한다.
+--   적용 전에 [0] 확인 블록이 public.sites.id 의 실제 타입을 다시 본다. uuid 가 아니면
+--   그 자리에서 예외를 던지고 트랜잭션 전체가 되돌아간다.
 --
 --   대응 관계 — 컬럼 이름과 제약은 `lib/board/store-pg.ts` 의 질의문에서 그대로 왔다.
 --     board.work_items       ← WorkItem       · upsertItems · listItems · moveItem · rejectItem
@@ -36,10 +41,12 @@ begin;
 -- ----------------------------------------------------------------------------
 -- [0] 붙기 전 확인 — 기존 테이블의 실제 타입을 눈으로 본다
 --
--- frontend 레포에서는 이 값을 확인할 수 없었다. node_modules 에 `postgres` 가 없고
--- psql 도 깔려 있지 않아 라이브 DB 를 들여다볼 수단이 없었다.
--- public.sites.id · public.documents.id 의 타입은 코드의 질의문에서 역으로 읽어 낸
--- 것이라 **uuid 인지 text 인지 확정하지 못했다.** 아래 블록이 그 값을 찍는다.
+-- 2026-08-22 에 라이브 DB 로 실측했다. public.sites.id = uuid,
+-- public.documents.id = uuid, public.documents.site_id = uuid 였다. 그래서 이 파일은
+-- board.work_items · board.snapshot_facts · board.detection_events 의 site_id 를
+-- 처음부터 uuid 로 만든다. 아래 블록은 그 전제가 지금도 참인지 매번 다시 확인하고,
+-- 깨져 있으면 조용히 진행하는 대신 예외로 멈춘다. 전제가 깨진 채로 만들어진 테이블은
+-- 나중에 [5] 의 외래 키를 걸 수 없어 되돌리는 값이 더 크다.
 -- ----------------------------------------------------------------------------
 do $$
 declare
@@ -65,11 +72,19 @@ begin
     raise exception '[board] public.sites 에 id 컬럼이 없습니다. 이 마이그레이션의 전제가 깨졌습니다.';
   end if;
 
-  if v_sites_id_type <> 'text' then
-    raise notice '[board] ▶ board.*.site_id 를 % 로 바꾸고 [5] 를 다시 보십시오.', v_sites_id_type;
+  -- ▼ 판정을 뒤집었다. 예전 문구는 'text 가 아니면 바꾸라' 고 안내했는데, 이 파일을
+  -- uuid 기준으로 고친 뒤에는 그 안내가 거꾸로 읽힌다. 이제는 uuid 가 아니면 멈춘다.
+  if v_sites_id_type <> 'uuid' then
+    raise exception '[board] public.sites.id 가 % 입니다. 이 파일은 board.*.site_id 를 uuid 로 만들므로 타입이 맞지 않아 [5] 의 외래 키를 걸 수 없습니다. 세 테이블의 site_id 를 % 로 맞추고 다시 적용하십시오.',
+      v_sites_id_type, v_sites_id_type;
   end if;
-  if v_documents_id_type is not null and v_documents_id_type <> 'text' then
-    raise notice '[board] ▶ board.snapshot_facts.source_doc_id 를 % 로 바꾸십시오.', v_documents_id_type;
+
+  -- ▼ documents.id 는 uuid 지만 board.snapshot_facts.source_doc_id 는 일부러 text 로 둔다.
+  -- 시드의 근거 문서 식별자('doc_2_k3f9x1qm' · 'doc_5_p8w2zzt1' 따위)가 uuid 형식이
+  -- 아니고 문서함에 대응하는 행도 없어서, uuid 로 바꾸면 시드 적재가 22P02 로 전부
+  -- 실패한다. [5] 의 마지막 제약을 주석 처리한 것도 같은 이유다.
+  if v_documents_id_type is not null then
+    raise notice '[board] public.documents.id 는 % 이지만 board.snapshot_facts.source_doc_id 는 text 로 남깁니다. 시드의 문서 식별자가 uuid 가 아니기 때문입니다.', v_documents_id_type;
   end if;
 end
 $$;
@@ -96,7 +111,13 @@ comment on schema board is
 -- ----------------------------------------------------------------------------
 create table if not exists board.work_items (
   item_id            text primary key,
-  site_id            text        not null,
+
+  -- ▼ text 가 아니라 uuid 다. public.sites.id 가 uuid 라서 [5] 의 work_items_site_fk 를
+  -- 걸려면 타입이 같아야 한다. 빈 테이블이므로 나중에 alter ... using site_id::uuid 로
+  -- 옮기지 않고 처음부터 uuid 로 만든다. 대가는 uuid 가 아닌 siteId 로 질의하면
+  -- 22P02 로 죽는다는 것인데, 옛 문자열 식별자(site_gimpo_gochon_01)가 코드에 남아
+  -- 있으면 빈 보드가 아니라 오류로 드러나므로 그 편이 낫다.
+  site_id            uuid        not null,
 
   timing             text        not null check (timing in ('daily', 'schedule', 'trigger')),
   status             text        not null default 'todo'
@@ -177,8 +198,33 @@ create index if not exists work_items_site_due_text_idx
   on board.work_items (site_id, (substring(due_by from '\d{4}-\d{2}-\d{2}')));
 
 -- 같은 필터의 폴백 가지 — due_by 가 없으면 created_at 의 KST 날짜를 본다.
+-- ▶ 다만 이 인덱스는 date 필터의 to_char(created_at at time zone 'Asia/Seoul', …) 가지를
+--   타지 못한다. 질의가 비교하는 것은 created_at 자체가 아니라 to_char 의 결과라
+--   계획기가 이 인덱스를 고르지 않는다. 여기서는 updated_at · confirmed_at 가지와
+--   범위 조회의 폴백으로만 쓰이고, 표현식이 필요해지면
+--   (site_id, (to_char(created_at at time zone 'Asia/Seoul', 'YYYY-MM-DD'))) 를 따로 만든다.
 create index if not exists work_items_site_created_idx
   on board.work_items (site_id, created_at);
+
+-- ▶ listItems 의 from · to 필터에는 인덱스를 붙이지 못한다. **시도했고 실패했다.**
+--
+-- store-pg.ts 는 due_by 의 날짜와 created_at 의 KST 날짜를 coalesce 로 묶어 통째로
+-- 비교하는데, 위의 두 인덱스는 그 모양이 아니라서 5000행을 넣고 explain 을 돌리면
+-- Seq Scan 이 나온다. 그래서 그 표현식을 그대로 적은 인덱스를 만들어 보았는데
+-- Postgres 가 42P17 'functions in index expression must be marked IMMUTABLE' 로
+-- 거절했다. timestamptz 에 붙는 `at time zone 'Asia/Seoul'` 이 IMMUTABLE 이 아니라
+-- STABLE 이기 때문이다. 시간대 데이터베이스가 갱신되면 같은 입력의 결과가 달라질 수
+-- 있어서 색인 값으로 굳힐 수 없다는 뜻이고, 이것은 우회가 아니라 옳은 거절이다.
+--
+-- 길은 셋이다. (1) 그냥 Seq Scan 을 감수한다 — 현장 하나의 카드가 수백 장 규모인
+-- 동안은 이 편이 싸다. 지금 고른 길이다. (2) IMMUTABLE 로 표시한 래퍼 함수를 만들어
+-- 그 함수로 인덱스를 건다 — 시간대 규칙이 바뀌면 인덱스가 조용히 틀린 값을 들게 되므로
+-- 거짓말을 스키마에 새기는 일이다. (3) KST 날짜를 계산해 두는 생성 열을 두고 거기에
+-- 인덱스를 건다 — 값이 늘어난 만큼 store-pg.ts 의 insert 와 질의도 함께 고쳐야 해서
+-- 화면 배선이 끝난 뒤에 따로 다룬다.
+--
+-- 필요해지는 시점은 분명하다. 주간 보드(app/api/board/week)의 응답이 눈에 띄게 느려지면
+-- 그때 (3) 을 한다.
 
 -- 낙관적 갱신 뒤 화면이 되읽는 경로.
 create index if not exists work_items_site_updated_idx
@@ -196,7 +242,8 @@ create index if not exists work_items_site_updated_idx
 -- ----------------------------------------------------------------------------
 create table if not exists board.snapshot_facts (
   fact_id        bigint generated always as identity primary key,
-  site_id        text        not null,
+  -- work_items 와 같은 이유로 uuid 다. public.sites.id 를 참조한다.
+  site_id        uuid        not null,
 
   fact_type      text        not null check (fact_type in (
                    'weatherObservation', 'scheduleActiveTasks', 'riskAssessmentRow',
@@ -209,8 +256,14 @@ create table if not exists board.snapshot_facts (
   value          jsonb       not null,
   observed_at    timestamptz not null,
 
-  -- 문서함(public.documents)의 행. 값이 없을 수 있어 nullable 이고,
-  -- 외래 키는 [5] 에서 따로 건다 — 시나리오 문서 id 문제가 거기 걸린다.
+  -- 문서함(public.documents)의 행을 가리키려던 자리다. **text 로 둔다.**
+  -- public.documents.id 는 uuid 지만 시드가 넣는 값은 'doc_2_k3f9x1qm' ·
+  -- 'doc_5_p8w2zzt1' · 'doc_9_r4m6yq' · 'doc_11_v2n8ha' 네 종류의 도메인 문자열이고
+  -- 문서함에 대응하는 행이 하나도 없다. uuid 로 바꾸면 적재 자체가 22P02 로 죽고,
+  -- text 로 두면 타입이 달라 외래 키를 걸 수 없다. 그래서 [5] 의 마지막 제약을
+  -- 주석 처리하고 이 컬럼은 문자열 그대로 받는다. 대가는 이 값으로
+  -- public.documents 를 조인해도 아무것도 나오지 않는다는 것이며, 실제 문서와 잇는
+  -- 날에는 별도 매핑 표를 두고 그때 이 결정을 다시 본다.
   source_doc_id  text,
 
   confidence     double precision not null default 1
@@ -255,7 +308,8 @@ create table if not exists board.detection_events (
   detection_id     bigint generated always as identity primary key,
 
   run_id           text        not null,
-  site_id          text        not null,
+  -- work_items 와 같은 이유로 uuid 다. public.sites.id 를 참조한다.
+  site_id          uuid        not null,
 
   -- TriggerRuleId('T-01'~'T-08') 또는 ScheduleRuleId('S-…').
   -- 주기 규칙은 아직 열거되지 않아 타입이 템플릿 리터럴이므로 여기서도 열어 둔다.
@@ -361,37 +415,71 @@ create index if not exists invalidations_doc_idx
 -- 아래 ALTER 는 전부 board.* 즉 이 파일이 방금 만든 테이블을 대상으로 한다.
 -- public.sites · public.documents 는 참조만 하고 고치지 않는다.
 --
--- ▶ [0] 의 NOTICE 가 text 가 아닌 타입을 찍었다면, 참조하는 쪽 컬럼의 타입을 먼저
---   그 타입으로 바꾸고 이 블록을 돌린다. 타입이 다르면 여기서 실패한다.
---   (예: alter table board.work_items alter column site_id type uuid using site_id::uuid;)
+-- ▶ 세 site_id 는 위에서 이미 uuid 로 만들었으므로 public.sites (id uuid) 와 타입이
+--   맞는다. 예전 주석이 안내하던 alter ... using site_id::uuid 는 필요하지 않다.
 --
--- ▶ 시드가 시나리오 문자열 id(site_gimpo_gochon_01 · doc_2_k3f9x1qm)를 그대로 쓴다면
---   public 쪽에 대응하는 행이 먼저 있어야 한다. 특히 snapshot_facts.source_doc_id 는
---   시나리오 문서 id 를 담는 자리라 문서함에 그 행이 없기 쉽다.
---   없다면 **마지막 제약 하나만** 주석 처리하고 나머지는 그대로 둔다.
+-- ▶ add constraint 에는 if not exists 가 없다. 그대로 두면 파일을 두 번째로 돌릴 때
+--   42710 으로 죽고 트랜잭션 전체가 되돌아간다. 그래서 제약마다 pg_constraint 를 먼저
+--   보는 do 블록으로 감쌌다. 이렇게 해야 create table if not exists 와 재실행 성질이
+--   같아진다.
+--
+-- ▶ on delete cascade 의 대가를 알고 쓴다. public.sites 에 RI 트리거가 붙고, tbm-check
+--   쪽에서 현장 행을 지우면 그 현장의 카드와 사실과 감지가 함께 사라진다. 두 레포가
+--   같은 DB 를 공유하는 상황에서 이것은 결합이다. 그럼에도 유지하는 이유는, 참조가
+--   끊긴 채로 남은 보드 데이터가 어느 현장 것인지 아무도 되짚을 수 없기 때문이다.
 -- ----------------------------------------------------------------------------
 
-alter table board.work_items
-  add constraint work_items_site_fk
-  foreign key (site_id) references public.sites (id) on delete cascade;
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'work_items_site_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.work_items
+      add constraint work_items_site_fk
+      foreign key (site_id) references public.sites (id) on delete cascade;
+  end if;
+end $$;
 
-alter table board.snapshot_facts
-  add constraint snapshot_facts_site_fk
-  foreign key (site_id) references public.sites (id) on delete cascade;
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'snapshot_facts_site_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.snapshot_facts
+      add constraint snapshot_facts_site_fk
+      foreign key (site_id) references public.sites (id) on delete cascade;
+  end if;
+end $$;
 
-alter table board.detection_events
-  add constraint detection_events_site_fk
-  foreign key (site_id) references public.sites (id) on delete cascade;
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'detection_events_site_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.detection_events
+      add constraint detection_events_site_fk
+      foreign key (site_id) references public.sites (id) on delete cascade;
+  end if;
+end $$;
 
-alter table board.invalidations
-  add constraint invalidations_item_fk
-  foreign key (item_id) references board.work_items (item_id) on delete cascade;
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'invalidations_item_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.invalidations
+      add constraint invalidations_item_fk
+      foreign key (item_id) references board.work_items (item_id) on delete cascade;
+  end if;
+end $$;
 
--- 문서함이 지워져도 사실 자체는 남는다. 근거 문서 링크만 끊긴다.
--- ▶ 시드가 문서함에 없는 문서 id 를 쓴다면 이 한 줄을 주석 처리한다.
-alter table board.snapshot_facts
-  add constraint snapshot_facts_source_doc_fk
-  foreign key (source_doc_id) references public.documents (id) on delete set null;
+-- ▼ snapshot_facts_source_doc_fk 는 걸지 않는다. 주석 처리한 채로 남겨 둔다.
+--
+-- 이 파일이 스스로 열어 둔 길("시드가 문서함에 없는 문서 id 를 쓴다면 마지막 제약
+-- 하나만 주석 처리한다")에 정확히 해당하는 경우다. 2026-08-22 실측으로 두 가지가
+-- 확인되었다. 첫째, public.documents 16건의 id 는 전부 uuid 인데 시드의 sourceDocId
+-- 네 종류는 uuid 형식이 아니고 문서함에 대응하는 행이 하나도 없다. 둘째, 그래서
+-- source_doc_id 를 text 로 남겼는데 uuid 컬럼을 참조하는 외래 키는 타입이 달라
+-- 값 이전에 정의에서 실패한다. 값도 타입도 맞지 않으므로 제약을 걸 수 없다.
+--
+-- 되살리는 조건은 분명하다. 시드의 문서 식별자를 실제 문서함 행과 잇는 매핑을 만들고
+-- source_doc_id 를 uuid 로 옮긴 다음, 아래 세 줄의 주석을 풀면 된다.
+--
+-- alter table board.snapshot_facts
+--   add constraint snapshot_facts_source_doc_fk
+--   foreign key (source_doc_id) references public.documents (id) on delete set null;
 
 -- ============================================================================
 -- [6] board.work_item_events — 카드 이력
@@ -426,9 +514,63 @@ create table if not exists board.work_item_events (
 create index if not exists work_item_events_item_idx
   on board.work_item_events (item_id, created_at desc);
 
-alter table board.work_item_events
-  add constraint work_item_events_item_fk
-  foreign key (item_id) references board.work_items (item_id) on delete cascade;
+-- [5] 와 같은 이유로 do 블록으로 감쌌다. 재실행에서 42710 으로 죽지 않게 한다.
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'work_item_events_item_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.work_item_events
+      add constraint work_item_events_item_fk
+      foreign key (item_id) references board.work_items (item_id) on delete cascade;
+  end if;
+end $$;
+
+
+-- ============================================================================
+-- [8] 생성된 문장 — 2026-08-22 추가
+--
+-- 카드 제목·기한·초안 본문과 브리핑 문장을 언어 모델이 만들게 되면서 생긴 두 자리다.
+-- 둘 다 **감지 시점에 한 번 만들어 저장하고 그 뒤로는 읽기만 한다.** 화면을 열 때마다
+-- 다시 만들면 같은 조건을 두 번 봤을 때 문장이 달라지고, 담당자는 브리핑이 어제와 무엇이
+-- 달라졌는지를 문장의 변화로 읽으므로 그것이 곧 거짓 신호가 된다.
+--
+-- 여기 저장되는 것은 문장뿐이다. 무엇이 조건인지, 어느 문서가 전제를 잃었는지는 여전히
+-- lib/detect/rules/*.ts 가 결정적으로 판정하고 evidence · invalidates 로 남는다.
+-- ============================================================================
+
+-- 감지 한 건에 대한 서사. { headline, 관측, 대조, 판단, 만든것, 불확실성 } 모양이고
+-- lib/generate/schemas.ts 의 detectionNarrativeSchema 가 그 계약이다.
+-- 생성에 실패한 감지는 null 로 남는다 — 그때 브리핑은 템플릿 조립으로 되돌아간다.
+alter table board.detection_events
+  add column if not exists narrative jsonb
+  check (narrative is null or jsonb_typeof(narrative) = 'object');
+
+-- 브리핑 맨 위 문단. 감지 한 건이 아니라 24시간 창 전체를 요약하므로 detection_events 에
+-- 실을 수 없다.
+--
+-- cache_key 에 **시각을 넣지 않는다.** at 은 요청마다 달라지는데 그것을 열쇠에 넣으면
+-- 창 안의 내용이 하나도 바뀌지 않아도 매번 빗나가 모델을 다시 부르게 된다. 대신 창 안
+-- 감지들의 서명과 카드 수를 이어 해싱한다 — 그 둘이 같으면 문단도 같아야 한다.
+create table if not exists board.briefing_narratives (
+  cache_key    text primary key,
+  site_id      uuid        not null,
+  paragraphs   jsonb       not null
+                           check (jsonb_typeof(paragraphs) = 'array'),
+  generated_at timestamptz not null default now()
+);
+
+-- 오래된 캐시를 걷어낼 때 쓴다. 현장 하나를 통째로 지우는 것이 유일한 정리 방법이다.
+create index if not exists briefing_narratives_site_idx
+  on board.briefing_narratives (site_id, generated_at desc);
+
+-- [5] 와 같은 이유로 do 블록으로 감쌌다.
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'briefing_narratives_site_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.briefing_narratives
+      add constraint briefing_narratives_site_fk
+      foreign key (site_id) references public.sites (id) on delete cascade;
+  end if;
+end $$;
 
 
 commit;
