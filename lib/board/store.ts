@@ -107,6 +107,16 @@ function lazyPgBoardStore(): BoardStore {
     async recordDraftEdits(itemId: string, actor: string, edits: DraftEdit[]): Promise<void> {
       return (await real()).recordDraftEdits(itemId, actor, edits);
     },
+    async readBriefingNarrative(cacheKey: string): Promise<string[] | null> {
+      return (await real()).readBriefingNarrative(cacheKey);
+    },
+    async writeBriefingNarrative(
+      cacheKey: string,
+      siteId: string,
+      paragraphs: string[],
+    ): Promise<void> {
+      return (await real()).writeBriefingNarrative(cacheKey, siteId, paragraphs);
+    },
   };
 }
 

@@ -2401,13 +2401,11 @@ button {
   letter-spacing: -0.35px;
 }
 
-/* 연결된 맥락 — AI 사이드바 머리 아래에 세로로 선다. 폭이 좁으므로 소스는 한 줄에
+/* 연결된 맥락 — 왼쪽 사이드바의 차림 아래에 선다. 폭이 좁으므로 소스는 한 줄에
    하나씩 쌓이고, 제목 · 목록 · 각주가 위에서 아래로 이어진다. */
-.board-assistant-watch {
+.sidebar > .board-watch {
+  width: 100%;
   flex: none;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--board-hairline);
-  background: var(--sidebar-surface);
 }
 
 .board-watch {
@@ -4587,7 +4585,7 @@ button {
   gap: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 18px 16px 4px;
+  padding: 18px 16px 28px;
 }
 
 .board-assistant .chat-area {
@@ -4596,14 +4594,28 @@ button {
   padding-bottom: 8px;
 }
 
-/* 답은 박스 없이 글로만 선다. 폭이 좁아 테두리가 겹치면 오히려 읽기 어렵다. */
+/* 답은 박스 없이 글로만 선다. 폭이 좁아 테두리가 겹치면 오히려 읽기 어렵다.
+   라벨이 맨 위에 서고 그 아래로 확인 과정과 본문이 차례로 쌓인다. */
 .board-assistant .chat-message-assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-right: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: none;
   box-shadow: none;
+}
+
+/* 간격은 위쪽 flex 의 gap 이 잡는다. 라벨의 아래 여백은 그래서 지운다. */
+.board-assistant .chat-message-assistant > .chat-message-label {
+  margin-bottom: 0;
+}
+
+.board-assistant .assistant-pending {
+  font-size: 13.5px;
+  letter-spacing: -0.3px;
 }
 
 /* 내 질문 — 오른쪽에 붙는 회색 말풍선. 답과 달리 한눈에 구분되기만 하면 된다. */
@@ -4834,7 +4846,7 @@ button {
 .board-assistant-steps {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 1px;
 }
 
 .board-assistant-step {
@@ -4843,12 +4855,12 @@ button {
   justify-content: space-between;
   gap: 10px;
   margin: 0;
-  padding: 3px 0;
+  padding: 1px 0;
   color: var(--board-note-ink);
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 500;
   letter-spacing: -0.2px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .board-assistant-step.is-error {
@@ -4945,4 +4957,253 @@ button {
     animation: none;
     transition: none;
   }
+}
+
+/* 메일함 — 현장 맥락 관리의 메일 스레드 목록. 데이터는 아직 목업이다. */
+
+.context-mail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.context-mail > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.context-mail h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mail-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+  font-size: 12px;
+}
+
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-thread {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.mail-thread.is-open {
+  border-color: var(--board-accent-border);
+}
+
+.mail-thread-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mail-thread-head:hover {
+  background: var(--sidebar-surface);
+}
+
+.mail-subject {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--board-title-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mail-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--purple-primary);
+}
+
+.mail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mail-state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.mail-state--applied {
+  background: var(--board-ok-surface);
+  color: var(--board-ok-ink);
+}
+
+.mail-state--pending {
+  background: var(--board-due-surface);
+  color: var(--board-due-ink);
+}
+
+.mail-state--held {
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+}
+
+.mail-thread-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 16px 18px;
+  border-top: 1px solid var(--board-hairline);
+}
+
+.mail-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-message {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+}
+
+.mail-message-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.mail-from {
+  color: var(--board-strong-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mail-address,
+.mail-time,
+.mail-recipients {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mail-recipients {
+  margin: 4px 0 0;
+}
+
+.mail-body {
+  margin: 10px 0 0;
+  color: var(--board-body-ink);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.mail-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-attachments li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.mail-file {
+  color: var(--board-title-ink);
+  font-weight: 500;
+}
+
+.mail-file-meta {
+  color: var(--text-muted);
+}
+
+.mail-attach {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.mail-attach--stored {
+  background: var(--board-ok-surface);
+  color: var(--board-ok-ink);
+}
+
+.mail-attach--queued {
+  background: var(--board-ai-surface);
+  color: var(--purple-copy);
+}
+
+.mail-attach--skipped {
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+}
+
+.mail-extracted {
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+}
+
+.mail-extracted h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mail-extracted dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.mail-extracted dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mail-extracted dd {
+  margin: 2px 0 0;
+  font-size: 13px;
 }

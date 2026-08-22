@@ -525,6 +525,54 @@ do $$ begin
 end $$;
 
 
+-- ============================================================================
+-- [8] 생성된 문장 — 2026-08-22 추가
+--
+-- 카드 제목·기한·초안 본문과 브리핑 문장을 언어 모델이 만들게 되면서 생긴 두 자리다.
+-- 둘 다 **감지 시점에 한 번 만들어 저장하고 그 뒤로는 읽기만 한다.** 화면을 열 때마다
+-- 다시 만들면 같은 조건을 두 번 봤을 때 문장이 달라지고, 담당자는 브리핑이 어제와 무엇이
+-- 달라졌는지를 문장의 변화로 읽으므로 그것이 곧 거짓 신호가 된다.
+--
+-- 여기 저장되는 것은 문장뿐이다. 무엇이 조건인지, 어느 문서가 전제를 잃었는지는 여전히
+-- lib/detect/rules/*.ts 가 결정적으로 판정하고 evidence · invalidates 로 남는다.
+-- ============================================================================
+
+-- 감지 한 건에 대한 서사. { headline, 관측, 대조, 판단, 만든것, 불확실성 } 모양이고
+-- lib/generate/schemas.ts 의 detectionNarrativeSchema 가 그 계약이다.
+-- 생성에 실패한 감지는 null 로 남는다 — 그때 브리핑은 템플릿 조립으로 되돌아간다.
+alter table board.detection_events
+  add column if not exists narrative jsonb
+  check (narrative is null or jsonb_typeof(narrative) = 'object');
+
+-- 브리핑 맨 위 문단. 감지 한 건이 아니라 24시간 창 전체를 요약하므로 detection_events 에
+-- 실을 수 없다.
+--
+-- cache_key 에 **시각을 넣지 않는다.** at 은 요청마다 달라지는데 그것을 열쇠에 넣으면
+-- 창 안의 내용이 하나도 바뀌지 않아도 매번 빗나가 모델을 다시 부르게 된다. 대신 창 안
+-- 감지들의 서명과 카드 수를 이어 해싱한다 — 그 둘이 같으면 문단도 같아야 한다.
+create table if not exists board.briefing_narratives (
+  cache_key    text primary key,
+  site_id      uuid        not null,
+  paragraphs   jsonb       not null
+                           check (jsonb_typeof(paragraphs) = 'array'),
+  generated_at timestamptz not null default now()
+);
+
+-- 오래된 캐시를 걷어낼 때 쓴다. 현장 하나를 통째로 지우는 것이 유일한 정리 방법이다.
+create index if not exists briefing_narratives_site_idx
+  on board.briefing_narratives (site_id, generated_at desc);
+
+-- [5] 와 같은 이유로 do 블록으로 감쌌다.
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'briefing_narratives_site_fk' and connamespace = 'board'::regnamespace) then
+    alter table board.briefing_narratives
+      add constraint briefing_narratives_site_fk
+      foreign key (site_id) references public.sites (id) on delete cascade;
+  end if;
+end $$;
+
+
 commit;
 
 -- ============================================================================

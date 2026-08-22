@@ -11,11 +11,10 @@
 // 말하지만 아무 데도 남지 않는다. 안전관리 콘솔에서 그것은 이행확인 기록의 위조와 같은
 // 자리에 있다. 그래서 실패는 감추지 않고 무엇이 잘못되었는지를 문장으로 올려 보낸다.
 
-import type { Briefing, WeekPage, WorkItem } from "@/lib/board/types";
+import type { WorkItem } from "@/lib/board/types";
 
-import { SITE_NAME_FALLBACK } from "./presentation";
 import type { ApproveIntent, BoardSnapshot, CardMoveIntent, RejectIntent } from "./types";
-import { toBoardSnapshot, type ContextDocument } from "./view-model";
+import { toBoardSnapshot, type BoardSources } from "./view-model";
 
 /* ------------------------------------------------------------------ *
  * 오류
@@ -81,63 +80,42 @@ async function 읽기<T>(url: string, 무엇: string): Promise<T> {
  * 읽기
  * ------------------------------------------------------------------ */
 
-type SitesResponse = { sites: Array<{ id: string; name: string }> };
-type DocumentsResponse = { documents: ContextDocument[] };
+/**
+ * 보드 한 장의 재료. 서버가 GET /api/board/snapshot 으로 돌려주는 모양 그대로이고,
+ * 서버 컴포넌트가 미리 읽어 내려보낼 때에도 같은 모양이다.
+ */
+export type { BoardSources };
 
 /**
- * 현장 이름과 문서 목록은 보드의 뼈대가 아니라 곁들이다.
+ * 재료를 화면 뷰모델로 옮긴다.
  *
- * 문서함 라우트가 넘어져도 카드 열한 장과 브리핑은 그대로 읽을 수 있어야 하므로, 이 둘만
- * 실패를 삼키고 빈 값으로 간다. 대신 지어내지는 않는다 — 현장 이름은 "현장" 으로 남고
- * 새 문서 수는 0 이 되며, 그 0 은 "세지 못했다" 가 아니라 "창 안에 없다" 와 같은 자리에 선다.
+ * 읽는 길이 둘이라 이 자리가 필요하다. 하나는 아래 loadBoard 가 브라우저에서 부르는 길이고,
+ * 다른 하나는 서버 컴포넌트가 첫 그림 전에 이미 읽어 둔 재료를 그대로 넘기는 길이다.
+ * 뒤쪽은 요청을 한 번도 보내지 않으므로 여기서 변환만 한다.
  */
-async function 곁들이<T>(url: string, 기본값: T): Promise<T> {
-  try {
-    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
-    if (!res.ok) return 기본값;
-    return (await res.json()) as T;
-  } catch {
-    return 기본값;
-  }
+export function boardSnapshotOf(sources: BoardSources): BoardSnapshot {
+  return toBoardSnapshot(sources);
 }
 
 /**
  * 보드 한 장을 읽는다.
  *
  * `date` 는 칸반이 그리는 날이고 `at` 은 브리핑이 거슬러 올라가는 기준 시각이다. 둘을 따로
- * 받는 이유는 브리핑의 24시간 창이 시각 단위로 움직이기 때문이다.
+ * 보내는 이유는 브리핑의 24시간 창이 시각 단위로 움직이기 때문이다.
  *
- * items 질의에는 date 를 붙이지 않는다. 날짜 거르기는 화면의 isOnDate 가 이미 하고 있고,
- * 기한이 없는 승인 카드가 서버의 date 조건에 걸려 사라지면 칸반의 승인 열이 통째로 빈다.
+ * 요청은 하나다. 예전에는 items · week · briefing · sites · documents 다섯을 함께 보냈는데,
+ * 그 다섯이 서버에서 같은 카드 목록을 세 번 읽는 열댓 번의 질의로 갈라졌다. 왕복 한 번이
+ * 300ms 인 원격 데이터베이스에서 그 중복은 그대로 첫 화면의 대기 시간이었다. 지금은 서버가
+ * 카드 목록을 한 번만 읽어 셋이 나눠 쓴다.
  *
- * 세 요청은 함께 보내고 하나라도 실패하면 보드 전체를 실패로 그린다. 반쪽 보드는 무엇이
- * 없는지 사용자가 알 수 없어 더 나쁘다.
+ * 반쪽 보드는 만들지 않는다. 무엇이 없는지 사용자가 알 수 없어 더 나쁘기 때문에, 재료 중
+ * 하나라도 못 읽으면 보드 전체를 실패로 그린다. 다만 현장 이름과 문서함은 뼈대가 아니라
+ * 곁들이라 서버 쪽에서 실패를 삼키고 대체 값으로 간다.
  */
 export async function loadBoard(siteId: string, date: string, at: string): Promise<BoardSnapshot> {
-  const q = encodeURIComponent(siteId);
-
-  const [items, week, briefing, sites, documents] = await Promise.all([
-    읽기<{ items: WorkItem[] }>(`/api/board/items?siteId=${q}`, "카드 목록"),
-    읽기<WeekPage>(`/api/board/week?siteId=${q}&from=${encodeURIComponent(date)}`, "주간 보드"),
-    읽기<{ briefing: Briefing }>(
-      `/api/board/briefing?siteId=${q}&at=${encodeURIComponent(at)}`,
-      "브리핑",
-    ),
-    곁들이<SitesResponse>("/api/context/sites", { sites: [] }),
-    곁들이<DocumentsResponse>(`/api/context/documents?siteId=${q}`, { documents: [] }),
-  ]);
-
-  const 현장 = sites.sites.find((site) => site.id === siteId);
-
-  return toBoardSnapshot({
-    siteId,
-    date,
-    siteName: 현장?.name ?? SITE_NAME_FALLBACK,
-    items: items.items,
-    week,
-    briefing: briefing.briefing,
-    documents: documents.documents,
-  });
+  const query = new URLSearchParams({ siteId, date, at });
+  const sources = await 읽기<BoardSources>(`/api/board/snapshot?${query}`, "보드");
+  return toBoardSnapshot(sources);
 }
 
 /* ------------------------------------------------------------------ *

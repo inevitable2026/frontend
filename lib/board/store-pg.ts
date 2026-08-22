@@ -7,6 +7,7 @@ import {
   type BoardQuery,
   type BoardStore,
   type Detection,
+  type DetectionNarrative,
   type DetectionRun,
   type Draft,
   type Evidence,
@@ -51,6 +52,7 @@ const TABLES = [
   "detection_events",
   "invalidations",
   "work_item_events",
+  "briefing_narratives",
 ] as const;
 
 type WorkItemRow = {
@@ -96,6 +98,7 @@ type DetectionRow = {
   invalidates: Invalidation[] | null;
   produces: Produces[] | null;
   summary: string;
+  narrative: DetectionNarrative | null;
 };
 
 function fail(code: "invalid" | "notFound" | "conflict" | "unavailable", message: string): never {
@@ -150,6 +153,7 @@ function toDetection(row: DetectionRow): Detection {
     invalidates: row.invalidates ?? [],
     produces: row.produces ?? [],
     summary: row.summary,
+    narrative: row.narrative,
   };
 }
 
@@ -553,11 +557,12 @@ export function createPgBoardStore(): BoardStore {
         await sql`
           insert into board.detection_events (
             run_id, site_id, started_at, rule_id, detected_at, confidence,
-            evidence, invalidates, produces, summary, created_item_ids
+            evidence, invalidates, produces, summary, narrative, created_item_ids
           ) values (
             ${run.runId}, ${detection.siteId}, ${run.startedAt}, ${detection.ruleId}, ${detection.detectedAt},
             ${detection.confidence}, ${json(detection.evidence)}::text::jsonb, ${json(detection.invalidates)}::text::jsonb,
             ${json(detection.produces)}::text::jsonb, ${detection.summary},
+            ${detection.narrative ? json(detection.narrative) : null}::text::jsonb,
             ${json(run.created.map((item: WorkItem) => item.itemId))}::text::jsonb
           )
           on conflict (run_id, rule_id, detected_at) do update set
@@ -566,6 +571,7 @@ export function createPgBoardStore(): BoardStore {
             invalidates      = excluded.invalidates,
             produces         = excluded.produces,
             summary          = excluded.summary,
+            narrative        = excluded.narrative,
             created_item_ids = excluded.created_item_ids
         `;
 
@@ -605,13 +611,49 @@ export function createPgBoardStore(): BoardStore {
       await ensureSchema();
       const sql = db();
       const rows = await sql<DetectionRow[]>`
-        select rule_id, site_id, detected_at, confidence, evidence, invalidates, produces, summary
+        select rule_id, site_id, detected_at, confidence, evidence, invalidates, produces, summary, narrative
           from board.detection_events
          where site_id = ${siteId}
            ${since ? sql`and detected_at >= ${since}` : sql``}
          order by detected_at desc
       `;
       return rows.map((row: DetectionRow) => toDetection(row));
+    },
+
+    /**
+     * 브리핑 문단 캐시를 읽는다.
+     *
+     * 없으면 null 이고, 그때 호출한 쪽이 모델을 부른다. 캐시가 비어 있는 것은 오류가
+     * 아니라 "아직 이 창을 본 적이 없다" 는 뜻이므로 여기서 예외를 던지지 않는다.
+     */
+    async readBriefingNarrative(cacheKey: string): Promise<string[] | null> {
+      await ensureSchema();
+      const sql = db();
+      const rows = await sql<Array<{ paragraphs: string[] }>>`
+        select paragraphs from board.briefing_narratives where cache_key = ${cacheKey}
+      `;
+      const found = rows[0]?.paragraphs;
+      return Array.isArray(found) && found.length > 0 ? found : null;
+    },
+
+    async writeBriefingNarrative(
+      cacheKey: string,
+      siteId: string,
+      paragraphs: string[],
+    ): Promise<void> {
+      if (paragraphs.length === 0) return;
+      assertSiteId(siteId);
+      await ensureSchema();
+      const sql = db();
+      // 같은 열쇠에 두 요청이 동시에 닿으면 나중 것이 이긴다. 열쇠가 같으면 내용도
+      // 같아야 하므로 어느 쪽이 이겨도 결과가 달라지지 않는다.
+      await sql`
+        insert into board.briefing_narratives (cache_key, site_id, paragraphs)
+        values (${cacheKey}, ${siteId}, ${json(paragraphs)}::text::jsonb)
+        on conflict (cache_key) do update set
+          paragraphs   = excluded.paragraphs,
+          generated_at = now()
+      `;
     },
   };
 }

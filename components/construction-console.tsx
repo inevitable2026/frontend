@@ -10,7 +10,10 @@ import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
 import { useLawChat } from "@/components/chat/use-law-chat";
 import { SiteContextPanel } from "@/components/site-context-panel";
+import { ContextWatch } from "@/components/task-board/context-watch";
 import { TaskBoard } from "@/components/task-board/task-board";
+import type { BoardSources } from "@/components/task-board/board-data";
+import type { BoardWatch } from "@/components/task-board/types";
 
 /**
  * 사이드바 차례. **첫 항목이 태스크 보드**이므로 아래 인덱스가 곧 화면이다.
@@ -63,9 +66,23 @@ function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
   );
 }
 
-export function ConstructionConsole() {
+export function ConstructionConsole({
+  initialBoard = null,
+}: {
+  /**
+   * 서버가 첫 그림 전에 읽어 둔 보드 재료. 태스크 보드가 처음 열리는 화면이라 이것을 들고
+   * 오면 카드가 첫 HTML 에 이미 서 있다. 서버 쪽 읽기가 실패하면 null 로 오고, 그때는
+   * 보드가 예전처럼 마운트 뒤에 직접 읽는다.
+   */
+  initialBoard?: BoardSources | null;
+}) {
   const [activeNav, setActiveNav] = useState(NAV_BOARD);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  /**
+   * "연결된 맥락을 보고 있습니다". 보드가 스냅샷을 읽고 나서 올려 주고, 사이드바가 그린다.
+   * 아직 한 번도 읽지 않았으면 null 이고 그 자리는 비워 둔다.
+   */
+  const [watch, setWatch] = useState<BoardWatch | null>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
   // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
   const chat = useLawChat();
@@ -207,6 +224,8 @@ export function ConstructionConsole() {
           />
         </button>
 
+        {watch === null ? null : <ContextWatch watch={watch} />}
+
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">
             <AssetCarousel blurred />
@@ -240,7 +259,7 @@ export function ConstructionConsole() {
 
       <section className={`workspace${activeNav === NAV_BOARD ? " is-board" : ""}`}>
         {activeNav === NAV_BOARD ? (
-          <TaskBoard />
+          <TaskBoard initialSources={initialBoard} onWatchChange={setWatch} />
         ) : activeNav === NAV_SITE_CONTEXT ? (
           <SiteContextPanel />
         ) : (

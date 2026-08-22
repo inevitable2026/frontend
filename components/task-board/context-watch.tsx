@@ -5,9 +5,13 @@ import type { JSX } from "react";
 import type { BoardWatch, ContextSourceIcon } from "./types";
 
 /**
- * "연결된 맥락을 보고 있습니다" 한 덩어리. 예전에는 헤더 오른쪽에 가로로 누워 있었으나
- * 헤더가 붐비고 소스 목록이 본문을 밀어내서 AI 사이드바 머리 아래로 옮겼다. 사이드바는
- * 폭이 좁으므로 여기서는 세로로 선다 — 배치는 `.board-assistant-watch` 가 정한다.
+ * "연결된 맥락을 보고 있습니다" 한 덩어리. 예전에는 보드 헤더 오른쪽에 가로로 누워 있었으나
+ * 헤더가 붐비고 소스 목록이 본문을 밀어내서 왼쪽 사이드바로 옮겼다. 사이드바는 폭이 좁으므로
+ * 여기서는 세로로 선다.
+ *
+ * 그리는 곳과 데이터를 읽는 곳이 갈라져 있다 — 맥락 소스는 보드 스냅샷에 들어 있어서
+ * `TaskBoard` 가 읽어 `onWatchChange` 로 올려 주고, `ConstructionConsole` 이 그것을 받아
+ * 사이드바에 세운다.
  */
 
 const SOURCE_ICON: Record<ContextSourceIcon, JSX.Element> = {

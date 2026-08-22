@@ -337,6 +337,31 @@ type 문단재료 = {
 };
 
 /**
+ * 감지 요약에 박혀 있는 기계 표기 시각을 사람이 읽는 말로 바꾼다.
+ *
+ * 규칙이 만드는 요약은 `2026-08-21T18:00:00+09:00` 같은 값을 문장 안에 그대로 넣는다.
+ * 근거 패널에서는 그 정확성이 쓸모가 있지만 머리글은 훑어 읽는 자리여서, 시각 하나가
+ * 스무 글자를 차지하면 정작 무슨 일인지가 묻힌다. 날짜만 있는 표기도 같이 다듬는다.
+ */
+const ISO_시각 = /(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/g;
+const ISO_날짜 = /(\d{4})-(\d{2})-(\d{2})(?![\d:T-])/g;
+
+function 시각다듬기(문장: string, 기준: KstClock): string {
+  const 다듬은 = 문장.replace(ISO_시각, (전체) => {
+    const t = Date.parse(전체);
+    if (!Number.isFinite(t)) return 전체;
+    const c = kstClock(t);
+    return `${날짜말(c, 기준)} ${시각말(c)}`;
+  });
+  return 다듬은.replace(ISO_날짜, (전체) => {
+    const t = Date.parse(`${전체}T00:00:00+09:00`);
+    if (!Number.isFinite(t)) return 전체;
+    // 오늘·어제에 해당하면 날짜말이 그렇게 돌려주고, 그 편이 더 짧고 분명하다.
+    return 날짜말(kstClock(t), 기준);
+  });
+}
+
+/**
  * 머리글에 내용을 적어 줄 조건의 최대 수.
  *
  * 전부 적으면 머리글이 아래 목록의 사본이 되고, 하나도 적지 않으면 숫자만 남아 무슨 일이
@@ -409,7 +434,7 @@ function 문단들(재료: 문단재료): string[] {
 
     for (const d of 중요한순.slice(0, 요약할조건수)) {
       const 이름 = ruleLabel(d.ruleId, 재료.labels);
-      const 요약 = d.summary.trim().replace(/[.。]\s*$/u, "");
+      const 요약 = 시각다듬기(d.summary.trim(), 재료.기준).replace(/[.。]\s*$/u, "");
       if (!요약) continue;
       const 딸린 = 재료.배분.get(d)?.length ?? 0;
       const 초안 = 재료.배분.get(d)?.filter((i) => i.draft !== null).length ?? 0;
@@ -523,7 +548,9 @@ function 항목만들기(
   return {
     ruleId: d.ruleId,
     label: ruleLabel(d.ruleId, labels),
-    headline: d.summary.trim(),
+    // 머리글과 같은 문장이 여기에도 선다. 한쪽만 다듬으면 같은 조건이 두 표기로 갈라져
+    // 읽는 사람이 서로 다른 일로 읽는다.
+    headline: 시각다듬기(d.summary.trim(), 기준),
     detectedAt: d.detectedAt,
     createdCount: 소속.length,
     itemIds: 소속.map((i) => i.itemId),

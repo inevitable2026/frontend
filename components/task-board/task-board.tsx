@@ -2,11 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 
+import { BOARD_AT, BOARD_DATE } from "@/lib/board/scene";
 import { BOARD_SITE_ID } from "@/lib/board/site";
 
 import { AssistantFab, AssistantPanel, type BoardBridge } from "./assistant-panel";
 import { BoardHeader } from "./board-header";
-import { approveCard, BoardRequestError, loadBoard, moveCard, rejectCard } from "./board-data";
+import {
+  approveCard,
+  boardSnapshotOf,
+  BoardRequestError,
+  loadBoard,
+  moveCard,
+  rejectCard,
+  type BoardSources,
+} from "./board-data";
 import { BoardSkeleton } from "./board-skeleton";
 import { DailyBriefingPanel } from "./daily-briefing";
 import { KanbanBoard } from "./kanban-board";
@@ -18,6 +27,7 @@ import type {
   ApproveIntent,
   BoardColumnId,
   BoardSnapshot,
+  BoardWatch,
   CalendarViewMode,
   CardMoveIntent,
   DraftEdit,
@@ -32,19 +42,7 @@ import type {
  */
 const SITE_ID = BOARD_SITE_ID;
 
-/**
- * 보드 날짜와 브리핑 기준 시각.
- *
- * 오늘로 옮기지 않고 2026-08-19 에 못 박아 둔다. 이 화면은 실시간 현장이 아니라 시드가
- * 재현한 한 장면을 그리기 때문이다. 근거는 넷이다. 첫째, 카드 셋의 dueBy 가
- * '2026-08-19 오전 중 (시각 미상)' 처럼 날짜가 박힌 사람 문장이라 보드 날짜만 옮기면 기한
- * 문장과 어긋난다. 둘째, 사실 86건이 2026-06-04 부터 2026-08-19 까지 걸쳐 있고 규칙 여럿이
- * 그 사이의 간격을 센다. 셋째, 브리핑의 24시간 창이 at 을 기준으로 움직여서 오늘로 두면
- * 창 안에 감지가 하나도 없어 문단이 빈다. 넷째, 시드는 docs/scenario-gimpo-logistics.md 와
- * 숫자까지 맞춘 한 장면이라 날짜를 옮기면 문서와 데이터가 갈라진다.
- */
-const BOARD_DATE = "2026-08-19";
-const BOARD_AT = "2026-08-19T08:10:00+09:00";
+
 
 /**
  * 두 카드 사이에 끼울 자리를 만드는 간격.
@@ -199,19 +197,54 @@ function 실패문구(error: unknown): string {
   return ROLLBACK_MESSAGE;
 }
 
+/** 처음부터 펼쳐 둘 조건. 읽는 길이 둘이라(서버가 미리 준 보드와 화면이 읽은 보드) 한곳에 적는다. */
+function 처음펼칠조건(snapshot: BoardSnapshot | null): string[] {
+  if (snapshot === null) return [];
+  return snapshot.briefing.conditions
+    .filter((condition) => condition.defaultOpen)
+    .map((condition) => condition.conditionId);
+}
+
 /* ------------------------------------------------------------------ *
  * 컨테이너
  * ------------------------------------------------------------------ */
 
-export function TaskBoard(): JSX.Element {
-  const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(null);
-  const [cards, setCards] = useState<TaskCard[]>([]);
+export function TaskBoard({
+  initialSources = null,
+  onWatchChange,
+}: {
+  /**
+   * 서버가 첫 그림 전에 이미 읽어 둔 보드 재료다.
+   *
+   * 이것이 있으면 화면은 요청을 한 번도 보내지 않고 곧바로 카드를 그린다. 없을 때만 예전처럼
+   * 마운트 뒤에 읽는데, 그 길은 HTML 이 도착하고 번들을 내려받아 hydration 이 끝난 뒤에야
+   * 첫 요청이 나가므로 데이터베이스 왕복 앞에 대기가 한 겹 더 붙는다.
+   */
+  initialSources?: BoardSources | null;
+  /**
+   * "연결된 맥락을 보고 있습니다" 를 왼쪽 사이드바가 그린다. 그 데이터는 보드 스냅샷 안에
+   * 있고 그것을 읽는 곳은 여기뿐이라, 읽고 나서 위로 올려 준다. 콘솔이 따로 한 번 더 읽으면
+   * 같은 요청이 두 벌이 되고 두 화면의 값이 갈라진다.
+   */
+  onWatchChange?: (watch: BoardWatch) => void;
+}): JSX.Element {
+  // 서버가 준 재료를 뷰모델로 옮기는 일은 첫 렌더에 한 번이면 된다. 재료는 요청마다 새로
+  // 오는 객체라 의존성에 그대로 걸면 매 렌더에서 다시 계산된다.
+  const 서버보드 = useMemo(
+    () => (initialSources === null ? null : boardSnapshotOf(initialSources)),
+    [initialSources],
+  );
+
+  const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(서버보드);
+  const [cards, setCards] = useState<TaskCard[]>(서버보드?.cards ?? []);
   const [loadError, setLoadError] = useState<string | null>(null);
   /** 다시 시도 단추가 올리는 값. 바뀌면 읽기 효과가 한 번 더 돈다. */
   const [attempt, setAttempt] = useState(0);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(서버보드?.selectedDate ?? null);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
-  const [openConditionIds, setOpenConditionIds] = useState<string[]>([]);
+  const [openConditionIds, setOpenConditionIds] = useState<string[]>(() =>
+    처음펼칠조건(서버보드),
+  );
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<TaskCard | null>(null);
@@ -220,8 +253,12 @@ export function TaskBoard(): JSX.Element {
   // 두어야 열린 동안 칸반이 패널 아래로 숨지 않게 여백을 줄 수 있다.
   const [assistantOpen, setAssistantOpen] = useState(false);
 
-  // 첫 그림 뒤에 보드를 읽는다. setState 는 await 경계 뒤에서만 부른다.
+  // 서버가 못 읽어 줬을 때, 그리고 다시 시도 단추를 눌렀을 때만 화면이 직접 읽는다.
+  // setState 는 await 경계 뒤에서만 부른다.
   useEffect(() => {
+    // 첫 회차에 서버가 준 보드가 이미 서 있으면 같은 것을 한 번 더 받아 올 이유가 없다.
+    if (서버보드 !== null && attempt === 0) return;
+
     let cancelled = false;
     void (async () => {
       try {
@@ -231,11 +268,7 @@ export function TaskBoard(): JSX.Element {
         setCards(next.cards);
         setLoadError(null);
         setSelectedDate(next.selectedDate);
-        setOpenConditionIds(
-          next.briefing.conditions
-            .filter((condition) => condition.defaultOpen)
-            .map((condition) => condition.conditionId),
-        );
+        setOpenConditionIds(처음펼칠조건(next));
       } catch (error) {
         if (cancelled) return;
         // 실패를 숨기고 지난 화면을 그대로 두지 않는다. 무엇이 잘못되었는지 적고 멈춘다.
@@ -251,7 +284,13 @@ export function TaskBoard(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [attempt]);
+  }, [attempt, 서버보드]);
+
+  /** 맥락 소스는 스냅샷을 읽어야 알 수 있으므로, 읽은 뒤에 왼쪽 사이드바로 올려 보낸다. */
+  const watch = snapshot?.site.watch ?? null;
+  useEffect(() => {
+    if (watch !== null) onWatchChange?.(watch);
+  }, [watch, onWatchChange]);
 
   // Ctrl+K 로 열고 Esc 로 닫는다 (아티팩트 317줄). 효과는 리스너만 걸고 상태는 핸들러가 바꾼다.
   useEffect(() => {
@@ -512,12 +551,7 @@ export function TaskBoard(): JSX.Element {
         type="button"
       />
 
-      <AssistantPanel
-        board={assistantBridge}
-        onClose={() => setAssistantOpen(false)}
-        open={assistantOpen}
-        watch={snapshot.site.watch}
-      />
+      <AssistantPanel board={assistantBridge} onClose={() => setAssistantOpen(false)} open={assistantOpen} />
 
       <AssistantFab onOpen={() => setAssistantOpen(true)} open={assistantOpen} />
     </div>

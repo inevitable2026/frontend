@@ -10,8 +10,7 @@ import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components
 import type { BoardActionOutput, BoardContext } from "@/lib/board/assistant-tools";
 
 import { AssistantMessageView } from "./assistant-stream";
-import { ContextWatch } from "./context-watch";
-import type { BoardColumnId, BoardWatch } from "./types";
+import type { BoardColumnId } from "./types";
 
 /**
  * 보드 오른쪽에 서는 AI 사이드바. 기획안(`docs/plan-task-board.md` 1.1)대로 **보드를
@@ -57,13 +56,10 @@ export function AssistantPanel({
   open,
   onClose,
   board,
-  watch,
 }: {
   open: boolean;
   onClose: () => void;
   board: BoardBridge;
-  /** 헤더에서 옮겨 온 "연결된 맥락을 보고 있습니다". 머리 바로 아래에 고정으로 선다. */
-  watch: BoardWatch;
 }): JSX.Element {
   const panelRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
@@ -179,10 +175,6 @@ export function AssistantPanel({
           <span aria-hidden="true" />
         </button>
       </header>
-
-      <div className="board-assistant-watch">
-        <ContextWatch watch={watch} />
-      </div>
 
       <div className="board-assistant-body">
         {messages.length === 0 ? <AssistantIntro onPick={setInput} /> : null}

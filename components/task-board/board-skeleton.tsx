@@ -153,6 +153,10 @@ function SkeletonKanban(): JSX.Element {
         <Skel width={148} height={15} />
         <Skel width={34} height={12} />
         <Skel width={96} height={22} radius={999} />
+        {/* 끌기 안내 문구 자리. 클래스를 그대로 두르므로 1199px 아래에서 같이 줄바꿈된다. */}
+        <span className="board-kanban-hint">
+          <Skel width={232} height={11} />
+        </span>
       </div>
 
       <div className="board-kanban">

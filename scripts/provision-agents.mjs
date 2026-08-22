@@ -17,6 +17,7 @@ const AGENTS = [
   ["sitectx-tbm",        "TBM회의록 — 참석자·중점위험 판독"],
   ["sitectx-sop",        "작업표준 — 작업단계·보호구 판독"],
   ["sitectx-patrol",     "순회점검일지 — 지적사항·조치 판독"],
+  ["sitectx-mail",       "메일 — 발신자·요청사항·첨부 판독"],
   ["sitectx-general",    "일반 문서 판독"],
 ];
 

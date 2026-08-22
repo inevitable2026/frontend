@@ -211,6 +211,24 @@ export type Evidence = {
   excerpt: string;
 };
 
+/**
+ * 감지 한 건을 사람 말로 옮긴 것. 언어 모델이 감지 시점에 한 번 쓰고 그대로 저장된다.
+ *
+ * 무효화 칸이 여기 없는 것은 빠뜨린 것이 아니다. 그 칸은 `docId — scope` 라는 좌표이고
+ * 규칙이 이미 정확히 짚어 두었으므로, 다시 쓰게 하면 문서 이름이 흔들린다.
+ *
+ * 생성에 실패하면 null 로 남고, 브리핑은 lib/board/briefing-fallback.ts 의 템플릿
+ * 조립으로 되돌아간다. 문장을 못 쓴 것이지 감지를 못 한 것이 아니기 때문이다.
+ */
+export type DetectionNarrative = {
+  headline: string;
+  관측: string[];
+  대조: string[];
+  판단: string[];
+  만든것: string[];
+  불확실성: string[];
+};
+
 export type Detection = {
   ruleId: RuleId;
   siteId: string;
@@ -218,8 +236,17 @@ export type Detection = {
   confidence: number;
   evidence: Evidence[];
   invalidates: Invalidation[];
+  /**
+   * 이 조건이 만들어 낼 산출물.
+   *
+   * 규칙은 이 배열을 채우지 않는다 — 무엇을 만들지는 현장과 상황에 따라 달라지므로
+   * lib/generate/cards.ts 가 카드 계획과 함께 정하고, 엔진이 그 결과를 여기 모아 둔다.
+   * 규칙이 내는 Detection 에서는 언제나 빈 배열이다.
+   */
   produces: Produces[];
   summary: string;
+  /** 감지 시점에 생성된 문장. 아직 만들지 않았거나 생성에 실패했으면 null */
+  narrative?: DetectionNarrative | null;
 };
 
 export type DetectLookup = {
@@ -334,6 +361,14 @@ export type BoardStore = {
   latestSnapshotAt(siteId: string): Promise<string | null>;
   appendDetections(run: DetectionRun): Promise<void>;
   listDetections(siteId: string, since?: string): Promise<Detection[]>;
+  /**
+   * 브리핑 문단 캐시를 읽는다. 없으면 null 이다.
+   *
+   * 열쇠는 창 안 감지들의 서명과 카드 수를 이어 해싱한 값이고 시각이 들어가지 않는다.
+   * 자세한 사정은 docs/migration-board.sql 의 [8] 블록에 적혀 있다.
+   */
+  readBriefingNarrative(cacheKey: string): Promise<string[] | null>;
+  writeBriefingNarrative(cacheKey: string, siteId: string, paragraphs: string[]): Promise<void>;
   /**
    * 초안 대비 수정분을 'edited' 이력 한 줄로 남긴다. 확정 직전에만 불린다.
    * docs/migration-board.sql 이 work_item_events 의 type 체크에 'edited' 를 미리 넣어 둔

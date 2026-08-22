@@ -30,6 +30,7 @@ export const STUDIO_AGENTS: Record<DocumentKind, { slug: string; role: string }>
   TBM회의록: { slug: "sitectx-tbm", role: "참석자·중점위험 판독" },
   작업표준: { slug: "sitectx-sop", role: "작업단계·보호구 판독" },
   순회점검일지: { slug: "sitectx-patrol", role: "지적사항·조치 판독" },
+  메일: { slug: "sitectx-mail", role: "발신자·요청사항·첨부 판독" },
   기타: { slug: "sitectx-general", role: "일반 문서 판독" },
 };
 

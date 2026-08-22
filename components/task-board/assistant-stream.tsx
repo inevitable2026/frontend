@@ -9,6 +9,10 @@ import { MarkdownContent, type CitationSource } from "@/components/markdown-cont
 /**
  * 스트리밍으로 들어오는 답 한 통을 그린다.
  *
+ * 쌓이는 순서는 **누가 답하는지 → 무엇을 확인했는지 → 답 본문**이다. 도구 줄은 답이
+ * 오는 동안 계속 늘어나므로, 말하는 주체와 진행 상태를 알리는 머리글이 그 아래로
+ * 밀려나면 지금 무엇이 벌어지는지 알기 어렵다. 그래서 라벨과 대기 문구를 맨 위에 고정한다.
+ *
  * 도구 호출은 **한 줄짜리 글**로만 보여 준다. 실행 중에는 그 줄이 어른거리고(shimmer),
  * 끝나면 펼쳐서 주고받은 값을 볼 수 있다. JSON 덩어리가 실행 중에 먼저 나오면 읽을 것이
  * 없는데도 화면이 요동친다.
@@ -217,8 +221,19 @@ export function AssistantMessageView({
   );
   const answer = texts.join("").trim();
 
+  // 도구도 글도 없이 끝난 답은 그릴 것이 없다. 빈 라벨만 남기지 않는다.
+  if (steps.length === 0 && answer.length === 0 && !isStreaming) return <></>;
+
   return (
-    <>
+    <article aria-busy={isStreaming} className="chat-message chat-message-assistant">
+      <p className="chat-message-label">{assistantLabel}</p>
+
+      {answer.length === 0 && isStreaming ? (
+        <p className="assistant-pending">
+          <span className="board-assistant-shimmer">답변을 준비하고 있습니다…</span>
+        </p>
+      ) : null}
+
       {steps.length === 0 ? null : (
         <section aria-label="확인 과정" className="board-assistant-steps">
           {steps.map((part, index) => (
@@ -227,20 +242,11 @@ export function AssistantMessageView({
         </section>
       )}
 
-      {answer.length === 0 && !isStreaming ? null : (
-        <article aria-busy={isStreaming} className="chat-message chat-message-assistant">
-          <p className="chat-message-label">{assistantLabel}</p>
-          {answer.length === 0 ? (
-            <p className="assistant-pending">
-              <span className="board-assistant-shimmer">답변을 준비하고 있습니다…</span>
-            </p>
-          ) : (
-            <div className={isStreaming ? "board-assistant-typing" : undefined}>
-              <MarkdownContent content={answer} sources={citations} />
-            </div>
-          )}
-        </article>
+      {answer.length === 0 ? null : (
+        <div className={isStreaming ? "board-assistant-typing" : undefined}>
+          <MarkdownContent content={answer} sources={citations} />
+        </div>
       )}
-    </>
+    </article>
   );
 }
