@@ -42,7 +42,7 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 청크를 고르면 원본에서 그 쪽으로 옮겨 간다. 브라우저 PDF 뷰어는 주소의
-  // #page 조각만 읽기 때문에, iframe 을 다시 그려야 쪽 이동이 실제로 일어난다.
+  // 조각(#)만 읽기 때문에, iframe 을 다시 그려야 쪽 이동이 실제로 일어난다.
   const [page, setPage] = useState(1);
   const [activeChunk, setActiveChunk] = useState<string | null>(null);
 

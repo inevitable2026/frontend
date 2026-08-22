@@ -7,6 +7,7 @@ import { BOARD_SITE_ID } from "@/lib/board/site";
 import { AssistantFab, AssistantPanel, type BoardBridge } from "./assistant-panel";
 import { BoardHeader } from "./board-header";
 import { approveCard, BoardRequestError, loadBoard, moveCard, rejectCard } from "./board-data";
+import { BoardSkeleton } from "./board-skeleton";
 import { DailyBriefingPanel } from "./daily-briefing";
 import { KanbanBoard } from "./kanban-board";
 import { ReferenceProvider } from "./reference-chip";
@@ -397,13 +398,9 @@ export function TaskBoard(): JSX.Element {
   }
 
   if (snapshot === null) {
-    return (
-      <div className="board-shell">
-        <div aria-live="polite" className="board-status" role="status">
-          {LOADING_MESSAGE}
-        </div>
-      </div>
-    );
+    // 빈 화면에 한 줄만 띄우지 않고 보드와 같은 자리에 뼈대를 세운다. 카드가 도착하는 순간
+    // 헤더와 칸반이 이미 있던 자리에 채워지므로 화면이 위아래로 튀지 않는다.
+    return <BoardSkeleton message={LOADING_MESSAGE} />;
   }
 
   /**

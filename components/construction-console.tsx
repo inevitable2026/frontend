@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
 import { useLatestPin } from "./chat/use-latest-pin";
@@ -40,23 +40,25 @@ const appAssets = [
 function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
   return (
     <div
-      className={`asset-track${blurred ? " asset-track-blur" : ""}`}
+      className={`asset-carousel${blurred ? " asset-carousel-blur" : ""}`}
       aria-hidden="true"
     >
-      {[0, 1].map((groupIndex) => (
-        <div className="asset-group" key={groupIndex}>
-          {appAssets.map((asset) => (
-            <Image
-              key={`${groupIndex}-${asset.src}`}
-              className={asset.className}
-              src={asset.src}
-              alt=""
-              width={66}
-              height={64}
-            />
-          ))}
-        </div>
-      ))}
+      <div className="asset-track">
+        {[0, 1].map((groupIndex) => (
+          <div className="asset-group" key={groupIndex}>
+            {appAssets.map((asset) => (
+              <Image
+                key={`${groupIndex}-${asset.src}`}
+                className={asset.className}
+                src={asset.src}
+                alt=""
+                width={66}
+                height={64}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -64,6 +66,7 @@ function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
 export function ConstructionConsole() {
   const [activeNav, setActiveNav] = useState(NAV_BOARD);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const uploadInput = useRef<HTMLInputElement>(null);
   // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
   const chat = useLawChat();
   // 답이 길어질 때 화면을 따라 내리는 규칙. 사용자가 위로 올라가 있으면 끌어내리지 않는다.
@@ -206,12 +209,8 @@ export function ConstructionConsole() {
 
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">
-            <div className="asset-stage" aria-hidden="true">
-              <div className="asset-stage-inner">
-                <AssetCarousel blurred />
-                <AssetCarousel />
-              </div>
-            </div>
+            <AssetCarousel blurred />
+            <AssetCarousel />
             <div className="promo-copy">
               <div className="promo-fade" aria-hidden="true" />
               <h2 id="upload-title">맥락/레퍼런스 추가하기</h2>
@@ -221,14 +220,17 @@ export function ConstructionConsole() {
                 and we will convert them into executable flows
               </p>
             </div>
+            <input
+              ref={uploadInput}
+              className="sr-only"
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+              multiple
+            />
             <button
               className="upload-button"
               type="button"
-              onClick={() => {
-                setActiveNav(NAV_SITE_CONTEXT);
-                setSidebarOpen(false);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+              onClick={() => uploadInput.current?.click()}
             >
               문서 업로드 하기
             </button>

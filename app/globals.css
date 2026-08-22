@@ -264,42 +264,22 @@ button {
   background: #ffffff;
 }
 
-.asset-stage {
+.asset-carousel {
   position: absolute;
-  top: 29px;
-  right: 0;
+  top: 41px;
   left: 0;
-  height: 111px;
+  width: 100%;
+  height: 80.491px;
   overflow: hidden;
-  contain: layout paint;
-  isolation: isolate;
-  mask-image:
-    linear-gradient(to right, transparent, #000 6%, #000 94%, transparent),
-    linear-gradient(to bottom, #000 0 72%, transparent 98%);
-  mask-composite: intersect;
-  -webkit-mask-image:
-    linear-gradient(to right, transparent, #000 6%, #000 94%, transparent),
-    linear-gradient(to bottom, #000 0 72%, transparent 98%);
-  -webkit-mask-composite: source-in;
-}
-
-.asset-stage-inner {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  isolation: isolate;
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
 }
 
 .asset-track {
-  position: absolute;
-  top: 14px;
-  left: 0;
   display: flex;
   width: max-content;
-  height: 64px;
+  height: 100%;
   align-items: flex-start;
   animation: asset-carousel-scroll 18s linear infinite;
-  transform: translateZ(0);
   will-change: transform;
 }
 
@@ -311,22 +291,16 @@ button {
   padding-right: 14.626px;
 }
 
-.asset-track-blur {
-  top: 34px;
-  z-index: -1;
-  opacity: 0.23;
+.asset-carousel-blur {
+  top: 57.9px;
+  opacity: 0.44;
+  filter: blur(14.4px);
 }
 
 .asset-track img {
   height: 63.591px;
   flex: none;
   object-fit: cover;
-}
-
-.asset-track-blur img {
-  filter: blur(11px) saturate(0.96);
-  transform: scale(1.06);
-  transform-origin: center top;
 }
 
 .asset-track .asset-square {
@@ -2031,7 +2005,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: min(1180px, 100%);
+  width: min(1280px, 100%);
   height: min(860px, 100%);
   padding: 24px;
   border: 1px solid var(--border-soft);
@@ -2337,34 +2311,6 @@ button {
   letter-spacing: -0.4px;
 }
 
-.board-view-toggle {
-  display: flex;
-  margin-left: auto;
-  flex: none;
-  padding: 3px;
-  border: 1px solid var(--border-soft);
-  border-radius: 9px;
-  background: var(--sidebar-surface);
-}
-
-.board-view-toggle-button {
-  padding: 6px 13px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-sidebar);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.45px;
-}
-
-.board-view-toggle-button.is-on {
-  background: #ffffff;
-  color: var(--purple-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(29, 74, 141, 0.1);
-}
-
 /* 카운터 3개 — 아티팩트의 .mini-stat 을 헤더 줄 아래에 가로로 눕힌 것 */
 .board-counters {
   display: flex;
@@ -2411,14 +2357,20 @@ button {
   letter-spacing: -0.35px;
 }
 
-/* 연결된 맥락 — 아티팩트의 .watch-card 를 가로로 눕힌 것 */
+/* 연결된 맥락 — AI 사이드바 머리 아래에 세로로 선다. 폭이 좁으므로 소스는 한 줄에
+   하나씩 쌓이고, 제목 · 목록 · 각주가 위에서 아래로 이어진다. */
+.board-assistant-watch {
+  flex: none;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--board-hairline);
+  background: var(--sidebar-surface);
+}
+
 .board-watch {
   display: flex;
-  flex: 2 1 460px;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  padding: 12px 14px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: #ffffff;
@@ -2429,7 +2381,7 @@ button {
   flex: none;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -2446,9 +2398,8 @@ button {
 
 .board-watch-list {
   display: flex;
-  flex: 1 1 260px;
-  flex-wrap: wrap;
-  gap: 6px 14px;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .board-watch-row {
@@ -2468,6 +2419,7 @@ button {
 }
 
 .board-watch-time {
+  margin-left: auto;
   font-family: var(--board-numeral);
   font-style: normal;
   color: #b0b2c4;
@@ -2475,7 +2427,7 @@ button {
 }
 
 .board-watch-foot {
-  flex-basis: 100%;
+  margin: 0;
   padding-top: 9px;
   border-top: 1px solid var(--board-hairline);
   color: var(--text-muted);
@@ -2565,12 +2517,32 @@ button {
 }
 
 .board-brief-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 0;
   padding: 15px 16px 0;
   color: var(--board-strong-ink);
   font-size: 14.5px;
   letter-spacing: -0.55px;
   line-height: 1.62;
+}
+
+.board-brief-lede p {
+  margin: 0;
+}
+
+/* 첫 줄은 오늘 무슨 일이 있었는지 세는 줄이라 나머지보다 한 눈금 크게 둔다. */
+.board-brief-lede p:first-child {
+  font-weight: 500;
+}
+
+/* 조건 이름과 요약이 이어지는 줄들. 세는 줄과 구분되도록 한 칸 들여 세로줄을 세운다. */
+.board-brief-lede p:not(:first-child) {
+  padding-left: 11px;
+  border-left: 2px solid var(--board-hairline);
+  color: var(--text-muted);
+  font-size: 13.5px;
 }
 
 .board-brief-lede b {
@@ -2993,15 +2965,15 @@ button {
   border-radius: 8px;
   background: #ffffff;
   color: var(--text-sidebar);
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 500;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.35px;
   white-space: nowrap;
 }
 
 .board-cal-expand svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   stroke: var(--text-muted);
 }
 
@@ -3015,7 +2987,39 @@ button {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-auto-rows: minmax(88px, auto);
+  grid-auto-rows: minmax(76px, auto);
+}
+
+/* 펼치면 한 화면에 다섯 주 · 서른다섯 칸이 들어온다. 주간과 같은 글자 크기로는 세로가
+   너무 길어져 칸반이 화면 밖으로 밀려나므로, 월간에서만 한 단계씩 줄여 밀도를 높인다. */
+.board-month .board-day {
+  gap: 5px;
+  padding: 8px 8px 9px;
+}
+
+.board-month .board-day-dow {
+  font-size: 10.5px;
+}
+
+.board-month .board-day-num {
+  font-size: 14px;
+}
+
+.board-month .board-day-count {
+  font-size: 10px;
+}
+
+.board-month .board-day-flag {
+  font-size: 9px;
+}
+
+.board-month .board-day-chip {
+  padding: 3px 6px;
+  font-size: 10.5px;
+}
+
+.board-month .board-day-more {
+  font-size: 10px;
 }
 
 .board-day {
@@ -3859,6 +3863,104 @@ button {
   letter-spacing: -0.45px;
 }
 
+/* ---------------- 로딩 뼈대 ---------------- */
+
+/*
+ * 보드를 읽는 동안 세우는 회색 덩어리다.
+ *
+ * 뼈대는 자기만의 격자를 만들지 않고 진짜 화면의 레이아웃 클래스(.board-header ·
+ * .board-brief · .board-cal · .board-kanban) 안에 들어가 앉는다. 그래서 아래 반응형 규칙이
+ * 바뀌어도 뼈대가 따라오고, 데이터가 도착하는 순간 요소가 옆으로 껑충 뛰지 않는다.
+ */
+
+.board-skel {
+  display: block;
+  flex: none;
+  border-radius: 6px;
+  background-color: var(--board-hairline);
+  background-image: linear-gradient(
+    100deg,
+    var(--board-hairline) 18%,
+    var(--board-hairline-3) 40%,
+    var(--board-hairline) 62%
+  );
+  background-size: 200% 100%;
+  animation: board-skel-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes board-skel-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 글줄 두 개를 위아래로 세우는 자리. 브리핑 머리글과 지표 칸이 같은 모양이다. */
+.board-skel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* .board-brief-lede 의 여백을 그대로 쓰되, 문단 대신 줄 두 개를 눕힌다. */
+.board-skel-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px 16px 0;
+}
+
+/* 접힌 브리핑 항목 한 줄. .board-rsn-summary 의 테두리와 여백을 본떴다. */
+.board-skel-rsn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.board-skel-rsn > :last-child {
+  margin-left: auto;
+}
+
+/* 달력 막대의 오른쪽 끝. 진짜 화면에서는 범례와 펼치기 단추가 서는 자리다. */
+.board-skel-legend {
+  display: flex;
+  margin-left: auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.board-skel-day-top {
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 카드 한 장. .board-card 의 상자만 가져오고 끌기와 관련된 성질은 두지 않는다. */
+.board-skel-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: var(--board-card-shadow);
+}
+
+.board-skel-card-top,
+.board-skel-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 /* ---------------- 반응형 ---------------- */
 
 @media (max-width: 1439px) {
@@ -3877,8 +3979,7 @@ button {
 }
 
 @media (max-width: 1199px) {
-  .board-counters,
-  .board-watch {
+  .board-counters {
     flex-basis: 100%;
   }
 
@@ -3909,10 +4010,6 @@ button {
   .board-header-phase {
     flex-basis: 100%;
     margin-left: 0;
-  }
-
-  .board-view-toggle {
-    margin-left: auto;
   }
 
   .board-week,
@@ -3997,6 +4094,13 @@ button {
 
   .board-card.is-dragging {
     transform: none;
+  }
+
+  /* 훑고 지나가는 빛만 거두고 회색 덩어리는 그대로 둔다. 자리를 잡아 두는 일이 뼈대의
+     본래 목적이고, 그 목적은 움직임 없이도 달성된다. */
+  .board-skel {
+    background-image: none;
+    animation: none;
   }
 }
 
@@ -4450,22 +4554,28 @@ button {
   padding-bottom: 8px;
 }
 
-.board-assistant .chat-message {
-  padding: 14px 16px;
-}
-
-.board-assistant .chat-message-user {
-  margin-left: 0;
-}
-
+/* 답은 박스 없이 글로만 선다. 폭이 좁아 테두리가 겹치면 오히려 읽기 어렵다. */
 .board-assistant .chat-message-assistant {
   margin-right: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
-.board-assistant .chat-message-user p {
-  font-size: 14px;
-  letter-spacing: -0.3px;
-  line-height: 1.6;
+/* 내 질문 — 오른쪽에 붙는 회색 말풍선. 답과 달리 한눈에 구분되기만 하면 된다. */
+.board-assistant-question {
+  max-width: 88%;
+  margin: 2px 0 2px auto;
+  padding: 7px 11px;
+  border-radius: 12px 12px 3px 12px;
+  background: var(--board-chip-surface);
+  color: var(--board-title-ink);
+  font-size: 13.5px;
+  letter-spacing: -0.2px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .board-assistant .assistant-answer {
@@ -4489,18 +4599,6 @@ button {
   font-size: 14px;
   letter-spacing: -0.3px;
   line-height: 1.65;
-}
-
-.board-assistant-scope {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--board-ai-border);
-  border-radius: 10px;
-  background: var(--board-ai-tint);
-  color: var(--board-note-ink);
-  font-size: 12.5px;
-  letter-spacing: -0.2px;
-  line-height: 1.55;
 }
 
 .board-assistant-prompts {
@@ -4556,92 +4654,6 @@ button {
   font-style: normal;
   letter-spacing: -0.2px;
   line-height: 1.5;
-}
-
-/* ---------------- 보드 명령의 질문과 답 ---------------- */
-
-.board-assistant-turn {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.board-assistant-reply p {
-  color: var(--board-body-ink);
-  font-size: 13.5px;
-  letter-spacing: -0.2px;
-  line-height: 1.6;
-}
-
-.board-assistant-reply p + p {
-  margin-top: 4px;
-}
-
-.board-assistant-reply.is-done {
-  border-color: rgba(24, 117, 68, 0.32);
-  background: var(--board-ok-surface);
-}
-
-.board-assistant-reply.is-done .chat-message-label {
-  color: var(--board-ok-ink);
-}
-
-.board-assistant-reply.is-ask {
-  border-color: rgba(154, 91, 0, 0.3);
-  background: var(--board-due-surface);
-}
-
-.board-assistant-reply.is-ask .chat-message-label {
-  color: var(--board-due-ink);
-}
-
-.board-assistant-cardlinks {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.board-assistant-cardlinks button {
-  padding: 8px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 9px;
-  background: #ffffff;
-  color: var(--board-title-ink);
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: -0.2px;
-  text-align: left;
-}
-
-.board-assistant-cardlinks button:hover,
-.board-assistant-cardlinks button:focus-visible {
-  border-color: var(--board-accent-border);
-  background: var(--board-ai-tint);
-}
-
-.board-assistant-samples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.board-assistant-samples button {
-  padding: 7px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: var(--board-chip-surface);
-  color: var(--board-chip-ink);
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: -0.2px;
-}
-
-.board-assistant-samples button:hover,
-.board-assistant-samples button:focus-visible {
-  border-color: var(--board-accent-border);
-  background: var(--board-ai-tint);
-  color: var(--purple-copy);
 }
 
 /* ---------------- 입력줄 (좁은 폭에 맞춘 변형) ---------------- */
@@ -4766,6 +4778,129 @@ button {
   .board-assistant,
   .board-assistant-backdrop,
   .board-assistant-fab {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   AI 사이드바 — 스트리밍 표시
+   ------------------------------------------------------------
+   도구가 도는 동안에는 글 한 줄만 어른거리게 두고, 끝난 뒤에야 주고받은 값을
+   펼칠 수 있게 한다. 답은 글자가 들어오는 대로 이어 붙으므로 끝에 막대를 세운다.
+   ============================================================ */
+
+.board-assistant-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.board-assistant-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 3px 0;
+  color: var(--board-note-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.5;
+}
+
+.board-assistant-step.is-error {
+  color: var(--board-alert-ink);
+}
+
+/* 실행 중인 줄은 글자 위로 빛이 지나간다. */
+.board-assistant-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--text-muted) 20%,
+    var(--purple-primary) 45%,
+    var(--text-muted) 70%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  background-size: 220% 100%;
+  color: transparent;
+  animation: board-assistant-shimmer 1.6s linear infinite;
+}
+
+@keyframes board-assistant-shimmer {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+.board-assistant-step-details {
+  margin: 0;
+}
+
+.board-assistant-step-details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.board-assistant-step-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.board-assistant-step-chevron {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-right: 1.5px solid var(--board-chevron-ink);
+  border-bottom: 1.5px solid var(--board-chevron-ink);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 140ms ease;
+}
+
+.board-assistant-step-details[open] .board-assistant-step-chevron {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+
+.board-assistant-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 2px 0 6px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--board-hairline);
+}
+
+/* 글자가 아직 들어오는 중이라는 표시. 마지막 문단 끝에 선다. */
+.board-assistant-typing .assistant-answer > :last-child::after {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  background: var(--purple-primary);
+  content: "";
+  vertical-align: -0.15em;
+  animation: board-assistant-caret 1s steps(2, jump-none) infinite;
+}
+
+@keyframes board-assistant-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-assistant-shimmer {
+    background: none;
+    color: var(--purple-copy);
+    animation: none;
+  }
+
+  .board-assistant-step-chevron,
+  .board-assistant-typing .assistant-answer > :last-child::after {
+    animation: none;
     transition: none;
   }
 }
