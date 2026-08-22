@@ -51,7 +51,21 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const UPSTAGE_URL = "https://api.upstage.ai/v1/chat/completions";
-const UPSTAGE_TIMEOUT_MS = 20_000;
+// 조사 왕복 하나에 허용하는 시간. 이 왕복은 도구를 고르기만 하므로 글을 길게 쓰지 않는다.
+// 대화가 길어질수록 늘어나서 20초로는 넓은 질문의 뒤쪽 턴이 끊겼다.
+const UPSTAGE_TIMEOUT_MS = 30_000;
+
+// 종합 한 번에 허용하는 시간. **조사보다 훨씬 길어야 한다.**
+//
+// 두 호출을 20초 하나로 함께 재던 것이 실측에서 깨졌다. "6월 위험성평가랑 조치 이력,
+// 감사 제출용으로 묶어줘" 는 근거를 다 모으고도 종합에서 20초를 넘겨, 재시도까지 40초를
+// 태우고 504 로 죽었다(세 번 재현). 이 호출은 근거 세 갈래를 읽고 인용이 달린 한국어
+// 답변을 통째로 써야 해서 도구만 고르는 조사 왕복과 성격이 다르다.
+//
+// 60초인 근거: maxDuration 300초에서 조사 예산 230초를 뺀 70초가 이 호출 몫이고,
+// 응답 직렬화에 남길 여유를 뺀 값이다. 타임아웃에는 재시도하지 않는다 — 같은 크기의
+// 근거를 다시 보내면 같은 자리에서 또 끊기면서 남은 여유까지 태운다.
+const SYNTHESIS_TIMEOUT_MS = 60_000;
 const MAX_QUESTION_LENGTH = 2_000;
 // 도구 계열이 넷(법령·사내문서·평가표·현장사실)이 되면서 "검색→읽기" 한 쌍으로 끝나지
 // 않는다. 핵심 시나리오인 "법적으로 빠진 서류 확인"만 해도 법령 원문 한 번과 사내 검색이
@@ -263,7 +277,7 @@ async function synthesizeGroundedAnswer(
         content: JSON.stringify({ question, ...evidence }),
       },
     ],
-  });
+  }, { retryOnTimeout: false, timeoutMs: SYNTHESIS_TIMEOUT_MS });
   const content = response.choices?.[0]?.message?.content;
   const cleaned = content ? cleanAssistantContent(content) : "";
 
@@ -272,12 +286,21 @@ async function synthesizeGroundedAnswer(
   return cleaned;
 }
 
-async function callUpstage(apiKey: string, body: Record<string, unknown>): Promise<UpstageResponse> {
+/** fetch 의 AbortSignal 이 끊은 것인지. 응답이 늦어 우리가 포기한 경우만 참이다. */
+function isUpstageTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+async function callUpstage(
+  apiKey: string,
+  body: Record<string, unknown>,
+  { retryOnTimeout = true, timeoutMs = UPSTAGE_TIMEOUT_MS }: { retryOnTimeout?: boolean; timeoutMs?: number } = {},
+): Promise<UpstageResponse> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), UPSTAGE_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(UPSTAGE_URL, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal, cache: "no-store" });
@@ -296,7 +319,11 @@ async function callUpstage(apiKey: string, body: Record<string, unknown>): Promi
       return result;
     } catch (error) {
       lastError = error;
-      if (attempt > 0 || (error instanceof Error && error.message === "UPSTAGE_STATUS")) {
+      if (
+        attempt > 0
+        || (error instanceof Error && error.message === "UPSTAGE_STATUS")
+        || (!retryOnTimeout && isUpstageTimeout(error))
+      ) {
         throw error;
       }
     } finally {
@@ -362,17 +389,31 @@ export async function POST(request: Request) {
         ...(docRefs.size > 0 ? [companyReadTool] : []),
         ...(assessmentRefs.size > 0 ? [assessmentReadTool] : []),
       ];
-      const response = await callUpstage(apiKey, {
-        model: "solar-pro4",
-        reasoning_effort: "none",
-        temperature: 0,
-        messages,
-        tools: availableTools,
-        // 첫 걸음만 도구를 강제한다. 어느 갈래를 열지는 모델이 고르고, 그 뒤로는 그만 부를
-        // 자유를 준다 — 강제로 묶어 두면 더 볼 것이 없는데도 엉뚱한 도구를 부른다.
-        tool_choice: turn === 0 ? "required" : "auto",
-        parallel_tool_calls: false,
-      });
+      let response: UpstageResponse;
+      try {
+        response = await callUpstage(apiKey, {
+          model: "solar-pro4",
+          reasoning_effort: "none",
+          temperature: 0,
+          messages,
+          tools: availableTools,
+          // 첫 걸음만 도구를 강제한다. 어느 갈래를 열지는 모델이 고르고, 그 뒤로는 그만 부를
+          // 자유를 준다 — 강제로 묶어 두면 더 볼 것이 없는데도 엉뚱한 도구를 부른다.
+          tool_choice: turn === 0 ? "required" : "auto",
+          parallel_tool_calls: false,
+        }, { retryOnTimeout: false });
+      } catch (error) {
+        // 조사 왕복이 제한시간을 넘겼다. 여기서 던지면 바깥 catch 가 504 를 내면서 이미 읽어
+        // 둔 공식 원문과 사내 근거를 통째로 버린다 — 실측했다. "6월 위험성평가랑 조치 이력,
+        // 감사 제출용으로 묶어줘" 는 근거를 모으고도 두 번 다 504 로 죽었다. 도구 호출 예산·
+        // 시간 예산을 넘겼을 때와 같은 자리에 세워 모아 둔 근거로 답하게 한다.
+        //
+        // 재시도하지 않는 이유(retryOnTimeout: false): 늦어지는 원인은 대화가 길어진 것이고
+        // 재시도는 같은 크기의 대화를 다시 보낸다. 같은 자리에서 또 끊기면서 20초만 더 쓴다.
+        if (!isUpstageTimeout(error)) throw error;
+        halted = true;
+        break;
+      }
       const assistant = response.choices?.[0]?.message;
       if (!assistant) return jsonError("AI 서비스 응답을 처리하지 못했습니다. 다시 시도해 주세요.", 502);
       const calls = assistant.tool_calls ?? [];
@@ -403,7 +444,11 @@ export async function POST(request: Request) {
             if (!input || !refs.has(input.ref)) throw new Error("INVALID_REFERENCE");
             const result = await readOfficialLaw(refs.get(input.ref)!, input.provision);
             events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [result.source] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+            // 다른 도구와 달리 여기만 안내 없이 원문만 돌려주고 있었다. 그래서 "법적으로 빠진
+            // 서류 있는지 확인해줘" 를 물으면 모델이 법령 검색·읽기만 반복해 여섯 턴을 다 쓰고
+            // 사내 문서를 한 번도 열지 않았다(실측 27초, 도구 호출 6회 전부 법령). 법이 무엇을
+            // 요구하는지는 법령이 답하지만 우리에게 그 서류가 있는지는 사내 자료만 답한다.
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ result, instruction: "법적 기준은 이것으로 확인됐습니다. 질문이 우리 회사에 무엇이 있는지·빠졌는지를 묻는다면 법령을 더 찾지 말고 search_company_context 로 실제 서류를 확인하세요. 법령만으로는 무엇이 빠졌는지 말할 수 없습니다." }) });
           } else if (name === "search_company_context") {
             const input = validCompanySearchInput(args);
             if (!input) throw new Error("INVALID_TOOL_INPUT");
