@@ -7457,3 +7457,159 @@ button {
   opacity: 0.55;
   cursor: default;
 }
+
+/* ══ 맥락 검색 ═══════════════════════════════════════════════════════
+   문서마다 임베딩을 돌려 pgvector 를 채우면서 그걸 읽는 화면이 없었다.
+   여기가 그 입구다. */
+
+.context-search {
+  margin: 26px 0 0;
+  padding: 18px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--sidebar-surface);
+}
+
+.context-search > header {
+  margin-bottom: 12px;
+}
+
+.context-search h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.context-search-note {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.context-search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.context-search-bar input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 9px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.context-search-bar input:focus {
+  border-color: var(--purple-primary);
+  outline: none;
+}
+
+.context-search-bar select {
+  padding: 9px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.context-search-bar button {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.context-search-bar button:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.context-search-error {
+  margin: 11px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #f4c7c7;
+  border-radius: 9px;
+  background: #fff6f6;
+  color: #a33;
+  font-size: 12.5px;
+}
+
+/* 실측 그대로. 지어낸 숫자가 아니라는 것이 이 줄의 존재 이유다. */
+.context-search-meta {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.context-hits {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.context-hits li {
+  padding: 11px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.context-hit-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.context-hit-head b {
+  color: var(--text-default);
+  font-size: 13px;
+}
+
+.context-hit-kind {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+}
+
+.context-hit-page {
+  color: var(--text-muted);
+}
+
+.context-hit-score {
+  margin-left: auto;
+  color: var(--purple-copy);
+  font-weight: 600;
+}
+
+.context-hit-text {
+  margin: 0;
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.context-hit-text mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #fff0a8;
+  color: inherit;
+}

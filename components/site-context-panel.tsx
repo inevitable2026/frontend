@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import ContextSearch from "@/components/context-search";
 import { DocumentViewer } from "@/components/document-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import type { MailThread } from "@/lib/context/mail-threads";
@@ -543,6 +544,9 @@ export function SiteContextPanel() {
           )}
         </section>
       ) : null}
+
+      {/* 문서함 바로 위에 둔다. 적재한 것을 "무엇으로 쓸 수 있는지"가 목록보다 먼저 와야 한다. */}
+      <ContextSearch sites={sites} />
 
       <section className="context-library">
         <header>
