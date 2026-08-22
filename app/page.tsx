@@ -1,8 +1,8 @@
 import { ConstructionConsole } from "@/components/construction-console";
 import type { BoardSources } from "@/components/task-board/board-data";
-import { BOARD_AT, BOARD_DATE } from "@/lib/board/scene";
-import { BOARD_SITE_ID } from "@/lib/board/site";
+import { BOARD_AT } from "@/lib/board/scene";
 import { loadBoardSources } from "@/lib/board/sources";
+import { parseConsoleUrlState } from "@/lib/console-url";
 
 // 데이터베이스를 요청마다 읽으므로 미리 만들어 두지 않는다.
 export const dynamic = "force-dynamic";
@@ -19,15 +19,17 @@ export const dynamic = "force-dynamic";
  * 그쪽에는 상태 코드마다 갈라 둔 진단 문구와 다시 시도 단추가 이미 있다. 대신 조용히
  * 넘어가지는 않고 서버 로그에는 남긴다.
  */
-async function 미리읽기(): Promise<BoardSources | null> {
+async function 미리읽기(siteId: string, date: string): Promise<BoardSources | null> {
   try {
-    return await loadBoardSources(BOARD_SITE_ID, BOARD_DATE, BOARD_AT);
+    return await loadBoardSources(siteId, date, `${date}${BOARD_AT.slice(10)}`);
   } catch (error) {
     console.error("[board] 첫 화면 재료를 서버에서 읽지 못했습니다:", error);
     return null;
   }
 }
 
-export default async function Home() {
-  return <ConstructionConsole initialBoard={await 미리읽기()} />;
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const state = parseConsoleUrlState(await searchParams);
+  const initialBoard = state.nav === "board" ? await 미리읽기(state.siteId, state.boardDate) : null;
+  return <ConstructionConsole initialBoard={initialBoard} initialUrlState={state} />;
 }

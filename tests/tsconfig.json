@@ -16,6 +16,9 @@
     }
   },
   "include": [
+    "../lib/console-url.ts",
+    "../lib/board/scene.ts",
+    "../lib/board/site.ts",
     "../lib/context/chunk.ts",
     "../lib/context/types.ts",
     "../lib/context/studio.ts",
