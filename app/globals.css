@@ -2558,31 +2558,33 @@ button {
   background: currentColor;
 }
 
+/* 머리글은 세 줄이고 한 줄이 한 가지만 말한다(lib/board/briefing-fallback.ts 의 폴백문단들).
+   줄 사이를 넉넉히 벌려 세 줄이 한 덩어리로 뭉쳐 보이지 않게 한다. */
 .board-brief-lede {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 9px;
   margin: 0;
-  padding: 15px 16px 0;
+  padding: 16px 16px 0;
   color: var(--board-strong-ink);
   font-size: 14.5px;
   letter-spacing: -0.55px;
-  line-height: 1.62;
+  line-height: 1.65;
 }
 
 .board-brief-lede p {
   margin: 0;
 }
 
-/* 첫 줄은 오늘 무슨 일이 있었는지 세는 줄이라 조금 더 눌러 둔다. */
+/* 첫 줄은 오늘이 얼마나 되는 일인지 세는 줄이라 조금 더 눌러 둔다. */
 .board-brief-lede p:first-child {
   font-weight: 500;
 }
 
-/* 뒤따르는 줄들은 한 줄에 한 가지만 말한다. 눈으로 훑을 수 있도록 크기를 한 단계 낮춘다. */
+/* 뒤따르는 두 줄은 크기를 낮추지 않는다. 세 줄뿐이라 벽이 서지 않고, 크기를 낮추면 정작
+   오늘 손대야 할 것과 사람이 봐야 할 것이 덧말처럼 읽힌다. 위계는 색으로만 준다. */
 .board-brief-lede p + p {
-  font-size: 13.5px;
-  line-height: 1.58;
+  color: var(--board-body-ink);
 }
 
 .board-brief-lede b {
@@ -2638,6 +2640,7 @@ button {
   gap: 6px;
   padding: 4px 10px 12px;
 }
+
 
 /* ---------------- 브리핑 항목 ---------------- */
 
@@ -3595,11 +3598,6 @@ button {
   line-height: 1.55;
 }
 
-.board-card-why b {
-  color: var(--board-chip-ink);
-  font-weight: 600;
-}
-
 .board-card-blocked {
   display: flex;
   align-items: flex-start;
@@ -3948,8 +3946,8 @@ button {
 .board-skel-lede {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 15px 16px 0;
+  gap: 9px;
+  padding: 16px 16px 0;
 }
 
 /* 접힌 브리핑 항목 한 줄. .board-rsn-summary 의 테두리와 여백을 본떴다. */

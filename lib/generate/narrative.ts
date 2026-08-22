@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 
 import type { Detection, DetectionNarrative, WorkItem } from "@/lib/board/types";
-import { GENERATION_RETRIES, generationModel } from "./model";
+import { GENERATION_PROVIDER_OPTIONS, GENERATION_RETRIES, GENERATION_MAX_TOKENS, generationModel } from "./model";
 import { briefingParagraphsSchema, detectionNarrativeSchema } from "./schemas";
 
 // 브리핑의 문장을 쓴다.
@@ -97,6 +97,8 @@ export async function narrateDetection(
     system: 서사SYSTEM,
     prompt,
     maxRetries: GENERATION_RETRIES,
+    maxOutputTokens: GENERATION_MAX_TOKENS,
+    providerOptions: GENERATION_PROVIDER_OPTIONS,
   });
 
   return object;
@@ -107,21 +109,22 @@ export async function narrateDetection(
  * ------------------------------------------------------------------ */
 
 const 문단SYSTEM = [
-  "당신은 한국 건설현장 담당자에게 오늘 아침 브리핑의 첫 문단을 쓰는 사람입니다.",
+  "당신은 한국 건설현장 담당자에게 오늘 아침 브리핑의 머리글을 쓰는 사람입니다.",
   "화면 맨 위에 놓이며 담당자가 가장 먼저 읽는 글입니다.",
   "",
-  "담아야 할 것을 이 순서로 씁니다. 해당 사항이 없는 것은 건너뜁니다.",
-  "1. 지정된 시점 이후로 무엇을 감지했고 태스크를 몇 건 올렸는지",
-  "2. 그 가운데 초안까지 써 둔 것이 몇 건인지",
-  "3. 가장 급한 일이 무엇이고 기한이 언제인지",
-  "4. 전제가 무너진 문서가 있으면 무엇인지",
-  "5. 사람 확인을 기다리는 것이 몇 건인지",
+  "**세 줄까지만 씁니다.** 한 줄은 한 가지만 말하고 한 문장으로 끝냅니다.",
+  "1. 지정된 시점 이후로 무엇을 감지해 태스크를 몇 건 올렸는지. 초안까지 써 둔 것이 있으면 그 건수도 이 줄에 함께 적습니다.",
+  "2. 가장 급한 일이 무엇이고 기한이 언제인지.",
+  "3. 전제가 무너진 문서와 사람 확인을 기다리는 것이 각각 몇 건인지.",
+  "해당 사항이 없는 줄은 통째로 건너뜁니다. 억지로 세 줄을 채우지 마십시오.",
   "",
   "지켜야 할 것:",
   "- **주어진 숫자를 그대로 씁니다.** 세거나 더하지 마십시오. 아래 숫자는 이미 정확하게 세어진 것이고, 여기서 다시 세면 아래 근거 패널과 어긋납니다.",
   "- 날짜와 시각도 주어진 표현을 그대로 씁니다. 스스로 계산하지 마십시오.",
+  "- **조건을 하나씩 옮겨 적지 마십시오.** 머리글 바로 아래에 조건 목록이 펼쳐져 있어서, 여기서 되풀이하면 그 목록의 사본이 됩니다. 조건 요약은 첫 줄의 성격을 잡는 참고 자료일 뿐이고, 쓰더라도 종류 이름 한둘까지입니다.",
+  "- 문서 식별자(ra_2026_07_regular 같은 값)를 적지 마십시오. 몇 건인지만 적습니다.",
   "- 감지된 조건이 없으면 없다고 적습니다. 없는 일을 만들어 내지 마십시오.",
-  "- 한 문단은 한두 문장입니다. 목록이나 제목을 쓰지 말고 이어지는 글로 씁니다.",
+  "- 목록이나 제목을 쓰지 말고 이어지는 글로 씁니다.",
   "- 한국어 조사와 어미를 정확히 씁니다.",
   "- '할 일' 이라는 말을 총계에 쓰지 마십시오. 그것은 칸반 열 이름이라 승인 대기와 완료까지 그 열에 있는 것으로 읽힙니다.",
 ].join("\n");
@@ -137,7 +140,7 @@ export type BriefingParagraphInput = {
   /** 사람 확인을 기다리는 카드 수 */
   확인대기: number;
   /** 가장 급한 카드. 없으면 null */
-  급한것: { title: string; 기한표현: string | null; summary: string | null } | null;
+  급한것: { title: string; 기한표현: string | null } | null;
   /** 전제가 무너진 문서 식별자 */
   무효문서: string[];
   /** 감지된 조건들의 한 줄 요약 */
@@ -164,7 +167,6 @@ export async function narrateBriefing(input: BriefingParagraphInput): Promise<st
   if (input.급한것) {
     줄.push(`가장 급한 것: ${input.급한것.title}`);
     if (input.급한것.기한표현) 줄.push(`그 기한: ${input.급한것.기한표현}`);
-    if (input.급한것.summary) 줄.push(`그 요약: ${input.급한것.summary}`);
   } else {
     줄.push("가장 급한 것: 기한이 정해진 미완료 카드가 없습니다");
   }
@@ -179,7 +181,7 @@ export async function narrateBriefing(input: BriefingParagraphInput): Promise<st
     "## 이미 세어진 값 (그대로 쓰십시오)",
     줄.join("\n"),
     "",
-    "## 감지된 조건들",
+    "## 감지된 조건들 (참고용 — 하나씩 옮겨 적지 마십시오)",
     input.조건요약.length > 0 ? input.조건요약.map((s) => `- ${s}`).join("\n") : "(없음)",
   ].join("\n");
 
@@ -187,10 +189,12 @@ export async function narrateBriefing(input: BriefingParagraphInput): Promise<st
     model: generationModel(),
     schema: briefingParagraphsSchema,
     schemaName: "BriefingParagraphs",
-    schemaDescription: "브리핑 맨 위에 놓이는 문단들",
+    schemaDescription: "브리핑 맨 위에 놓이는 세 줄",
     system: 문단SYSTEM,
     prompt,
     maxRetries: GENERATION_RETRIES,
+    maxOutputTokens: GENERATION_MAX_TOKENS,
+    providerOptions: GENERATION_PROVIDER_OPTIONS,
   });
 
   return object.paragraphs;

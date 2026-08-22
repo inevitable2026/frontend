@@ -148,8 +148,13 @@ export type TaskKindBadge = {
   tone: BadgeTone;
 };
 
-/** "왜 올렸나" · "승인이 필요한 이유" · "왜 여기 있나" — 굵은 머리말이 카드마다 다르다. */
+/** 카드가 이 자리에 올라온 까닭을 적는 한 줄. */
 export type TaskRationale = {
+  text: string;
+};
+
+/** 브리핑 본문 아래 덧말. 굵은 머리말과 설명을 한 줄에 붙여 적는다. */
+export type ConditionNote = {
   label: string;
   text: string;
 };
@@ -372,7 +377,7 @@ export type BriefingCondition = {
   defaultOpen: boolean;
   slots: BriefingSlots;
   /** 본문 아래 회색 상자. "왜 이 순서로 붙였나" 같은 덧말. 없으면 null. */
-  note: TaskRationale | null;
+  note: ConditionNote | null;
 };
 
 export type DailyBriefing = {

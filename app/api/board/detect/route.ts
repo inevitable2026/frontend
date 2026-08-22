@@ -64,10 +64,20 @@ async function 감지실행(siteId: string, at: string): Promise<DetectRunResult
   const store = boardStore();
   const 기준 = Date.parse(at);
 
-  const [전체사실, previousDetections] = await Promise.all([
+  const [전체사실, 지난감지] = await Promise.all([
     store.listFacts(siteId),
     store.listDetections(siteId),
   ]);
+
+  // **끝까지 처리된 감지만 "지난 감지" 로 친다.**
+  //
+  // 규칙 여럿이 lookup.lastDetection 으로 직전 감지를 되짚어 같은 근거를 두 번 보고하지
+  // 않는다. 그 억제는 옳지만, 지난번에 생성이 엎어져 카드가 한 장도 없는 감지까지 억제에
+  // 걸리면 그 조건은 영영 카드를 얻지 못한다. 조건은 기록에 남아 있는데 보드에는 아무것도
+  // 없는 상태가 되고, 담당자는 그 조건이 처리된 줄 안다.
+  //
+  // 서사가 있는 것이 곧 끝까지 간 것이다 (lib/detect/engine.ts 의 이미만든것 참조).
+  const previousDetections = 지난감지.filter((d) => d.narrative);
 
   // at 을 과거로 넣으면 그 시점의 사실만 본다. 같은 인자로 다시 불렀을 때 같은 답이
   // 나와야 감지 기록이 나중에 방어 근거로 쓸모가 있다.

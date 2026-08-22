@@ -7,6 +7,8 @@ import type {
 } from "@/lib/board/types";
 import type { BriefingParagraphInput } from "@/lib/generate/narrative";
 
+import { detectionSignature } from "@/lib/detect/engine";
+
 import { 폴백문단들, 폴백항목 } from "./briefing-fallback";
 
 // 브리핑 한 장을 조립한다. **이 파일은 문장을 짓지 않는다.**
@@ -140,8 +142,6 @@ export function buildBriefing(input: BriefingInput): Briefing {
     // 위해 틀로 채워 둔다 — 이 자리가 비어 있으면 화면이 오늘 아무 일도 없다고 말한다.
     paragraphs: 폴백문단들({
       감지: 셈.감지,
-      배분: 셈.배분,
-      새카드: 셈.새카드,
       전체: input.items,
       기준: 셈.기준,
       창: 셈.창,
@@ -150,7 +150,6 @@ export function buildBriefing(input: BriefingInput): Briefing {
       draftedCount: 셈.draftedCount,
       확인대기: 셈.확인대기,
       documentCount: input.documentCount,
-      labels: input.labels,
     }),
     entries: 셈.감지.map((d) => 항목만들기(d, 셈.배분.get(d) ?? [], 셈.기준, input.labels)),
   };
@@ -214,12 +213,14 @@ function 세기(input: BriefingInput): 셈결과 {
   const 기준시각 = Number.isFinite(지금) ? 지금 : Date.now();
   const 창시작 = 기준시각 - windowHours * 3_600_000;
 
-  const 감지 = input.detections
-    .filter((d) => {
-      const t = Date.parse(d.detectedAt);
-      return Number.isFinite(t) && t >= 창시작 && t <= 기준시각;
-    })
-    .sort((a, b) => Date.parse(a.detectedAt) - Date.parse(b.detectedAt));
+  const 감지 = 같은조건접기(
+    input.detections
+      .filter((d) => {
+        const t = Date.parse(d.detectedAt);
+        return Number.isFinite(t) && t >= 창시작 && t <= 기준시각;
+      })
+      .sort((a, b) => Date.parse(a.detectedAt) - Date.parse(b.detectedAt)),
+  );
 
   const 새카드 = input.items.filter((i) => {
     const t = Date.parse(i.createdAt);
@@ -240,6 +241,39 @@ function 세기(input: BriefingInput): 셈결과 {
     draftedCount: 새카드.filter((i) => i.draft !== null).length,
     확인대기: 새카드.filter((i) => i.trigger?.requiresHumanConfirmation === true).length,
   };
+}
+
+/**
+ * 같은 조건을 가리키는 감지를 한 건으로 접는다.
+ *
+ * detection_events 는 실행 기록이라 같은 조건이 여러 행으로 남을 수 있다. 생성이 엎어진
+ * 감지는 카드도 문장도 없이 기록만 남고, 다음 실행이 그 조건을 다시 감지해 새 행을 쓰기
+ * 때문이다(app/api/board/detect/route.ts 의 previousDetections 주석 참조).
+ *
+ * 브리핑은 실행 이력이 아니라 **지금 무엇이 조건인가** 를 보여 주는 자리다. 접지 않으면
+ * 같은 조건이 근거 패널에 두 번 서고, 첫 문단의 "조건 3건" 이 실제 서로 다른 조건의 수와
+ * 어긋난다.
+ *
+ * 문장이 붙은 쪽을 남긴다. 둘 다 있거나 둘 다 없으면 나중 것을 남긴다 — 같은 조건을 두 번
+ * 읽었다면 나중 것이 더 최근의 사실을 본 것이다.
+ */
+function 같은조건접기(감지: Detection[]): Detection[] {
+  const 자리 = new Map<string, Detection>();
+
+  for (const d of 감지) {
+    const 열쇠 = detectionSignature(d);
+    const 있던것 = 자리.get(열쇠);
+    if (!있던것) {
+      자리.set(열쇠, d);
+      continue;
+    }
+    if (있던것.narrative && !d.narrative) continue;
+    자리.set(열쇠, d);
+  }
+
+  // 접고 나서 다시 세운다. Map 은 넣은 차례를 지키므로 정렬이 흐트러지지는 않지만,
+  // 나중 것으로 갈아 끼운 자리가 앞에 남아 있어 감지 시각 순서가 어긋날 수 있다.
+  return [...자리.values()].sort((a, b) => Date.parse(a.detectedAt) - Date.parse(b.detectedAt));
 }
 
 /**
@@ -292,11 +326,7 @@ export function 문단재료만들기(input: BriefingInput): BriefingParagraphIn
     documentCount: input.documentCount,
     확인대기: 셈.확인대기,
     급한것: 급한
-      ? {
-          title: 급한.item.title,
-          기한표현: 기한말(급한.item, 셈.기준),
-          summary: 급한.item.summary?.trim() || null,
-        }
+      ? { title: 급한.item.title, 기한표현: 기한말(급한.item, 셈.기준) }
       : null,
     무효문서: [...new Set(셈.감지.flatMap((d) => d.invalidates.map((v) => v.docId)))],
     조건요약: 셈.감지.map((d) => `${ruleLabel(d.ruleId, input.labels)} — ${d.summary.trim()}`),
@@ -310,6 +340,8 @@ export function 문단재료만들기(input: BriefingInput): BriefingParagraphIn
  * 하나도 바뀌지 않아도 매번 빗나가 모델을 다시 부르게 된다. 대신 창 안 감지들의 좌표와
  * 카드 수를 넣는다 — 그 둘이 같으면 문단도 같아야 한다.
  */
+const LEDE_REVISION = "v2-3line";
+
 export function 문단캐시열쇠(input: BriefingInput): string {
   const 셈 = 세기(input);
   const 조건 = 셈.감지
@@ -317,6 +349,10 @@ export function 문단캐시열쇠(input: BriefingInput): string {
     .sort()
     .join("|");
   const 재료 = [
+    // 머리글의 판 번호. 문단을 몇 줄로 쓰는지가 바뀌면 옛 열쇠로 저장해 둔 문단은 더 이상
+    // 지금 규칙의 산물이 아니다. 이 값을 올리지 않으면 창 안의 내용이 그대로인 현장에서는
+    // 어제 캐시된 열 줄짜리 머리글이 계속 나온다.
+    LEDE_REVISION,
     input.siteId,
     셈.windowHours,
     셈.conditionCount,

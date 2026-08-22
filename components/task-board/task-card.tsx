@@ -169,9 +169,7 @@ export function TaskCardView({
       )}
 
       {card.rationale === null ? null : (
-        <div className="board-card-why">
-          <b>{card.rationale.label}</b> · {card.rationale.text}
-        </div>
+        <div className="board-card-why">{card.rationale.text}</div>
       )}
 
       {blockedReason === null ? null : <div className="board-card-blocked">{blockedReason}</div>}

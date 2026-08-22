@@ -219,9 +219,12 @@ export const detectionNarrativeSchema = z.object({
 });
 
 export const briefingParagraphsSchema = z.object({
+  // 상한이 세 줄인 것은 화면 사정이 아니라 읽기의 사정이다. 조건마다 한 줄씩 붙던 시절의
+  // 머리글은 열 줄이 넘는 벽이었고, 훑어 읽을 수 없는 요약은 요약이 아니다. 조건을 하나씩
+  // 펼쳐 보여 주는 일은 바로 아래 조건 목록이 맡는다.
   paragraphs: z
     .array(z.string().min(1))
     .min(1)
-    .max(6)
-    .describe("브리핑 맨 위 문단들. 한 문단이 한 줄이고 화면에서 공백으로 이어진다"),
+    .max(3)
+    .describe("브리핑 맨 위의 세 줄. 한 줄이 한 가지만 말한다"),
 });

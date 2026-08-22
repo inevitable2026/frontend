@@ -2,7 +2,7 @@
 //
 // 두 타입 체계를 굳이 나눠 둔 이유는 화면이 DB 컬럼과 감지 엔진의 어휘를 보지 않게 하기
 // 위해서다. 서버는 WorkItem 하나에 규칙 번호와 초안 원문을 담아 보내고, 화면은 색띠와
-// 배지와 "왜 올렸나" 한 줄을 그린다. 그 사이의 판단을 컴포넌트마다 흩어 놓으면 같은 카드가
+// 배지와 이유 한 줄을 그린다. 그 사이의 판단을 컴포넌트마다 흩어 놓으면 같은 카드가
 // 칸반과 브리핑과 캘린더에서 서로 다른 색으로 나오므로, 판단을 이 파일 하나에 모은다.
 //
 // 이 파일의 함수는 전부 순수 함수다. fetch 도 Date.now() 도 부르지 않는다. 들어온 응답이
@@ -488,13 +488,6 @@ function 카드태그(item: WorkItem): TaskTag[] {
   return tags.slice(0, 3);
 }
 
-/** 카드마다 다른 굵은 머리말. 어느 열에 있느냐가 물음을 바꾼다. */
-function 이유머리말(status: WorkItem["status"]): string {
-  if (status === "approval") return "승인이 필요한 이유";
-  if (status === "done") return "왜 여기 있나";
-  return "왜 올렸나";
-}
-
 function 담당자(assignee: string | null): Assignee | null {
   if (!assignee) return null;
   const 이름 = USERS[assignee]?.name ?? assignee.replace(/^user_/, "");
@@ -688,8 +681,7 @@ function 카드옮기기(
     title: item.title,
     note: 남은문장 || null,
     tags: 카드태그(item),
-    rationale:
-      문장.length > 0 ? { label: 이유머리말(item.status), text: 문장[0] } : null,
+    rationale: 문장.length > 0 ? { text: 문장[0] } : null,
     trigger: item.trigger
       ? {
           condition: 조건이름(item.trigger.ruleId),
@@ -738,14 +730,30 @@ function 기한값(dueBy: string | null): string | null {
 
 /**
  * 조건 식별자. 여닫기 상태의 열쇠라 같은 브리핑을 다시 읽어도 같은 값이 나와야 한다.
- * 규칙 번호와 감지 시각만으로 짓는 이유가 그것이다.
+ *
+ * 규칙 번호와 감지 시각만으로는 모자란다. 한 규칙이 한 번에 여러 건 발동하고(T-07 은
+ * 어긋난 행 수만큼 감지가 선다) 그것들의 감지 시각이 같은 분에 찍히면 열쇠가 겹친다.
+ * 그러면 React 가 같은 key 를 가진 형제를 만나 목록에서 항목을 지우거나 겹쳐 그린다.
+ *
+ * 그래서 머리글까지 섞는다. 같은 조건이면 머리글도 같으므로 열쇠는 여전히 안정적이다 —
+ * 머리글은 감지 시점에 한 번 쓰여 저장되고 그 뒤로 바뀌지 않는다.
  */
 function 조건식별자(entry: BriefingEntry): string {
   const parts = kstParts(entry.detectedAt);
   const 시각 = parts
     ? `${parts.ymd.replace(/-/g, "")}_${pad2(parts.시)}${pad2(parts.분)}`
     : "unknown";
-  return `cond_${entry.ruleId.toLowerCase().replace("-", "")}_${시각}`;
+  return `cond_${entry.ruleId.toLowerCase().replace("-", "")}_${시각}_${짧은해시(entry.headline)}`;
+}
+
+/** FNV-1a. 열쇠 꼬리에 붙일 짧고 안정적인 값이면 충분하다 */
+function 짧은해시(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36).padStart(7, "0");
 }
 
 function 감지시각문구(detectedAt: string): string {
@@ -843,12 +851,13 @@ function 브리핑머리(briefing: Briefing): string {
 }
 
 /**
- * 브리핑 머리글. 서버가 보낸 문단을 **잇지 않고 문단인 채로** 넘긴다.
+ * 브리핑 머리글. 서버가 보낸 줄을 **잇지 않고 줄인 채로** 넘긴다.
  *
  * 예전에는 공백 하나로 이어 한 덩어리를 만들었는데, 조건의 내용까지 머리글에 들어오면서
  * 그 덩어리가 예닐곱 문장짜리 벽이 되었다. 무엇이 급한지 눈으로 훑을 수 없으면 요약이
- * 아니다. 근거 표시는 여기에 넣지 않는다 — 이 자리는 요약이고 근거는 아래 조건 패널이
- * 소유한다.
+ * 아니다. 지금은 서버가 세 줄까지만 보내고(lib/generate/schemas.ts 의 상한), 한 줄이
+ * 한 가지만 말한다. 근거 표시는 여기에 넣지 않는다 — 이 자리는 요약이고 근거는 아래
+ * 조건 패널이 소유한다.
  */
 function 머리글(briefing: Briefing): RichText[] {
   const 문단들 = briefing.paragraphs.map((문단) => 문단.trim()).filter(Boolean);
