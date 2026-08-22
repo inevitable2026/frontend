@@ -33,7 +33,8 @@
 //
 // 꼬리를 지우는 것이 중요하다. 평가를 고쳐 12행이 8행이 되면 9~12행이 색인에 남고,
 // 그 행들은 원본에 더 이상 없는 위험요인이다. 지우지 않으면 챗봇이 존재하지 않는
-// 행을 근거로 인용하게 된다.
+// 행을 근거로 인용하게 된다. 8행이 0행이 된 경우도 예외가 아니라서, 색인할 것이
+// 없어도 삭제만은 돌린다(seq >= 0 이면 전부 지운다).
 
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -283,7 +284,17 @@ async function main() {
       }
 
       if (줄들.length === 0) {
-        console.log(`${머리} · 행 0줄 — 건너뜁니다(hazards 가 비었습니다).`);
+        // 0줄이라고 그냥 넘어가면 꼬리 삭제가 한 번도 돌지 않아, 이전 실행이 넣은 행이
+        // 임베딩째 색인에 남는다. readAssessment 는 색인에 행이 있으면 citable: true 를
+        // 돌려주므로 원본에서 사라진 위험요인이 계속 인용된다 — 이 파일 머리말이 막겠다고
+        // 적어 둔 바로 그 고장이다. 삭제 조건(seq >= 줄들.length)을 0줄에도 그대로 적용한다.
+        const 지운수 = dryRun
+          ? 0
+          : await 평가색인(sql, { id, title: title ?? id, 줄들, 벡터들: [], toVectorLiteral });
+        console.log(
+          `${머리} · 행 0줄 — hazards 가 비었습니다` +
+            (지운수 > 0 ? ` · 남아 있던 ${지운수}줄 삭제` : "") + ".",
+        );
         건너뜀 += 1;
         continue;
       }
