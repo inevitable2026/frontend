@@ -2,6 +2,7 @@ import { db } from "@/lib/context/db";
 import { triggerRules } from "@/lib/detect/rules";
 
 import { buildBriefing, kstIsoOf, kstNowIso } from "./briefing";
+import { 브리핑문단 } from "./briefing-narrative";
 import { boardStore } from "./store";
 import type { Briefing, WeekPage, WorkItem } from "./types";
 import { addDays, buildWeekPage, mondayOf, 이번주카드 } from "./week";
@@ -170,7 +171,7 @@ export async function loadBoardSources(
     }
   }
 
-  const briefing = buildBriefing({
+  const 재료 = {
     siteId,
     at,
     windowHours: WINDOW_HOURS,
@@ -178,7 +179,13 @@ export async function loadBoardSources(
     items: page.items,
     documentCount: 창안문서수(documents, 창시작, at),
     labels: RULE_LABELS,
-  });
+  };
+
+  // 맨 위 문단은 캐시와 모델을 거친다. GET /api/board/briefing 과 같은 함수를 부르므로
+  // 첫 화면과 브리핑 라우트가 같은 상황에서 같은 글을 낸다. 열쇠가 감지와 카드로 만들어져
+  // 이 호출만 앞의 넷과 나란히 보낼 수 없고, 캐시가 맞으면 왕복 한 번으로 끝난다.
+  const briefing = buildBriefing(재료);
+  briefing.paragraphs = await 브리핑문단(store, 재료, briefing.paragraphs);
 
   return {
     siteId,
