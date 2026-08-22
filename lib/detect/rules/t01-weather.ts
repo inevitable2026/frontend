@@ -40,7 +40,9 @@ function readWeather(value: unknown): WeatherObservation | null {
   return {
     누적강우량mm,
     관측기간: readString(value, "관측기간", "기간"),
-    관측지점: readString(value, "관측지점", "지점"),
+    // 시드 사실과 커넥터가 관측 지점을 `관측소` 로 적는다. 이름을 하나만 보면 실연동 값의
+    // 지점이 통째로 비어 버린다.
+    관측지점: readString(value, "관측지점", "지점", "관측소"),
   };
 }
 
