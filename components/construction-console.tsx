@@ -1,10 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, type CSSProperties, useEffect, useRef, useState } from "react";
 
 import { JsonViewer } from "@/components/json-viewer";
-import { MarkdownContent } from "@/components/markdown-content";
+import { MarkdownContent, type CitationSource } from "@/components/markdown-content";
 import { SiteContextPanel } from "@/components/site-context-panel";
 
 const navigation = [
@@ -104,6 +104,41 @@ function normalizeStatus(value: unknown): ToolCall["status"] {
     return "completed";
   }
   return "running";
+}
+
+function structuredRecord(value: unknown): JsonRecord | undefined {
+  if (isRecord(value)) return value;
+  if (typeof value !== "string") return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function citationSources(toolCalls: ToolCall[]): CitationSource[] {
+  const sources = toolCalls.flatMap((tool) => {
+    if (tool.name !== "read_official_law" || tool.status !== "completed") return [];
+
+    const output = structuredRecord(tool.output);
+    const result = output && isRecord(output.result) ? output.result : output;
+    const officialSource = result && isRecord(result.source) ? result.source : undefined;
+    const url = asText(result?.canonicalUrl ?? officialSource?.url ?? tool.sources[0]?.url);
+    const title = asText(result?.title ?? officialSource?.title ?? tool.sources[0]?.label);
+    if (!url || !title || !/^https?:\/\//.test(url)) return [];
+
+    return [{
+      title,
+      url,
+      authority: asText(result?.authority ?? officialSource?.authority),
+      version: asText(result?.version ?? officialSource?.version),
+      excerpt: asText(result?.excerpt),
+    }];
+  });
+
+  return [...new Map(sources.map((source) => [source.url, source])).values()];
 }
 
 function parseEvent(payload: unknown, index: number): { tool?: ToolCall; answer?: string; error?: string } {
@@ -382,8 +417,12 @@ export function ConstructionConsole() {
                 setSidebarOpen(false);
               }}
             >
-              <Image src={item.icon} alt="" width={18} height={18} />
-              <span>{item.label}</span>
+              <span
+                className="nav-item-icon"
+                aria-hidden="true"
+                style={{ "--nav-icon": `url(${item.icon})` } as CSSProperties}
+              />
+              <span className="nav-item-label">{item.label}</span>
             </button>
           ))}
         </nav>
@@ -516,7 +555,7 @@ export function ConstructionConsole() {
 
             <article className="chat-message chat-message-assistant" aria-busy={isSubmitting}>
               <p className="chat-message-label">현장 법령 체크 에이전트</p>
-              {answer ? <MarkdownContent content={answer} /> : isSubmitting ? <p className="assistant-pending">답변을 준비하고 있습니다…</p> : null}
+              {answer ? <MarkdownContent content={answer} sources={citationSources(toolCalls)} /> : isSubmitting ? <p className="assistant-pending">답변을 준비하고 있습니다…</p> : null}
               {error ? <p className="chat-error" role="alert">{error}</p> : null}
             </article>
           </section>}
