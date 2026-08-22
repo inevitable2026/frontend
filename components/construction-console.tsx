@@ -268,11 +268,7 @@ export function ConstructionConsole({
             <div className="promo-copy">
               <div className="promo-fade" aria-hidden="true" />
               <h2 id="upload-title">맥락/레퍼런스 추가하기</h2>
-              <p>
-                Ingest your documents and playbooks,
-                <br />
-                and we will convert them into executable flows
-              </p>
+              <p>위험성평가서, 공정표, 회사 양식 등 현장 문서를 올려주시면, 우리 현장 기준에 맞는 AI 초안을 만들어 드립니다.</p>
             </div>
             <input
               ref={uploadInput}
