@@ -18,6 +18,8 @@ import {
   type RuleId,
   type SnapshotFact,
   type WorkItem,
+  type WorkItemEvent,
+  type WorkItemEventType,
   type WorkItemOrigin,
   type WorkItemStatus,
   type WorkItemTiming,
@@ -37,7 +39,13 @@ import {
 // lane_order 가 double precision 인 것도 마찬가지다 — 두 카드 사이 삽입이 중간값이라
 // 정수로 반올림하면 자리가 겹친다.
 
-const TABLES = ["work_items", "snapshot_facts", "detection_events", "invalidations"] as const;
+const TABLES = [
+  "work_items",
+  "snapshot_facts",
+  "detection_events",
+  "invalidations",
+  "work_item_events",
+] as const;
 
 type WorkItemRow = {
   item_id: string;
@@ -152,6 +160,31 @@ export function createPgBoardStore(): BoardStore {
   let checked = false;
 
   /**
+   * 카드 이력 한 줄을 남긴다.
+   *
+   * 계약이 "승인 시 고친 값과 기각 사유는 이력으로 쌓인다" 고 못 박은 값이 들어가는 자리다.
+   * 이 함수가 없던 동안 기각 사유는 console.warn 으로 흘렀고, 그러면 카드에 적힌
+   * "숫자를 고쳐 승인하면 그 차이가 이력으로 남습니다" 가 거짓말이 된다.
+   *
+   * JSON 구현이 data/board/events.json 에 쌓는 것과 같은 모양이라 BOARD_STORE 를 바꿔
+   * 끼워도 남는 기록이 달라지지 않는다. event_id 는 테이블이 identity 로 매기므로
+   * 여기서 만들지 않는다 — JSON 구현만 문자열 id 를 직접 짓는다.
+   */
+  async function appendEvent(
+    itemId: string,
+    type: WorkItemEventType,
+    actor: string,
+    reason: string | null,
+    diff: WorkItemEvent["diff"],
+  ): Promise<void> {
+    const sql = db();
+    await sql`
+      insert into board.work_item_events (item_id, type, actor, reason, diff, created_at)
+      values (${itemId}, ${type}, ${actor}, ${reason}, ${json(diff)}::jsonb, ${nowIso()})
+    `;
+  }
+
+  /**
    * 첫 호출에서 네 테이블이 실제로 있는지 본다. 없으면 빈 배열을 돌려주는 대신 무엇이
    * 없는지 이름을 대고 멈춘다 — "카드가 하나도 없네" 로 보이는 실패가 제일 오래 걸린다.
    */
@@ -169,7 +202,7 @@ export function createPgBoardStore(): BoardStore {
       fail(
         "unavailable",
         `board 스키마에 ${missing.join(" · ")} 테이블이 없습니다. ` +
-          `db/board/001_init.sql 을 적용하거나 BOARD_STORE 를 비워 JSON 저장소로 돌리세요.`,
+          `docs/migration-board.sql 을 적용하거나 BOARD_STORE 를 비워 JSON 저장소로 돌리세요.`,
       );
     }
     checked = true;
@@ -188,7 +221,7 @@ export function createPgBoardStore(): BoardStore {
 
     for (const item of items) {
       if (!item.itemId) fail("invalid", "itemId 가 없는 카드는 저장할 수 없습니다.");
-      const rows = await sql<WorkItemRow[]>`
+      const rows = await sql<Array<WorkItemRow & { inserted: boolean }>>`
         insert into board.work_items (
           item_id, site_id, timing, status, origin, title, summary, trigger,
           invalidates, produces, draft, confirmed_by, confirmed_at, due_by,
@@ -215,10 +248,17 @@ export function createPgBoardStore(): BoardStore {
           blocked_by        = excluded.blocked_by,
           assignee          = coalesce(board.work_items.assignee, excluded.assignee),
           updated_at        = ${nowIso()}
-        returning *
+        returning *, (xmax = 0) as inserted
       `;
-      const row: WorkItemRow | undefined = rows[0];
-      if (row) saved.push(toItem(row));
+      const row: (WorkItemRow & { inserted: boolean }) | undefined = rows[0];
+      if (row) {
+        saved.push(toItem(row));
+        // xmax = 0 이면 이번에 새로 꽂힌 행이다. 같은 조건으로 두 번 감지해도 created 가
+        // 두 번 쌓이지 않게 하는 자리이고, 이력의 첫 줄이 곧 카드가 태어난 시각이 된다.
+        if (row.inserted) {
+          await appendEvent(item.itemId, "created", item.origin === "machine" ? "system" : "user", null, []);
+        }
+      }
 
       // 무효화는 카드 안에도 jsonb 로 남지만, "어느 문서가 무엇 때문에 유효하지 않은가" 를
       // 문서 쪽에서 되짚으려면 별도 색인이 필요하다. 그 자리가 invalidations 다.
@@ -318,6 +358,25 @@ export function createPgBoardStore(): BoardStore {
       // 승인 → 할 일은 "사람이 직접 다시 쓴다"는 뜻이라 origin 이 human 이 되고 초안은 남는다.
       const humanTakeover = current.status === "approval" && patch.status === "todo";
 
+      // 무엇이 달라졌는지를 갱신 전에 모은다. 갱신 뒤에 되짚으면 이전 값이 이미 사라진다.
+      // 필드 목록과 판정 순서는 JSON 구현과 같아야 두 저장소의 이력이 같은 모양이 된다.
+      const diff: WorkItemEvent["diff"] = [];
+      if (current.status !== patch.status) {
+        diff.push({ field: "status", from: current.status, to: patch.status });
+      }
+      if (humanTakeover && current.origin !== "human") {
+        diff.push({ field: "origin", from: current.origin, to: "human" });
+      }
+      if (confirming && patch.confirmedBy) {
+        diff.push({ field: "confirmedBy", from: current.confirmed_by, to: patch.confirmedBy });
+      }
+      if (patch.laneOrder !== undefined && patch.laneOrder !== current.lane_order) {
+        diff.push({ field: "laneOrder", from: current.lane_order, to: patch.laneOrder });
+      }
+      if (patch.assignee !== undefined && patch.assignee !== current.assignee) {
+        diff.push({ field: "assignee", from: current.assignee, to: patch.assignee });
+      }
+
       const rows = await sql<WorkItemRow[]>`
         update board.work_items set
           status       = ${patch.status},
@@ -332,6 +391,14 @@ export function createPgBoardStore(): BoardStore {
       `;
       const row: WorkItemRow | undefined = rows[0];
       if (!row) fail("notFound", "그런 카드가 없습니다.");
+
+      await appendEvent(
+        itemId,
+        confirming ? "approved" : "moved",
+        patch.confirmedBy ?? "user",
+        null,
+        diff,
+      );
       return toItem(row);
     },
 
@@ -339,6 +406,13 @@ export function createPgBoardStore(): BoardStore {
       if (!reason || !reason.trim()) fail("invalid", "기각 사유가 필요합니다.");
       await ensureSchema();
       const sql = db();
+
+      // 이력의 diff 는 이전 값이 있어야 성립하므로 갱신 전에 한 번 읽는다.
+      const before = await sql<WorkItemRow[]>`
+        select status, origin from board.work_items where item_id = ${itemId} limit 1
+      `;
+      const current: WorkItemRow | undefined = before[0];
+      if (!current) fail("notFound", "그런 카드가 없습니다.");
 
       const rows = await sql<WorkItemRow[]>`
         update board.work_items set
@@ -353,9 +427,12 @@ export function createPgBoardStore(): BoardStore {
       const row: WorkItemRow | undefined = rows[0];
       if (!row) fail("notFound", "그런 카드가 없습니다.");
 
-      // 기각 사유는 계약 2.2 가 "이력으로 쌓인다" 고 못 박은 값인데, 합의된 네 테이블에는
-      // 카드 이력을 담을 자리가 없다. board.work_item_events 가 생기기 전까지는 로그로만 남는다.
-      console.warn(`[board] 기각 사유를 저장할 테이블이 없습니다: ${itemId} · ${actor} · ${reason.trim()}`);
+      // 기각 사유는 잘못된 감지를 학습에 반영하는 재료이면서, 담당자가 판단을 내렸다는
+      // 기록 자체가 나중에 방어 근거가 된다. 스키마에도 사유 없는 기각을 막는 제약이 걸려 있다.
+      await appendEvent(itemId, "rejected", actor, reason.trim(), [
+        { field: "status", from: current.status, to: "todo" },
+        { field: "origin", from: current.origin, to: "human" },
+      ]);
       return toItem(row);
     },
 
