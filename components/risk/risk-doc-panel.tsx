@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import RiskRowChat from "@/components/risk/risk-row-chat";
 import type { WorkItem } from "@/lib/board/types";
-import { 등급, 미확인행, 행정렬, 회사표시, type 평가행, type 행팩트 } from "@/lib/risk/rows";
+import { 미확인행, 위험도표시, 행정렬, 회사표시, type 평가행, type 행팩트 } from "@/lib/risk/rows";
 
 /**
  * 오른쪽에서 밀려 나오는 평가서 패널.
@@ -224,8 +224,11 @@ export default function RiskDocPanel({
                     <li key={r.itemId}>
                       <p className="risk-drawer-work">{r.hazard}</p>
                       <p className="risk-drawer-hazard">{r.process}</p>
-                      <span className={`risk-drawer-score is-${등급(r.risk.score)}`}>
-                        위험도 <b>{r.risk.score}</b> {r.risk.level}
+                      {/* 초안은 등급(level)을 스스로 들고 온다. 그건 그대로 보인다 —
+                          지어낸 값이 아니라 만든 쪽이 정한 값이다. */}
+                      <span className="risk-drawer-score">
+                        빈도 {r.risk.likelihood} × 강도 {r.risk.severity} = <b>{r.risk.score}</b>{" "}
+                        {r.risk.level}
                       </span>
                     </li>
                   ))}
@@ -278,11 +281,10 @@ function RowCard({
   const [펼침, set펼침] = useState(false);
   const [초안, set초안] = useState<string>("");
 
-  const 전 = 등급(행.개선전?.위험도);
-  const 후 = 등급(행.개선후?.위험도);
-
+  // 색띠는 위험도가 아니라 **이행확인 여부**를 말한다. 이 화면의 질문이 그것이고
+  // (무엇이 결재 상신을 막는가), 위험도 등급은 매트릭스를 모르면 지어낼 수 없다.
   return (
-    <li className={`risk-drawer-row is-${전}${행.이행확인 ? " is-done" : ""}`}>
+    <li className={`risk-drawer-row ${행.이행확인 ? "is-done" : "is-open"}`}>
       <div className="risk-drawer-row-top">
         <span className="risk-drawer-rowid">{행.행id}</span>
         <span className="risk-drawer-class">{행.공종분류 ?? "분류 없음"}</span>
@@ -293,13 +295,9 @@ function RowCard({
       {행.위험요인 ? <p className="risk-drawer-hazard">{행.위험요인}</p> : null}
 
       <div className="risk-drawer-scores">
-        <span className={`risk-drawer-score is-${전}`}>
-          개선 전 <b>{행.개선전?.위험도 ?? "?"}</b>
-        </span>
+        <span className="risk-drawer-score">개선 전 {위험도표시(행.개선전)}</span>
         <span aria-hidden="true">→</span>
-        <span className={`risk-drawer-score is-${후}`}>
-          개선 후 <b>{행.개선후?.위험도 ?? "?"}</b>
-        </span>
+        <span className="risk-drawer-score">개선 후 {위험도표시(행.개선후)}</span>
         {행.사고분류 ? <span className="risk-drawer-acc">{행.사고분류}</span> : null}
       </div>
 

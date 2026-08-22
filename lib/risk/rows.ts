@@ -64,10 +64,20 @@ export function 회사표시(code: string | undefined): string {
   return 회사이름[code] ?? code;
 }
 
-/** 위험도 등급. 서버가 준 위험도 숫자만 쓰고 화면에서 곱하지 않는다. */
-export function 등급(위험도: number | undefined): "high" | "mid" | "low" {
-  if (위험도 === undefined) return "low";
-  if (위험도 >= 9) return "high";
-  if (위험도 >= 5) return "mid";
-  return "low";
+/**
+ * 위험도 표시. `빈도 × 강도 = 위험도` 그대로 보인다.
+ *
+ * **등급(높음·보통·낮음)을 화면에서 만들지 않는다.** 처음에는 9 이상이면 높음 같은
+ * 고정 임계로 색을 칠했는데, 그건 이 저장소가 여러 곳에서 경고하는 바로 그 잘못이다 —
+ * 「높음」기준이 매트릭스마다 다르다(4x3 은 9 이상, 5x4 는 15 이상). 그런데
+ * `riskAssessmentRow` 팩트에는 **매트릭스 필드가 아예 없고**, 시나리오는 4×3 과 5×4 를
+ * 일부러 섞어 쓴다(`lib/detect/rules/t07-score-gap.ts:24`). 그래서 같은 12 가 어떤
+ * 행에서는 높음이고 어떤 행에서는 보통이다. 모르는 것을 색으로 단정하면, 안전 화면에서
+ * 가장 하면 안 되는 종류의 거짓말이 된다.
+ *
+ * `lib/detect/delta.ts:197` 의 `scoreText` 와 같은 표기를 쓴다.
+ */
+export function 위험도표시(s: { 빈도: number; 강도: number; 위험도: number } | undefined): string {
+  if (!s) return "미기재";
+  return `빈도 ${s.빈도} × 강도 ${s.강도} = ${s.위험도}`;
 }
