@@ -4,7 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import RiskRowChat from "@/components/risk/risk-row-chat";
 import type { WorkItem } from "@/lib/board/types";
-import { 미확인행, 위험도표시, 행정렬, 회사표시, type 평가행, type 행팩트 } from "@/lib/risk/rows";
+import {
+  미확인행,
+  불일치행,
+  위험도표시,
+  이행상태읽기,
+  행정렬,
+  회사표시,
+  type 평가행,
+  type 행팩트,
+} from "@/lib/risk/rows";
 
 /**
  * 오른쪽에서 밀려 나오는 평가서 패널.
@@ -90,7 +99,17 @@ export default function RiskDocPanel({
   }, [닫기]);
 
   const 미확인 = useMemo(() => (행들 ? 미확인행(행들) : []), [행들]);
-  const 보일행 = 미확인만 ? 미확인 : (행들 ?? []);
+  const 불일치 = useMemo(() => (행들 ? 불일치행(행들) : []), [행들]);
+
+  // 불일치를 맨 위로 올린다. 비어 있는 행은 아직 안 한 일이지만, 불일치는
+  // **이미 했다고 적어 놓은 거짓말**이라 먼저 봐야 한다.
+  const 보일행 = useMemo(() => {
+    const 바탕 = 미확인만 ? 미확인 : (행들 ?? []);
+    return [...바탕].sort((a, b) => {
+      const w = (r: 평가행) => (이행상태읽기(r) === "불일치" ? 0 : 1);
+      return w(a) - w(b);
+    });
+  }, [미확인만, 미확인, 행들]);
 
   /**
    * 이 카드가 **새로 제안한** 행. 기존 문서의 행과 섞지 않는다.
@@ -207,9 +226,17 @@ export default function RiskDocPanel({
               </span>
               <label className="risk-drawer-filter">
                 <input type="checkbox" checked={미확인만} onChange={(e) => set미확인만(e.target.checked)} />
-                이행확인 빈 행만 ({미확인.length})
+                확인 안 된 행만 ({미확인.length})
               </label>
             </div>
+
+            {/* 불일치가 있으면 숫자보다 먼저 말한다. 이 화면에서 가장 무거운 사실이다. */}
+            {불일치.length > 0 ? (
+              <p className="risk-drawer-forged">
+                <b>{불일치.length}행</b>은 이행확인이 표시되어 있지만 실제로는 실행되지 않은
+                것으로 판정됐습니다. 비어 있는 행보다 먼저 확인해야 합니다.
+              </p>
+            ) : null}
 
             {갈래 === "직접" && 초안행.length > 0 ? (
               <section className="risk-drawer-draft">
@@ -281,10 +308,16 @@ function RowCard({
   const [펼침, set펼침] = useState(false);
   const [초안, set초안] = useState<string>("");
 
-  // 색띠는 위험도가 아니라 **이행확인 여부**를 말한다. 이 화면의 질문이 그것이고
+  // 색띠는 위험도가 아니라 **이행확인 상태**를 말한다. 이 화면의 질문이 그것이고
   // (무엇이 결재 상신을 막는가), 위험도 등급은 매트릭스를 모르면 지어낼 수 없다.
+  const 상태 = 이행상태읽기(행);
+
   return (
-    <li className={`risk-drawer-row ${행.이행확인 ? "is-done" : "is-open"}`}>
+    <li
+      className={`risk-drawer-row ${
+        상태 === "확인" ? "is-done" : 상태 === "불일치" ? "is-forged" : "is-open"
+      }`}
+    >
       <div className="risk-drawer-row-top">
         <span className="risk-drawer-rowid">{행.행id}</span>
         <span className="risk-drawer-class">{행.공종분류 ?? "분류 없음"}</span>
@@ -353,21 +386,65 @@ function RowCard({
         </button>
       )}
 
-      <div className="risk-drawer-row-foot">
-        <label className="risk-drawer-check">
-          <input
-            type="checkbox"
-            checked={행.이행확인 === true}
-            disabled={저장중}
-            onChange={(e) => 저장({ ...행, 이행확인: e.target.checked })}
-          />
-          {/* 무엇을 확인하는 것인지 말한다. "체크"만 있으면 표시만 채우게 된다. */}
-          <span>
-            현장에서 <b>실제로 실행</b>된 것을 확인했습니다
-          </span>
-        </label>
-        {저장중 ? <span className="risk-drawer-saving">저장 중…</span> : null}
-      </div>
+      {/*
+        불일치 행은 체크박스를 주지 않는다.
+
+        여기에 체크박스를 두면 누르는 순간 `이행확인: true` 가 되어, 근접사고 보고가
+        실행되지 않았다고 증명한 대책이 **한 번 더 실행됐다고 적히게** 된다. 위조를
+        찾아낸 화면이 위조를 덮는 가장 쉬운 길을 제공하는 셈이다.
+
+        대신 무엇이 어긋났는지를 보이고, 실제로 조치한 뒤 다시 표시하도록 남긴다.
+      */}
+      {상태 === "불일치" ? (
+        <div className="risk-drawer-forged-box">
+          <p>
+            평가서 표시 <b>이행함</b> · 실제 실행 <b>안 함</b>
+            {행.근거 ? <em> · 근거 {행.근거}</em> : null}
+          </p>
+          <div className="risk-drawer-forged-acts">
+            <button
+              type="button"
+              disabled={저장중}
+              onClick={() =>
+                // 표시를 지운다. "확인함"으로 덮는 것이 아니라 **빈칸으로 되돌린다** —
+                // 아직 하지 않은 일이므로 그것이 사실에 맞는 상태다.
+                저장({ ...행, 이행확인: undefined, 표시값: false })
+              }
+            >
+              표시를 지우고 미이행으로 되돌리기
+            </button>
+            <button
+              type="button"
+              disabled={저장중}
+              onClick={() =>
+                // 실제로 조치했을 때만 누른다. 실제실행까지 함께 참으로 바꾼다.
+                저장({ ...행, 이행확인: true, 표시값: true, 실제실행: true })
+              }
+            >
+              지금 조치했고 직접 확인했습니다
+            </button>
+          </div>
+          {저장중 ? <span className="risk-drawer-saving">저장 중…</span> : null}
+        </div>
+      ) : (
+        <div className="risk-drawer-row-foot">
+          <label className="risk-drawer-check">
+            <input
+              type="checkbox"
+              checked={상태 === "확인"}
+              disabled={저장중}
+              onChange={(e) =>
+                저장({ ...행, 이행확인: e.target.checked, 실제실행: e.target.checked })
+              }
+            />
+            {/* 무엇을 확인하는 것인지 말한다. "체크"만 있으면 표시만 채우게 된다. */}
+            <span>
+              현장에서 <b>실제로 실행</b>된 것을 확인했습니다
+            </span>
+          </label>
+          {저장중 ? <span className="risk-drawer-saving">저장 중…</span> : null}
+        </div>
+      )}
     </li>
   );
 }

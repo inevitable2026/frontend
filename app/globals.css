@@ -7377,3 +7377,83 @@ button {
 .risk-warn b {
   color: #5e4412;
 }
+
+/*
+ * 이행확인 불일치 — 표시는 되어 있는데 실제로는 실행되지 않은 것으로 판정된 행.
+ *
+ * 빈칸보다 **무겁다.** 빈칸은 아직 안 한 일이지만 불일치는 이미 했다고 적어 놓은
+ * 거짓말이고, 이 제품이 존재하는 이유가 그것을 찾아내는 것이다. 그래서 빈칸의
+ * 주황이 아니라 붉은 계열을 쓰고 목록에서도 맨 위로 올린다.
+ */
+.risk-drawer-row.is-forged {
+  border-color: #f0c2bd;
+  border-left-color: #c0392b;
+  background: #fffaf9;
+}
+
+.risk-drawer-forged {
+  margin: 11px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f0c2bd;
+  border-radius: 10px;
+  background: #fff5f4;
+  color: #8c2f24;
+  font-size: 12.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.risk-drawer-forged b {
+  color: #7a231a;
+}
+
+.risk-drawer-forged-box {
+  margin: 11px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #f0c2bd;
+}
+
+.risk-drawer-forged-box p {
+  margin: 0 0 8px;
+  color: #8c2f24;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.risk-drawer-forged-box p b {
+  color: #7a231a;
+}
+
+.risk-drawer-forged-box em {
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.risk-drawer-forged-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.risk-drawer-forged-acts button {
+  padding: 6px 11px;
+  border: 1px solid #e6b0a9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #8c2f24;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.risk-drawer-forged-acts button:hover:not(:disabled) {
+  border-color: #c0392b;
+  background: #fff0ee;
+}
+
+.risk-drawer-forged-acts button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
