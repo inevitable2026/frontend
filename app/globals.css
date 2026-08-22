@@ -682,6 +682,40 @@ button {
   height: 1px;
 }
 
+.chat-thread-head {
+  display: flex;
+  width: min(820px, 100%);
+  margin: 0 auto -6px;
+  align-items: center;
+  justify-content: space-between;
+  color: #667085;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.chat-thread-head p {
+  margin: 0;
+}
+
+.new-conversation-button {
+  padding: 8px 12px;
+  border: 1px solid #dcd9ff;
+  border-radius: 8px;
+  background: #fff;
+  color: #4f45c7;
+  font: inherit;
+}
+
+.new-conversation-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.chat-load-error {
+  width: min(820px, 100%);
+  margin: 0 auto;
+}
+
 @keyframes new-content-pill-in {
   from {
     opacity: 0;
