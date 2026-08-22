@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState, type JSX } from "react";
 
+import { AssistantFab, AssistantPanel, type BoardBridge } from "./assistant-panel";
 import { BoardHeader } from "./board-header";
 import { approveCard, loadBoard, moveCard, rejectCard } from "./board-data";
 import { DailyBriefingPanel } from "./daily-briefing";
 import { KanbanBoard } from "./kanban-board";
+import { ReferenceProvider } from "./reference-chip";
 import { RejectDialog } from "./reject-dialog";
 import { WeekCalendar } from "./week-calendar";
 import type {
@@ -194,8 +196,8 @@ export function TaskBoard(): JSX.Element {
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<TaskCard | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
-  // AI 도우미 패널은 다음 회차다. 지금은 여는 자리만 잡아 둔다 — `.board-shell` 이
-  // `position: relative` 로 그 패널을 받을 자리이므로 상태를 껍데기의 수식으로 내보낸다.
+  // AI 도우미 사이드바의 열림 여부. 패널은 흐름 밖에 서지만 껍데기에도 수식을 붙여
+  // 두어야 열린 동안 칸반이 패널 아래로 숨지 않게 여백을 줄 수 있다.
   const [assistantOpen, setAssistantOpen] = useState(false);
 
   // 첫 그림 뒤에 보드를 읽는다. setState 는 await 경계 뒤에서만 부른다.
@@ -312,7 +314,44 @@ export function TaskBoard(): JSX.Element {
     );
   }
 
+  /**
+   * AI 사이드바가 보드를 읽고 고치는 창구. **여기 없는 손잡이는 사이드바도 쓸 수 없다** —
+   * 카드 변경은 전부 위의 세 핸들러를 지나므로 낙관적 갱신과 되돌리기가 한 자리에 남는다.
+   */
+  const assistantBridge: BoardBridge = {
+    view: {
+      siteName: snapshot.site.name,
+      phase: snapshot.site.phase,
+      cards,
+      selectedDate,
+      boardDate,
+      conditionCodes: snapshot.briefing.conditions.map((condition) => ({
+        code: condition.code,
+        conditionId: condition.conditionId,
+      })),
+    },
+    onMove: (itemId, to) => {
+      const card = cards.find((item) => item.itemId === itemId);
+      if (card === undefined || card.status === to) return;
+      handleMove({ itemId, from: card.status, to, toIndex: cards.filter((item) => item.status === to).length });
+    },
+    onApprove: (itemId) => {
+      const card = cards.find((item) => item.itemId === itemId);
+      if (card === undefined || card.status !== "approval") return;
+      handleApprove(card, []);
+    },
+    onReject: (itemId, reason) => {
+      // 기각은 카드를 지우므로 승인 열에 있는 초안인지 여기서 한 번 더 본다.
+      const card = cards.find((item) => item.itemId === itemId);
+      if (card === undefined || card.status !== "approval") return;
+      handleReject({ itemId, reason });
+    },
+    onFocusCard: setFocusedCardId,
+    onSelectDate: setSelectedDate,
+  };
+
   return (
+    <ReferenceProvider references={snapshot.references}>
     <div className={assistantOpen ? "board-shell is-assistant-open" : "board-shell"}>
       <BoardHeader
         cards={cards}
@@ -365,6 +404,20 @@ export function TaskBoard(): JSX.Element {
           onConfirm={handleReject}
         />
       )}
+
+      {/* 좁은 화면에서만 보이는 뒷막. 넓은 화면에서는 CSS 가 숨긴다 */}
+      <button
+        aria-label="AI 도우미 닫기"
+        className={assistantOpen ? "board-assistant-backdrop is-visible" : "board-assistant-backdrop"}
+        onClick={() => setAssistantOpen(false)}
+        tabIndex={assistantOpen ? 0 : -1}
+        type="button"
+      />
+
+      <AssistantPanel board={assistantBridge} onClose={() => setAssistantOpen(false)} open={assistantOpen} />
+
+      <AssistantFab onOpen={() => setAssistantOpen(true)} open={assistantOpen} />
     </div>
+    </ReferenceProvider>
   );
 }

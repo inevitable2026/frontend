@@ -14,6 +14,7 @@ import type {
   BriefingSlot,
   CardTrigger,
   DailyBriefing,
+  ReferenceDetail,
   RichRun,
   RichText,
   TaskCard,
@@ -25,7 +26,16 @@ import type {
 
 const plain = (text: string): RichRun => ({ kind: "text", text });
 const strong = (text: string): RichRun => ({ kind: "strong", text });
-const mono = (text: string): RichRun => ({ kind: "mono", text });
+/** 근거 표시. 화면에는 `[1]` 같은 번호로 나가고 이 열쇠는 드러나지 않는다. */
+const ref = (refId: string): RichRun => ({ kind: "ref", refId });
+
+/* 참조 사전의 열쇠. 내부 식별자를 문장에 적지 않으려고 이름을 따로 둔다. */
+const REF_MAIL = "mail_shoring_change";
+const REF_MATERIAL = "material_pipe_shore";
+const REF_SNAPSHOT = "snapshot_20260818";
+const REF_RA_JULY = "ra_july_regular";
+const REF_GUIDELINE = "guideline_risk_assessment";
+const REF_MINUTES_AUG = "minutes_august";
 
 /** 문단 하나짜리 칸. 아티팩트의 dd 는 모두 한 문단이다. */
 const oneParagraph = (...runs: RichText): BriefingSlot => ({ paragraphs: [runs] });
@@ -119,21 +129,18 @@ const conditionT03: BriefingCondition = {
   defaultOpen: true,
   slots: {
     observation: oneParagraph(
-      plain("회사 메일함에 서진건설 공무 담당자가 보낸 메일 "),
-      mono("doc_2_k3f9x1qm"),
+      plain("회사 메일함에 서진건설 공무 담당자가 보낸 메일 1통이 도착했습니다."),
+      ref(REF_MAIL),
       plain(
-        " 1통이 도착했습니다. 수신은 원청 공무팀이고 담당자는 참조에만 들어 있습니다. 첨부 2건, 모두 11쪽을 Document Parse로 구조 복원해 표에서 다음 값을 뽑았습니다. ",
+        " 수신은 원청 공무팀이고 담당자는 참조에만 들어 있습니다. 첨부 2건, 모두 11쪽을 Document Parse로 구조 복원해 표에서 다음 값을 뽑았습니다. ",
       ),
-      strong("자재 "),
-      mono("MAT_PIPE_SHORE"),
-      strong(", 규격 φ48.6×3.2t 4단 조립, 범위 4F A~C열 1,850㎡, 최대 층고 8.2m, 반입 목표 2026-08-24."),
+      strong("자재 강관동바리, 규격 φ48.6×3.2t 4단 조립, 범위 4F A~C열 1,850㎡, 최대 층고 8.2m, 반입 목표 2026-08-24."),
+      ref(REF_MATERIAL),
     ),
     comparison: oneParagraph(
-      plain("현장 스냅샷 "),
-      mono("snap_gimpo_20260818"),
-      plain("에는 같은 작업 "),
-      mono("task_4f_slab"),
-      plain("에 시스템동바리가 걸려 있습니다. 두 값이 달라 "),
+      plain("현장 스냅샷에는 같은 작업, 곧 4층 슬래브 거푸집 및 동바리에 시스템동바리가 걸려 있습니다."),
+      ref(REF_SNAPSHOT),
+      plain(" 두 값이 달라 "),
       strong("자재 대체"),
       plain("로 판정했습니다."),
     ),
@@ -147,19 +154,18 @@ const conditionT03: BriefingCondition = {
       plain(" 두 방식이 만나는 경계에서는 하중 전달 경로가 불연속적으로 바뀌므로 별도 검토가 필요합니다."),
     ),
     invalidation: oneParagraph(
-      plain("7월 정기 위험성평가 "),
-      mono("ra_2026_07_regular"),
-      plain(". 이 평가표의 "),
-      mono("shoringAssumption"),
-      plain("이 시스템동바리이므로, 4층 슬래브를 다루는 행 전체가 전제를 잃습니다."),
+      plain("7월 정기 위험성평가입니다."),
+      ref(REF_RA_JULY),
+      plain(
+        " 이 평가표는 4층 슬래브가 시스템동바리로 시공된다는 전제 위에서 쓰였으므로, 그 층을 다루는 행 전체가 전제를 잃습니다.",
+      ),
     ),
     legalBasis: oneParagraph(
-      mono("search_official_law"),
-      plain("로 후보 2건을 찾고 "),
-      mono("read_official_law"),
-      plain("로 「사업장 위험성평가에 관한 지침」 원문 조회에 성공했습니다. "),
+      plain("「사업장 위험성평가에 관한 지침」의 공식 원문을 확인했습니다."),
+      ref(REF_GUIDELINE),
+      plain(" "),
       strong("수시평가 실시 사유에 해당할 가능성"),
-      plain("이 있습니다. 조회에 실패했다면 판단을 유보하고 공식 원문 확인을 안내했을 것입니다."),
+      plain("이 있습니다. 원문을 확인하지 못했다면 판단을 유보하고 공식 원문 확인을 안내했을 것입니다."),
     ),
     produced: [
       {
@@ -196,10 +202,8 @@ const conditionT03: BriefingCondition = {
     uncertainty: oneParagraph(
       plain("확신도 "),
       strong("0.91"),
-      plain(", "),
-      mono("requiresHumanConfirmation: true"),
       plain(
-        ". 메일은 아직 협의 단계이고 최종 승인이 나지 않았습니다. 변경이 무산되면 초안 4건은 보류로 내려가고 사유가 기록됩니다.",
+        "이고 사람 확인이 필요한 건으로 표시했습니다. 메일은 아직 협의 단계이고 최종 승인이 나지 않았습니다. 변경이 무산되면 초안 4건은 보류로 내려가고 사유가 기록됩니다.",
       ),
     ),
     suggestion: null,
@@ -276,15 +280,14 @@ const conditionS02: BriefingCondition = {
   defaultOpen: false,
   slots: {
     observation: oneParagraph(
-      plain("관리기간 8월 1일부터 31일까지를 대상으로 하는 회의록 "),
-      mono("ra_2026_08_monthly"),
-      plain("의 이행확인란을 훑었습니다. "),
+      plain("관리기간 8월 1일부터 31일까지를 대상으로 하는 8월 회의록의 이행확인란을 훑었습니다."),
+      ref(REF_MINUTES_AUG),
+      plain(" "),
       strong("등재 21행 가운데 9행이 미표시"),
       plain("이고, 이 중 4행은 개선조치 담당자가 하도급사이며 기한이 이미 지났습니다. 서진건설 2행, 한빛가설 2행입니다."),
     ),
     comparison: oneParagraph(
-      plain("중간 점검 주기가 오늘 도래했습니다. "),
-      mono("recurrence: { monthOf: \"2026-08\" }"),
+      plain("8월 관리기간의 중간 점검 주기가 오늘 06시에 도래했습니다. 결재 상신 전에 한 번 훑는 자리입니다."),
     ),
     judgement: oneParagraph(
       plain("미표시는 두 가지 가운데 하나입니다. "),
@@ -941,12 +944,115 @@ const doneCards: TaskCard[] = [
  * 화면 한 장
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * 참조 사전 — 식별자에 마우스를 올리면 뜨는 실제 내용
+ *
+ * 값의 출처는 `docs/scenario-gimpo-logistics.md` 4절이다. 열쇠는 브리핑 본문에
+ * 적힌 문자열 그대로이므로, 조각을 만들 때 `refId` 를 따로 붙이지 않아도 이어진다.
+ * ------------------------------------------------------------------ */
+
+const references: Record<string, ReferenceDetail> = {
+  [REF_MAIL]: {
+    refId: REF_MAIL,
+    kindLabel: "메일",
+    title: "[서진건설] 4층 슬래브 동바리 자재 변경 협의의 건",
+    meta: [
+      { term: "발신", value: "권O열 (서진건설 공무)" },
+      { term: "수신", value: "한신종합건설 공무팀 · 참조 박정우" },
+      { term: "받은 때", value: "2026-08-18 14:22" },
+      { term: "첨부", value: "2건 · 11쪽 · 표까지 구조 복원" },
+      { term: "인용", value: "원문 조회에 성공해 인용 가능" },
+    ],
+    excerpt: [
+      "층고 8.2m 구간(A~C열, 약 1,850㎡)에 한해 강관동바리 혼용 시공을 검토하고 있습니다. … 8월 24일 반입을 목표로 하며",
+      "바꾸려는 사유는 임대 물량 부족과 단가 12% 인상입니다.",
+    ],
+    origin: "합성",
+  },
+  [REF_MATERIAL]: {
+    refId: REF_MATERIAL,
+    kindLabel: "자재",
+    title: "강관동바리 (시스템동바리에서 대체)",
+    meta: [
+      { term: "규격", value: "φ48.6×3.2t · 4단 조립" },
+      { term: "적용 범위", value: "4F A~C열 1,850㎡ · 최대 층고 8.2m" },
+      { term: "반입 목표", value: "2026-08-24" },
+      { term: "바뀌기 전", value: "시스템동바리 · 공급 대일가설" },
+    ],
+    excerpt: [
+      "두 방식이 만나는 경계에서는 하중 전달 경로가 불연속적으로 바뀌므로 구조 검토서가 따로 필요합니다.",
+    ],
+    origin: "합성",
+  },
+  [REF_SNAPSHOT]: {
+    refId: REF_SNAPSHOT,
+    kindLabel: "현장 스냅샷",
+    title: "김포 고촌 물류센터 · 2026-08-18 18:00 기준",
+    meta: [
+      { term: "공정", value: "골조 · 지연 4일" },
+      { term: "진행 작업", value: "4층 슬래브 거푸집 및 동바리 (08-24 ~ 09-06)" },
+      { term: "걸린 자재", value: "시스템동바리 · 공급 대일가설" },
+      { term: "장비", value: "T/C 240kg·m · 중앙양중" },
+      { term: "마지막 평가", value: "7월 정기 · 2026-07-03 완료" },
+    ],
+    excerpt: [
+      "변경 감지는 이 스냅샷과 새로 들어온 문서의 차이를 계산하는 방식으로 이루어집니다.",
+    ],
+    origin: "합성",
+  },
+  [REF_RA_JULY]: {
+    refId: REF_RA_JULY,
+    kindLabel: "위험성평가표",
+    title: "7월 정기 위험성평가",
+    meta: [
+      { term: "종류", value: "정기" },
+      { term: "완료", value: "2026-07-03" },
+      { term: "대상 작업", value: "3층 벽체 타설 · 4층 슬래브 거푸집 및 동바리" },
+      { term: "동바리 전제", value: "시스템동바리" },
+    ],
+    excerpt: [
+      "평가표가 통째로 폐기되는 것은 아닙니다. 전제를 잃은 행만 수시평가로 다시 씁니다.",
+    ],
+    origin: "합성",
+  },
+  [REF_GUIDELINE]: {
+    refId: REF_GUIDELINE,
+    kindLabel: "법령",
+    title: "「사업장 위험성평가에 관한 지침」",
+    meta: [
+      { term: "종류", value: "고용노동부 고시" },
+      { term: "확인", value: "공식 원문 조회 성공 · 인용 가능" },
+      { term: "관련", value: "수시평가 실시 사유" },
+    ],
+    excerpt: [
+      "원문을 확인하지 못한 조문은 인용하지 않습니다. 확인에 실패하면 판단을 유보하고 공식 원문을 직접 보도록 안내합니다.",
+    ],
+    origin: null,
+  },
+  [REF_MINUTES_AUG]: {
+    refId: REF_MINUTES_AUG,
+    kindLabel: "회의록",
+    title: "8월 월간 위험성평가 회의록",
+    meta: [
+      { term: "관리기간", value: "2026-08-01 ~ 2026-08-31" },
+      { term: "등재", value: "21행 · 이행확인 미표시 9행" },
+      { term: "미표시 가운데", value: "하도급사 담당 4행 (서진건설 2 · 한빛가설 2) 기한 지남" },
+      { term: "결재 상신", value: "2026-09-02 예정" },
+    ],
+    excerpt: [
+      "미표시인 채로 결재를 올리면 감사에서 지적을 받습니다. 다만 표시를 기계가 대신 채우면 안 됩니다 — 실행되지 않은 것과 기록되지 않은 것은 다른 문제입니다.",
+    ],
+    origin: "합성",
+  },
+};
+
 export const BOARD_SNAPSHOT: BoardSnapshot = {
   site,
   briefing,
   calendar,
   columns,
   cards: [...todoCards, ...approvalCards, ...doneCards],
+  references,
   selectedDate: "2026-08-19",
   kanbanTitle: "8월 19일 수요일",
 };
