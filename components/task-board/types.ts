@@ -46,9 +46,37 @@ export type ConditionSlug =
 export type RichRun =
   | { kind: "text"; text: string }
   | { kind: "strong"; text: string }
-  | { kind: "mono"; text: string };
+  /** 규격이나 수치처럼 그 자체로 읽히는 짧은 값. 내부 식별자는 여기 넣지 않는다. */
+  | { kind: "mono"; text: string }
+  /**
+   * 근거 표시. 화면에는 `[1]` 같은 번호로만 나가고 내부 식별자는 드러내지 않는다.
+   * 번호는 조건마다 나온 차례대로 화면이 매기므로 픽스처가 적지 않는다.
+   */
+  | { kind: "ref"; refId: string };
 
 export type RichText = RichRun[];
+
+/* ------------------------------------------------------------------ *
+ * 참조 사전
+ *
+ * `doc_2_k3f9x1qm` 처럼 식별자만 적혀 있으면 읽는 사람은 그것이 무엇인지 모른다.
+ * 근거를 따로 열어 보지 않고도 판단할 수 있어야 담당자가 보드를 신뢰하므로,
+ * 식별자에 마우스를 올리면 실제 내용이 그 자리에서 뜬다.
+ * ------------------------------------------------------------------ */
+
+export type ReferenceDetail = {
+  /** 사전의 열쇠. `ref` 조각의 `refId` 와 같고 화면에는 나가지 않는다. */
+  refId: string;
+  /** 팝오버 머리의 종류 배지. "메일" · "현장 스냅샷" · "위험성평가표" 처럼 적는다. */
+  kindLabel: string;
+  title: string;
+  /** 발신·수신·첨부처럼 짧은 항목들. 팝오버에서 정의 목록으로 그린다. */
+  meta: { term: string; value: string }[];
+  /** 본문 발췌. 문단 배열이며 여기에는 다시 식별자를 넣지 않는다. */
+  excerpt: string[];
+  /** 출처 등급 배지. 시드 문서는 우리가 만든 것이라 "합성" 이다. */
+  origin: string | null;
+};
 
 /* ------------------------------------------------------------------ *
  * 현장 헤더와 연결된 맥락 소스
@@ -424,6 +452,8 @@ export type BoardSnapshot = {
   calendar: BoardCalendar;
   columns: BoardColumnMeta[];
   cards: TaskCard[];
+  /** 식별자를 눌렀을 때 뜨는 실제 내용. 열쇠는 mono 조각의 `refId` 또는 `text`. */
+  references: Record<string, ReferenceDetail>;
   /** 처음 선택된 날짜. "2026-08-19" */
   selectedDate: string;
   /** 칸반 머리의 날짜 제목. "8월 19일 수요일" */

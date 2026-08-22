@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DocumentViewer } from "@/components/document-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import {
   DOCUMENT_KINDS,
@@ -70,6 +71,7 @@ export function SiteContextPanel() {
   const [saving, setSaving] = useState(false);
   const [ranAsDemo, setRanAsDemo] = useState(false);
   const [activeRegion, setActiveRegion] = useState<number | null>(null);
+  const [openedDocument, setOpenedDocument] = useState<string | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -418,6 +420,7 @@ export function SiteContextPanel() {
                 <th>제목</th>
                 <th>쪽</th>
                 <th>청크</th>
+                <th>원본</th>
               </tr>
             </thead>
             <tbody>
@@ -425,15 +428,40 @@ export function SiteContextPanel() {
                 <tr key={doc.id}>
                   <td>{doc.site_name}</td>
                   <td>{doc.kind}</td>
-                  <td>{doc.title}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="context-doc-title"
+                      onClick={() => setOpenedDocument(doc.id)}
+                    >
+                      {doc.title}
+                    </button>
+                  </td>
                   <td>{doc.page_count ?? "-"}</td>
                   <td>{doc.chunk_count}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="context-doc-open"
+                      onClick={() => setOpenedDocument(doc.id)}
+                    >
+                      열기
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
+
+      {openedDocument ? (
+        <DocumentViewer
+          key={openedDocument}
+          documentId={openedDocument}
+          onClose={() => setOpenedDocument(null)}
+        />
+      ) : null}
     </div>
   );
 }
