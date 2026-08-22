@@ -22,7 +22,7 @@ function companyResult(seq = 3) {
     title: "고촌 물류센터 하도급계약서",
     kind: "하도급계약서",
     siteName: "김포 고촌 물류센터",
-    page: 2,
+    pages: [2, 3],
     seq,
     text: `제12조(${seq}) 안전관리비는 계약금액과 별도로 계상한다.`,
     source: "합성",
@@ -52,6 +52,8 @@ test("읽기가 실패한 도구는 인용으로 승격되지 않는다", () => 
 test("사내 문서 읽기는 현장명·종류와 합성 등급을 달고 인용이 된다", () => {
   const [citation] = citationSources([tool({ output: { result: companyResult() } })]);
 
+  // 계열이 빠지면 각주 UI 가 이 합성 문서에 "국가법령정보센터 원문" 을 달아 준다.
+  assert.equal(citation.kind, "사내문서");
   assert.equal(citation.title, "고촌 물류센터 하도급계약서");
   assert.equal(citation.url, `/api/context/documents/${DOC_ID}`);
   assert.equal(citation.authority, "김포 고촌 물류센터 · 하도급계약서");
@@ -65,8 +67,10 @@ test("위험성평가 읽기는 고정 출처명과 평가 링크로 인용이 �
 
   const [citation] = citationSources([tool({ name: "read_assessment", output: { result } })]);
 
+  assert.equal(citation.kind, "위험성평가");
   assert.equal(citation.url, `/api/risk/${RISK_ID}`);
-  assert.equal(citation.authority, "위험성평가 기록");
+  // 색인에는 남이 만든 평가도 섞여 있어 소유자를 단정하면 안 된다.
+  assert.equal(citation.authority, "위험성평가 기록 · 현장 소속 미확인");
   assert.equal(citation.version, "합성");
 });
 
@@ -102,6 +106,7 @@ test("법령 인용은 여전히 외부 원문 주소만 받는다", () => {
 
   assert.deepEqual(citationSources([relative]), []);
   const [citation] = citationSources([external]);
+  assert.equal(citation.kind, "법령");
   assert.equal(citation.url, "https://www.law.go.kr/x");
   assert.equal(citation.authority, "고용노동부");
 });

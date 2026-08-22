@@ -98,6 +98,7 @@ export function citationSources(toolCalls: ToolCall[]): CitationSource[] {
       if (!url || !title || !/^https?:\/\//.test(url)) return [];
 
       return [[url, {
+        kind: "법령",
         title,
         url,
         authority: asText(result?.authority ?? officialSource?.authority),
@@ -113,11 +114,17 @@ export function citationSources(toolCalls: ToolCall[]): CitationSource[] {
     const siteAndKind = [asText(result?.siteName), asText(result?.kind)]
       .filter((part) => Boolean(part))
       .join(" · ");
+    // 위험성평가 색인에는 SAFEGRID 인스턴스 전체가 들어 있어 남이 만든 평가도 섞인다
+    // (lib/agent/assessment-index.ts 의 "현장 필터가 없다"). 근거 카드가 소유자를
+    // 말하지 않으면 화면이 그것을 우리 현장 기록처럼 보여 준다.
     const authority = tool.name === "read_company_document"
       ? siteAndKind || undefined
-      : "위험성평가 기록";
+      : "위험성평가 기록 · 현장 소속 미확인";
 
     return [[`${url}#${asText(result?.seq) ?? title}`, {
+      // 계열을 실어 보내지 않으면 각주 UI 가 이 합성 문서를 법령 원문으로 그린다
+      // (`components/markdown-content.tsx` 의 CITATION_LINK_LABEL).
+      kind: tool.name === "read_company_document" ? "사내문서" : "위험성평가",
       title,
       url,
       authority,
