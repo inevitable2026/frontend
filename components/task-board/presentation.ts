@@ -81,6 +81,14 @@ export const DOCUMENT_SOURCE_ID = "src_approval";
 /** 문서가 한 건도 없을 때 문서 줄에 적는 문구. 없는 시각을 지어내지 않는다. */
 export const DOCUMENT_SOURCE_EMPTY = "등록된 문서가 없습니다";
 
+/**
+ * 문서함을 아예 읽지 못했을 때 문서 줄에 적는 문구.
+ *
+ * "등록된 문서가 없습니다" 와 반드시 갈라 두어야 한다. 질의가 실패한 것과 한 건도 없는 것은
+ * 전혀 다른 사실인데, 둘을 같은 문구로 적으면 화면이 확인하지 않은 것을 확인했다고 말한다.
+ */
+export const DOCUMENT_SOURCE_UNREAD = "문서함을 읽지 못했습니다";
+
 export const WATCH_SOURCES: ContextSource[] = [
   { id: "src_mail", label: "회사 메일함", icon: "mail", lastSyncedLabel: "연동 준비 중" },
   { id: DOCUMENT_SOURCE_ID, label: "전자결재 · 공무 문서", icon: "document", lastSyncedLabel: DOCUMENT_SOURCE_EMPTY },
@@ -215,15 +223,40 @@ export const IMPLEMENTATION_PENDING = "비어 있습니다 — 승인 시점에 
 /** 인용할 수 있는 법령 원문을 하나도 확인하지 못했을 때 근거 칸에 적는 문구. */
 export const NO_LEGAL_REFERENCE = "원문을 확인한 조문이 없습니다";
 
-/** TBM 자료 초안의 구호. 현장 공통 문구다. */
-export const TBM_SLOGAN = "멈춘다 → 확인한다 → 평가한다 → 관리한다";
-
-/**
- * 서버 dueBy 가 날짜만 들고 있을 때 채워 넣는 시각.
- * 협의체 회의는 오후 두 시, 내일 TBM 은 06시 40분이라는 현장 상수다.
- */
-export const MEETING_TIME_SUFFIX = "T14:00:00+09:00";
-export const TBM_TIME_SUFFIX = "T06:40:00+09:00";
+// TBM 구호와 회의 시각은 여기 있었다. 각각 "멈춘다 → 확인한다 → 평가한다 → 관리한다" 와
+// "T14:00:00+09:00" · "T06:40:00+09:00" 이었고, 초안에 시각이 없으면 화면이 그것을 붙였다.
+// 회의를 오전에 하는 현장에서도 화면은 오후 두 시라고 적었다.
+//
+// 지금은 초안 자신이 들고 온다 (lib/board/types.ts 의 Draft). 시각과 구호는 그 회의의
+// 사실이지 화면의 문구가 아니고, 화면이 모르는 것을 지어내면 담당자가 어긋난 시각을 그대로
+// 결재에 올린다. 위의 "이 값이 현장마다 달라질 수 있는가" 를 물었을 때 그렇다고 답하는 값은
+// 이 파일에 있으면 안 된다.
 
 /** 현장 이름을 얻지 못했을 때 헤더에 적는 말. */
 export const SITE_NAME_FALLBACK = "현장";
+
+/**
+ * 무효화된 문서의 근거 팝오버 제목.
+ *
+ * 무효화 줄이 들고 있는 것은 내부 문서 식별자뿐이고 그것은 화면에 내보내지 않는다
+ * (types.ts 의 ReferenceDetail 주석). 같은 문서를 여러 조건이 함께 무효화하므로 어느 한
+ * 조건의 판단 문장을 제목으로 굳혀도 안 된다 — 다른 조건 아래에서 그 근거를 열면 남의
+ * 판단이 제목으로 뜨기 때문이다. 그래서 제목은 무엇인지만 말하고 내용은 발췌에 맡긴다.
+ */
+export const INVALIDATED_DOC_TITLE = "전제가 무너진 문서";
+
+/* ------------------------------------------------------------------ *
+ * 확정자
+ *
+ * 이 화면에는 로그인이 없다. 그래서 승인 단추를 누른 사람이 누구인지 확인할 방법이 전혀
+ * 없는데, 그 자리에 카드의 담당자 식별자를 실어 보내면 board.work_item_events.actor 와
+ * work_items.confirmed_by 에 실제로 누르지 않은 사람의 이름이 남는다. 이행확인 기록에
+ * 남의 이름을 적는 것은 위조와 같은 자리에 서므로, 확인되지 않은 확정자는 확인되지 않은
+ * 채로 적는다.
+ * ------------------------------------------------------------------ */
+
+/** 이력에 남기는 행위자 식별자. 사람 식별자(user_*)와 겹치지 않는 값이어야 한다. */
+export const CONSOLE_ACTOR = "console";
+
+/** 그 식별자를 화면에 적을 때의 이름. 사람 이름 자리에 사람 이름을 지어 넣지 않는다. */
+export const CONSOLE_ACTOR_NAME = "이 콘솔";

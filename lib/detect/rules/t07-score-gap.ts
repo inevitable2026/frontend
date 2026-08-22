@@ -180,14 +180,9 @@ export const t07ScoreGap: TriggerRule = {
             reason: "추천값과의 이격이 커 판정 대기 상태가 되었습니다. 값 자체가 지워지는 것은 아닙니다.",
           },
         ],
-        produces: [
-          {
-            form: "기록",
-            for: `추천 위험도 이격 ${bucket.length}행 채택·기각 판정`,
-            count: bucket.length,
-            into: docId,
-          },
-        ],
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `등재 행 ${bucket.length}건이 추천 위험도와 어긋납니다. ${headline}${sample}${guard}`,
       });
     }

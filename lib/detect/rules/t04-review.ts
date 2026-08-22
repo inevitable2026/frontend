@@ -4,7 +4,6 @@ import type {
   Evidence,
   FactType,
   Invalidation,
-  Produces,
   SnapshotFact,
   TriggerRule,
 } from "@/lib/board/types";
@@ -257,12 +256,6 @@ export const t04Review: TriggerRule = {
           ]
         : [];
 
-      const produces: Produces[] = [
-        // 빈 칸을 채운 행. 새 회의록이 아니라 기존 문서의 보완이라 into 가 대상 문서다.
-        { form: "회의록", count: 대상.length, ...(대상문서 ? { into: 대상문서 } : {}) },
-        { form: "공문", ...(내용.발신처 ? { to: 내용.발신처 } : {}), for: "지적 사항 회신" },
-      ];
-
       const 감지: Detection = {
         ruleId: "T-04",
         siteId: input.siteId,
@@ -270,7 +263,9 @@ export const t04Review: TriggerRule = {
         confidence: Math.min(1, Math.max(0, 의견.confidence)),
         evidence,
         invalidates,
-        produces,
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `${발신처}${josaIGa(발신처)} 회의록 ${대상.length}개 행을 지적했습니다${내역}. 회신 기한은 ${내용.replyDueBy}입니다.`,
       };
 

@@ -4,7 +4,6 @@ import type {
   Evidence,
   FactType,
   Invalidation,
-  Produces,
   SnapshotFact,
   TriggerRule,
 } from "@/lib/board/types";
@@ -246,13 +245,6 @@ export const t05Nearmiss: TriggerRule = {
           ]
         : [];
 
-      const produces: Produces[] = [
-        { form: "기록", for: "아차사고 보고서" },
-        // 재발방지 대책은 새 문서가 아니라 이미 있는 행의 보완이다.
-        { form: "회의록", count: 1, ...(대상문서 ? { into: 대상문서 } : {}) },
-        { form: "TBM자료", for: "전 공종 전파" },
-      ];
-
       const 감지: Detection = {
         ruleId: "T-05",
         siteId: input.siteId,
@@ -263,7 +255,9 @@ export const t05Nearmiss: TriggerRule = {
         ),
         evidence,
         invalidates,
-        produces,
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: 표시어긋남
           ? `${내용.단위작업} 아차사고가 접수됐고 같은 위험요인이 회의록 ${rowId(행)} 행에 이미 등재되어 있습니다. 그 행의 이행확인란에는 표시가 있었으나 실제로는 실행되지 않았습니다.`
           : `${내용.단위작업} 아차사고가 접수됐고 같은 위험요인이 회의록 ${rowId(행)} 행에 이미 등재되어 있습니다. 등재된 대책이 현장에서 작동하지 않았습니다.`,

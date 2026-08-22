@@ -19,12 +19,12 @@ import {
 import { BoardSkeleton } from "./board-skeleton";
 import { DailyBriefingPanel } from "./daily-briefing";
 import { KanbanBoard } from "./kanban-board";
+import { CONSOLE_ACTOR } from "./presentation";
 import { ReferenceProvider } from "./reference-chip";
 import { RejectDialog } from "./reject-dialog";
 import { 확정자이름 } from "./view-model";
 import { WeekCalendar } from "./week-calendar";
 import type {
-  ApproveIntent,
   BoardColumnId,
   BoardSnapshot,
   BoardWatch,
@@ -182,13 +182,22 @@ function applyReject(cards: TaskCard[], itemId: string, laneOrder: number): Task
 /**
  * 날짜 필터.
  *
- * 보드 날짜를 고르면 그 현장의 카드가 전부 나오고, 다른 날을 고르면 그날이 기한인 카드만
- * 남는다. 서버 items 질의에 date 를 붙이지 않는 것과 짝이 되는 규칙이다 — 기한이 없는 승인
- * 카드까지 서버에서 걸러 버리면 칸반의 승인 열이 통째로 빈다.
+ * 보드 날짜를 고르면 그 현장의 카드가 전부 나오고, 다른 날을 고르면 **캘린더가 그날 칸에
+ * 놓은 카드**만 남는다. 서버 items 질의에 date 를 붙이지 않는 것과 짝이 되는 규칙이다 —
+ * 기한이 없는 승인 카드까지 서버에서 걸러 버리면 칸반의 승인 열이 통째로 빈다.
+ *
+ * 예전에는 여기서 card.dueBy 의 앞 열 글자만 견주었다. 그런데 주간 라우트는 기한이 없는
+ * 카드를 생성일 칸에 놓으므로, 캘린더가 "1건" 이라고 적어 둔 날을 눌렀을 때 칸반이 통째로
+ * 비었다. 같은 화면의 두 자리가 서로 다른 규칙으로 세면 어느 쪽도 믿을 수 없다.
+ *
+ * 캘린더에 없는 날(도우미가 이 주 밖의 날짜를 고르는 경우)은 예전 규칙으로 돌아간다.
+ * 그 날의 배치는 서버에서 받아 온 것이 없어 화면이 알 방법이 없기 때문이다.
  */
-function isOnDate(card: TaskCard, boardDate: string, date: string): boolean {
-  if (date === boardDate) return true;
-  return card.dueBy !== null && card.dueBy.slice(0, 10) === date;
+function 그날카드(cards: TaskCard[], 놓인것: Set<string> | undefined, date: string): TaskCard[] {
+  if (놓인것 === undefined) {
+    return cards.filter((card) => card.dueBy !== null && card.dueBy.slice(0, 10) === date);
+  }
+  return cards.filter((card) => 놓인것.has(card.itemId));
 }
 
 /** 낙관적 갱신이 엎어졌을 때 화면에 적을 문장. 서버가 쓴 사유를 그대로 덧붙인다. */
@@ -308,10 +317,18 @@ export function TaskBoard({
 
   const boardDate = snapshot === null ? BOARD_DATE : snapshot.selectedDate;
 
+  /** 캘린더가 어느 카드를 어느 날 칸에 놓았는지. 날짜 거르기가 이 배치를 그대로 따른다. */
+  const 날짜별카드 = useMemo(() => {
+    const out = new Map<string, Set<string>>();
+    if (snapshot === null) return out;
+    for (const day of snapshot.calendar.days) out.set(day.date, new Set(day.itemIds));
+    return out;
+  }, [snapshot]);
+
   const visibleCards = useMemo(() => {
-    if (selectedDate === null) return cards;
-    return cards.filter((card) => isOnDate(card, boardDate, selectedDate));
-  }, [cards, boardDate, selectedDate]);
+    if (selectedDate === null || selectedDate === boardDate) return cards;
+    return 그날카드(cards, 날짜별카드.get(selectedDate), selectedDate);
+  }, [cards, boardDate, selectedDate, 날짜별카드]);
 
   const kanbanTitle = useMemo(() => {
     if (snapshot === null) return "";
@@ -342,6 +359,14 @@ export function TaskBoard({
     const card = cards.find((item) => item.itemId === intent.itemId);
     if (card === undefined) return;
 
+    // 확정된 카드는 서버가 어떤 전이도 409 로 막는다(transition.ts 의 confirmedAt 검사).
+    // 그것을 모른 채 보내면 카드가 한 칸 움직였다가 제자리로 튀고 되돌림 문구가 뜬다.
+    // 완료 열 안에서 순서를 바꾸려는 것뿐이어도 그렇다. 여기서 먼저 멈추고 이유를 적는다.
+    if (card.confirmedAt !== null) {
+      setStatusMessage(`「${shorten(card.title)}」 카드는 이미 확정되어 옮길 수 없습니다.`);
+      return;
+    }
+
     // 기계가 올린 초안을 승인 열에서 Todo 로 되돌리는 것은 서버에서 기각으로 읽힌다. 사유
     // 없이 보내면 400 이 돌아오므로, 이 조합만 가로채 사유를 묻는 대화 상자를 연다.
     if (intent.from === "approval" && intent.to === "todo" && card.origin === "machine") {
@@ -349,7 +374,11 @@ export function TaskBoard({
       return;
     }
 
-    const laneOrder = laneOrderFor(cards, intent.itemId, intent.to, intent.toIndex);
+    // 자리 번호는 **사용자가 본 목록** 안의 순번이다. 날짜 필터가 걸려 있으면 칸반에 서 있는
+    // 카드가 열의 일부뿐이므로, 거르지 않은 전체 목록으로 앞뒤 카드를 찾으면 놓은 자리와
+    // 다른 곳에 카드가 놓인다. 두 목록의 laneOrder 는 같은 값이라 보이는 이웃 사이의
+    // 중간값이 전체 열에서도 그 두 카드 사이를 가리킨다.
+    const laneOrder = laneOrderFor(visibleCards, intent.itemId, intent.to, intent.toIndex);
     void commit(applyMove(cards, intent, laneOrder), moveMessage(card, intent), async () => {
       await moveCard(intent, laneOrder);
     });
@@ -363,9 +392,11 @@ export function TaskBoard({
       toIndex: 0,
     });
     const laneOrder = laneOrderFor(cards, card.itemId, "done", 0);
-    // 서버에는 식별자를 보내고 화면에는 이름을 적는다. 두 값이 같은 사람을 가리키므로
-    // 새로 고침한 뒤에도 확정자가 바뀌지 않는다.
-    const 확정자 = card.assignee?.id ?? "system";
+    // 이 화면에는 로그인이 없어 누가 눌렀는지 확인할 방법이 없다. 그래서 카드의 담당자를
+    // 확정자로 적지 않는다 — 실제로 누르지 않은 사람의 이름이 board.work_item_events.actor
+    // 와 work_items.confirmed_by 에 남으면 그것은 이행확인 기록의 위조와 같은 자리에 선다.
+    // 확인되지 않은 확정자는 확인되지 않은 채로 적는다.
+    const 확정자 = CONSOLE_ACTOR;
     const 표시이름 = card.confirmedBy ?? 확정자이름(확정자) ?? "시스템";
     const 임시확정시각 = new Date().toISOString();
 
@@ -397,6 +428,15 @@ export function TaskBoard({
     const card = cards.find((item) => item.itemId === intent.itemId);
     setRejectTarget(null);
     if (card === undefined) return;
+
+    // 서버는 **승인 열에 있는 기계의 초안**만 기각으로 읽는다(transition.ts 의 isRejection).
+    // 그 밖의 카드에 사유를 실어 보내면 planTransition 이 이동으로 읽어 사유를 버리는데,
+    // 응답은 200 이라 화면만 "사유가 기록되었습니다" 라고 말하고 이력에는 아무 줄도 없다.
+    // 여기서는 기각이라고 말하지 않고 있는 그대로 옮기기만 한다.
+    if (card.status !== "approval" || card.origin !== "machine") {
+      handleMove({ itemId: card.itemId, from: card.status, to: "todo", toIndex: 0 });
+      return;
+    }
 
     // 기각한 카드는 Todo 열 맨 위로 간다. 서버가 같은 자리로 옮기므로 값도 함께 보낸다.
     const laneOrder = laneOrderFor(cards, intent.itemId, "todo", 0);
@@ -475,7 +515,13 @@ export function TaskBoard({
     onMove: (itemId, to) => {
       const card = cards.find((item) => item.itemId === itemId);
       if (card === undefined || card.status === to) return;
-      handleMove({ itemId, from: card.status, to, toIndex: cards.filter((item) => item.status === to).length });
+      // 자리 번호는 handleMove 가 보이는 목록으로 읽으므로 여기서도 같은 목록으로 센다.
+      handleMove({
+        itemId,
+        from: card.status,
+        to,
+        toIndex: visibleCards.filter((item) => item.status === to).length,
+      });
     },
     onApprove: (itemId) => {
       const card = cards.find((item) => item.itemId === itemId);
@@ -483,9 +529,10 @@ export function TaskBoard({
       handleApprove(card, []);
     },
     onReject: (itemId, reason) => {
-      // 기각은 카드를 Todo 열로 되돌린다. 승인 열에 있는 초안인지 여기서 한 번 더 본다.
+      // 기각은 카드를 Todo 열로 되돌린다. 서버가 기각으로 읽는 카드인지 여기서 한 번 더
+      // 본다 — 승인 열에 있는 기계의 초안만 사유가 이력에 남는다.
       const card = cards.find((item) => item.itemId === itemId);
-      if (card === undefined || card.status !== "approval") return;
+      if (card === undefined || card.status !== "approval" || card.origin !== "machine") return;
       handleReject({ itemId, reason });
     },
     onFocusCard: setFocusedCardId,
@@ -495,7 +542,7 @@ export function TaskBoard({
   return (
     <ReferenceProvider references={snapshot.references}>
     <div className={assistantOpen ? "board-shell is-assistant-open" : "board-shell"}>
-      <BoardHeader cards={cards} site={snapshot.site} />
+      <BoardHeader boardDate={boardDate} cards={cards} site={snapshot.site} />
 
       <DailyBriefingPanel
         briefing={snapshot.briefing}

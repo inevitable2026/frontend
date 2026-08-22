@@ -102,7 +102,8 @@ export function DailyBriefingPanel({
                     : "board-brief-metric-value"
                 }
               >
-                {metric.value}
+                {/* 세지 못한 칸에 0 을 그리면 "한 건도 없었다" 는 단언이 된다. */}
+                {metric.value === null ? "—" : metric.value}
               </span>
               <span className="board-brief-metric-label">{metric.label}</span>
             </div>

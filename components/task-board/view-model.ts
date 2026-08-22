@@ -31,22 +31,23 @@ import {
   BRIEFING_LIVE_LABEL,
   CALENDAR_LEGEND,
   CONDITION_BY_RULE,
+  CONSOLE_ACTOR,
+  CONSOLE_ACTOR_NAME,
   COUNTER_LABEL,
   DOCUMENT_SOURCE_EMPTY,
   DOCUMENT_SOURCE_ID,
+  DOCUMENT_SOURCE_UNREAD,
   DOW_NAMES,
   DRAFT_CARD_TONE,
   DRAFT_KIND_BADGE,
   EXTERNAL_PREFIXES,
   FACT_TYPE_LABEL,
   IMPLEMENTATION_PENDING,
+  INVALIDATED_DOC_TITLE,
   MARKER_GROUP_LABEL,
-  MEETING_TIME_SUFFIX,
   NOT_DELEGABLE_REASON,
   NO_LEGAL_REFERENCE,
   REFERENCE_FALLBACK_KIND,
-  TBM_SLOGAN,
-  TBM_TIME_SUFFIX,
   USERS,
   WATCH_FOOTNOTE,
   WATCH_SOURCES,
@@ -57,6 +58,7 @@ import type {
   Assignee,
   BoardCalendar,
   BoardCounter,
+  BoardCounterKey,
   BoardSiteHeader,
   BoardSnapshot,
   BriefingCondition,
@@ -102,8 +104,13 @@ export type BoardSources = {
   items: WorkItem[];
   week: WeekPage;
   briefing: Briefing;
-  /** GET /api/context/documents 의 documents. 실패했으면 빈 배열이다. */
-  documents: ContextDocument[];
+  /**
+   * 이 현장의 문서 목록. **읽지 못했으면 `null` 이고 그것은 빈 배열과 다른 자리에 선다.**
+   * 빈 배열로 바꿔 두면 화면이 "창 안에 새 문서가 한 건도 없었다" 고 단언하게 되는데,
+   * 실제로는 질의가 실패해 아무것도 확인하지 못한 상태다. 서버의 브리핑도 같은 이유로
+   * 문서 수를 0 이 아니라 undefined 로 넘긴다(lib/board/sources.ts 의 창안문서수).
+   */
+  documents: ContextDocument[] | null;
 };
 
 /* ------------------------------------------------------------------ *
@@ -285,12 +292,32 @@ function 문장들(value: string): string[] {
 
 type ReferenceIndex = Map<string, ReferenceDetail>;
 
+/**
+ * 근거줄 본문 앞머리에 붙은 내부 식별자를 걷어 낸다.
+ *
+ * 서버는 사실 하나를 `nearmiss_ledger_2026q3 · 작성중` 처럼 열쇠를 앞세워 적는다. 그 문장을
+ * 그대로 팝오버 제목에 올리면 담당자가 알 필요 없는 내부 식별자가 화면에 드러난다
+ * (types.ts 의 ReferenceDetail 주석이 금지하는 자리다). 발췌에는 원문을 그대로 남기고
+ * 제목에서만 앞머리를 떼어 낸다.
+ */
+function 식별자벗기기(본문: string, refId: string): string {
+  const 사이 = refId.indexOf(" · ");
+  const 열쇠 = 사이 > 0 ? refId.slice(사이 + 3).trim() : refId.trim();
+  const 다듬은 = 본문.trim();
+  if (!열쇠 || !다듬은.startsWith(열쇠)) return 다듬은;
+  return 다듬은
+    .slice(열쇠.length)
+    .replace(/^\s*(?:·|—|-|:)\s*/, "")
+    .trim();
+}
+
 function 참조등록(
   index: ReferenceIndex,
   documents: Map<string, ContextDocument>,
   refId: string,
   본문: string,
   시점말: string | null,
+  제목: string | null = null,
 ): void {
   const 문서 = documents.get(refId) ?? null;
   const 기존 = index.get(refId);
@@ -312,12 +339,16 @@ function 참조등록(
     if (등록) meta.push({ term: "등록", value: 등록 });
   }
 
+  const kindLabel = 참조종류(refId, 문서);
+  // 내부 식별자를 팝오버 제목으로 내보내지 않는다. 문서함에서 제목을 찾지 못하면 부르는
+  // 쪽이 정해 준 제목을 쓰고, 그것도 없으면 식별자를 뗀 본문의 첫 문장을 쓴다. 셋 다
+  // 비면 종류 이름표로 내려간다 — 어느 갈래에서도 refId 는 화면에 나가지 않는다.
+  const 본문제목 = 첫문장(식별자벗기기(본문, refId));
+
   index.set(refId, {
     refId,
-    kindLabel: 참조종류(refId, 문서),
-    // 내부 식별자를 팝오버 제목으로 내보내지 않는다. 문서함에서 제목을 찾지 못하면
-    // 근거 본문의 첫 문장이 그 자리를 대신한다.
-    title: 문서?.title ?? (본문.trim() ? 첫문장(본문) : refId),
+    kindLabel,
+    title: 문서?.title ?? 제목 ?? (본문제목 || kindLabel),
     meta,
     excerpt: 본문 ? [본문] : [],
     // 근거의 출처 등급을 기록하는 자리가 Evidence 에도 documents 에도 없다.
@@ -478,6 +509,9 @@ function 담당자(assignee: string | null): Assignee | null {
 /** 확정자 문자열을 화면에 적을 이름으로 바꾼다. 사전에 없으면 온 값을 그대로 쓴다. */
 export function 확정자이름(value: string | null): string | null {
   if (!value) return null;
+  // 로그인이 없는 화면에서 누른 확정이다. 누른 사람을 확인할 방법이 없어 사람 이름 대신
+  // 어디서 확정했는지를 적는다.
+  if (value === CONSOLE_ACTOR) return CONSOLE_ACTOR_NAME;
   if (!value.startsWith("user_")) return value;
   return USERS[value]?.name ?? value.replace(/^user_/, "");
 }
@@ -485,13 +519,15 @@ export function 확정자이름(value: string | null): string | null {
 /**
  * 카드 오른쪽 아래 기한 문구.
  *
- * 승인 열은 태그가 이미 기한을 말하고 있어 비운다. 그 밖에는 ISO 시각인지, 보드 날짜인지,
- * 사람이 쓴 문장인지에 따라 여섯 갈래로 나뉜다. 서버 dueBy 가 늘 ISO 는 아니라서
- * '2026-08-19 오전 중 (시각 미상)' 같은 문장이 그대로 들어온다.
+ * 열을 가리지 않는다. 예전에는 승인 열을 비웠는데 그 근거였던 "태그가 이미 기한을 말한다"
+ * 를 카드태그() 가 지키지 않는다 — 태그는 규칙 번호와 분량만 만들고 기한을 말하는 태그를
+ * 하나도 만들지 않는다. 그래서 오늘 오후 두 시가 기한인 승인 카드에서 기한이 화면 어디에도
+ * 나오지 않았고, dueIsHot 으로 계산된 급함도 색을 입힐 자리가 없어 사라졌다.
+ *
+ * ISO 시각인지, 보드 날짜인지, 사람이 쓴 문장인지에 따라 여섯 갈래로 나뉜다. 서버 dueBy 가
+ * 늘 ISO 는 아니라서 '2026-08-19 오전 중 (시각 미상)' 같은 문장이 그대로 들어온다.
  */
 function 기한문구(item: WorkItem, boardDate: string): string | null {
-  if (item.status === "approval") return null;
-
   if (!item.dueBy) {
     const 확정 = kstParts(item.confirmedAt);
     return 확정 ? hhmm(확정) : null;
@@ -568,15 +604,7 @@ function 회의록초안(draft: Extract<Draft, { form: "회의록" }>, item: Wor
   };
 }
 
-/** dueBy 가 ISO 가 아니면 앞머리 날짜에 현장 상수 시각을 붙여 만든다. */
-function 초안시각(dueBy: string | null, suffix: string, fallbackDate: string): string {
-  const t = 기한시각(dueBy);
-  if (t !== null && dueBy) return dueBy.trim();
-  const 날짜 = 기한날짜(dueBy) ?? fallbackDate;
-  return `${날짜}${suffix}`;
-}
-
-function 초안옮기기(item: WorkItem, boardDate: string): TaskDraft | null {
+function 초안옮기기(item: WorkItem): TaskDraft | null {
   const draft = item.draft;
   if (!draft) return null;
   const generatedAt = item.updatedAt || item.createdAt;
@@ -606,7 +634,7 @@ function 초안옮기기(item: WorkItem, boardDate: string): TaskDraft | null {
         form: "meetingAgenda",
         ready: true,
         generatedAt,
-        meetingAt: 초안시각(item.dueBy, MEETING_TIME_SUFFIX, boardDate),
+        meetingAt: draft.회의시각,
         // 카드 안 미리보기라 네 줄에서 끊는다. 나머지는 승인 뒤 실제 문서에서 본다.
         items: rows.slice(0, 4),
       };
@@ -617,9 +645,9 @@ function 초안옮기기(item: WorkItem, boardDate: string): TaskDraft | null {
         form: "tbmMinutes",
         ready: true,
         generatedAt,
-        useAt: 초안시각(item.dueBy, TBM_TIME_SUFFIX, boardDate),
+        useAt: draft.사용시각,
         teams: [{ team: draft.팀, focus: draft.항목[0] ?? "", control: draft.항목[1] ?? "" }],
-        slogan: TBM_SLOGAN,
+        slogan: draft.구호,
       };
     case "점검표":
     case "기록":
@@ -676,7 +704,7 @@ function 카드옮기기(
     invalidates,
     // "만든 것" 줄은 브리핑의 조건이 소유하고 카드는 그 줄이 가리키는 끝점이다.
     produces: [],
-    draft: 초안옮기기(item, boardDate),
+    draft: 초안옮기기(item),
     blockedBy: item.blockedBy.map((itemId) => ({
       itemId,
       title: 제목찾기(itemId) ?? "선행 카드",
@@ -755,8 +783,10 @@ function 무효화문단(
   const scope = 사이 < 0 ? "" : line.slice(사이 + 3).trim();
 
   // 무효화된 문서의 발췌 자리에는 같은 조건의 판단 문장을 담는다. 왜 전제를 잃었는지가
-  // 그 문서에 대해 담당자가 알아야 하는 전부다.
-  참조등록(index, documents, docId, 판단.join(" "), null);
+  // 그 문서에 대해 담당자가 알아야 하는 전부다. 다만 제목은 그 판단으로 짓지 않는다 —
+  // 한 문서를 여러 조건이 함께 무효화하므로, 먼저 등록한 조건의 판단이 제목으로 굳으면
+  // 다른 조건 아래에서 같은 근거를 열었을 때 남의 판단이 제목으로 뜬다.
+  참조등록(index, documents, docId, 판단.join(" "), null, INVALIDATED_DOC_TITLE);
 
   const runs: RichRun[] = [refRun(docId)];
   if (scope) runs.push(text(` ${scope}`));
@@ -826,11 +856,18 @@ function 머리글(briefing: Briefing): RichText[] {
   return 문단들.map((문단) => 수량조각(문단));
 }
 
-function 계량(briefing: Briefing, cards: TaskCard[], 새문서수: number): BriefingMetric[] {
-  const 확인대기 = cards.filter(
-    (card) => card.trigger?.requiresHumanConfirmation === true && card.status !== "done",
-  ).length;
-
+/**
+ * 브리핑 계량 여섯 칸.
+ *
+ * "사람 확인 필요" 는 서버가 센 값을 그대로 쓴다. 예전에는 화면이 카드 목록에서 다시 셌는데,
+ * 서버의 buildBriefing 은 창 안의 새 카드 전부를 세어 머리글 문장에 적고 화면은 완료 카드를
+ * 빼고 세어, 같은 패널 안에서 머리글은 6건 계량 칸은 5 를 말했다. 한 화면이 같은 것을 두
+ * 숫자로 말하면 그 뒤로 어떤 숫자도 믿기지 않는다.
+ *
+ * `새문서수` 가 null 이면 문서함을 읽지 못한 것이다. 0 으로 바꾸지 않고 null 인 채로 넘겨
+ * 화면이 "확인하지 못했다" 를 그리게 한다.
+ */
+function 계량(briefing: Briefing, 새문서수: number | null): BriefingMetric[] {
   return [
     // 소스 연동이 상수라서 소스 수도 상수다.
     { key: "sources", value: WATCH_SOURCES.length, label: "읽은 소스", tone: "neutral" },
@@ -838,7 +875,12 @@ function 계량(briefing: Briefing, cards: TaskCard[], 새문서수: number): Br
     { key: "conditions", value: briefing.conditionCount, label: "감지한 조건", tone: "neutral" },
     { key: "tasks", value: briefing.createdCount, label: "만든 태스크", tone: "neutral" },
     { key: "drafts", value: briefing.draftedCount, label: "쓴 초안", tone: "ai" },
-    { key: "confirmations", value: 확인대기, label: "사람 확인 필요", tone: "neutral" },
+    {
+      key: "confirmations",
+      value: briefing.confirmationCount,
+      label: "사람 확인 필요",
+      tone: "neutral",
+    },
   ];
 }
 
@@ -915,6 +957,9 @@ function 캘린더(week: WeekPage, selectedDate: string): BoardCalendar {
       dow: WEEK_DOW[순번] ?? dowOf(day.date),
       dayNumber: Number(day.date.slice(8, 10)),
       count: day.itemIds.length,
+      // 칸반의 날짜 거르기가 이 목록을 그대로 쓴다. 기한이 없는 카드는 생성일에 놓이는데
+      // 화면이 dueBy 만 보고 거르면 캘린더가 "1건" 이라고 말한 날의 칸반이 통째로 빈다.
+      itemIds: day.itemIds,
       chips,
       moreCount: Math.max(0, day.itemIds.length - 덮은수),
       isToday: day.date === selectedDate,
@@ -937,30 +982,51 @@ function 캘린더(week: WeekPage, selectedDate: string): BoardCalendar {
  * ------------------------------------------------------------------ */
 
 /**
- * 카운터 세 칸. BoardHeader 가 카드 목록에서 같은 규칙으로 다시 세므로 화면에는 이 값이
- * 쓰이지 않는다. 그래도 어긋난 값을 넣어 두지 않으려고 같은 규칙으로 계산한다.
+ * 헤더 카운터 세 칸의 판정.
+ *
+ * BoardHeader 가 카드 목록에서 다시 세므로 규칙을 두 곳에 적으면 곧바로 갈라진다. 그래서
+ * 판정을 여기 한 곳에 두고 헤더가 불러다 쓴다.
+ *
+ * "오늘 기한" 은 카드색이 아니라 **기한 날짜**로 센다. 카드색(tone)은 승인 열에서 초안의
+ * 서식으로 정해지므로(회의자료·점검표가 due 색이다) 기한과 아무 관계가 없다. 그 색으로 세면
+ * 오늘 두 시가 기한인 카드가 빠지고 기한이 아예 없는 점검표 초안이 대신 들어온다.
  */
-function 카운터(cards: TaskCard[]): BoardCounter[] {
+export function 카운터규칙(boardDate: string): readonly {
+  key: BoardCounterKey;
+  label: string;
+  tone: BoardCounter["tone"];
+  match: (card: TaskCard) => boolean;
+}[] {
   return [
     {
       key: "condition",
-      value: cards.filter((card) => card.status === "todo" && card.tone === "alert").length,
       label: COUNTER_LABEL.condition,
       tone: "alert",
+      match: (card) => card.status === "todo" && card.tone === "alert",
     },
     {
       key: "due",
-      value: cards.filter((card) => card.status !== "done" && card.tone === "due").length,
       label: COUNTER_LABEL.due,
       tone: "due",
+      match: (card) =>
+        card.status !== "done" && card.dueBy !== null && card.dueBy.slice(0, 10) === boardDate,
     },
     {
       key: "approval",
-      value: cards.filter((card) => card.status === "approval").length,
       label: COUNTER_LABEL.approval,
       tone: "ai",
+      match: (card) => card.status === "approval",
     },
   ];
+}
+
+function 카운터(cards: TaskCard[], boardDate: string): BoardCounter[] {
+  return 카운터규칙(boardDate).map((규칙) => ({
+    key: 규칙.key,
+    value: cards.filter(규칙.match).length,
+    label: 규칙.label,
+    tone: 규칙.tone,
+  }));
 }
 
 /** "4분 전" · "2일 전" 처럼 지금과의 사이를 적는다. 기준 시각은 브리핑을 만든 시각이다. */
@@ -976,17 +1042,20 @@ function 사이문구(from: string, 기준: string): string | null {
   return `${Math.floor(시 / 24)}일 전`;
 }
 
-function 맥락소스(documents: ContextDocument[], 기준: string): ContextSource[] {
-  const 최신 = documents
+/** `documents` 가 null 이면 문서함을 읽지 못한 것이라 "없습니다" 가 아니라 그렇게 적는다. */
+function 맥락소스(documents: ContextDocument[] | null, 기준: string): ContextSource[] {
+  const 최신 = (documents ?? [])
     .map((문서) => 문서.created_at)
     .filter((at) => Number.isFinite(Date.parse(at)))
     .sort()
     .at(-1);
 
+  const 빈문구 = documents === null ? DOCUMENT_SOURCE_UNREAD : DOCUMENT_SOURCE_EMPTY;
+
   return WATCH_SOURCES.map((source) => {
     if (source.id !== DOCUMENT_SOURCE_ID) return { ...source };
-    if (!최신) return { ...source, lastSyncedLabel: DOCUMENT_SOURCE_EMPTY };
-    return { ...source, lastSyncedLabel: 사이문구(최신, 기준) ?? DOCUMENT_SOURCE_EMPTY };
+    if (!최신) return { ...source, lastSyncedLabel: 빈문구 };
+    return { ...source, lastSyncedLabel: 사이문구(최신, 기준) ?? 빈문구 };
   });
 }
 
@@ -994,7 +1063,8 @@ function 헤더(
   siteId: string,
   siteName: string,
   cards: TaskCard[],
-  documents: ContextDocument[],
+  boardDate: string,
+  documents: ContextDocument[] | null,
   기준: string,
 ): BoardSiteHeader {
   return {
@@ -1004,7 +1074,7 @@ function 헤더(
     // 라우트가 없고 public.sites 에는 code · name · created_at 뿐이다. 빈 문자열이면
     // 헤더의 span 이 자리째 사라진다.
     phase: "",
-    counters: 카운터(cards),
+    counters: 카운터(cards, boardDate),
     watch: {
       title: WATCH_TITLE,
       sources: 맥락소스(documents, 기준),
@@ -1023,10 +1093,14 @@ function 칸반제목(date: string): string {
   return `${parts.월}월 ${parts.일}일 ${dowOf(date)}요일`;
 }
 
-/** 브리핑 창 안에 들어온 문서 수. 창 밖이면 0 이 나오고 그 0 은 사실이다. */
-function 새문서수(documents: ContextDocument[], briefing: Briefing): number {
+/**
+ * 브리핑 창 안에 들어온 문서 수. 창 밖이면 0 이 나오고 그 0 은 사실이다.
+ * 문서함을 읽지 못했으면(`null`) 0 을 만들지 않고 null 을 그대로 올려 보낸다.
+ */
+function 새문서수(documents: ContextDocument[] | null, briefing: Briefing): number | null {
+  if (documents === null) return null;
   const 끝 = Date.parse(briefing.generatedAt);
-  if (!Number.isFinite(끝)) return 0;
+  if (!Number.isFinite(끝)) return null;
   const 시작 = 끝 - briefing.windowHours * 3_600_000;
   return documents.filter((문서) => {
     const t = Date.parse(문서.created_at);
@@ -1042,7 +1116,7 @@ export function toBoardSnapshot(src: BoardSources): BoardSnapshot {
   const 카드사전 = new Map(cards.map((card) => [card.itemId, card] as const));
 
   const references: ReferenceIndex = new Map();
-  const 문서사전 = new Map(src.documents.map((문서) => [문서.id, 문서] as const));
+  const 문서사전 = new Map((src.documents ?? []).map((문서) => [문서.id, 문서] as const));
 
   const conditions = src.briefing.entries.map((entry, 순번) =>
     조건옮기기(entry, 순번, 카드사전, references, 문서사전),
@@ -1062,12 +1136,19 @@ export function toBoardSnapshot(src: BoardSources): BoardSnapshot {
     stampLabel: 브리핑머리(src.briefing),
     liveLabel: BRIEFING_LIVE_LABEL,
     lede: 머리글(src.briefing),
-    metrics: 계량(src.briefing, cards, 새문서수(src.documents, src.briefing)),
+    metrics: 계량(src.briefing, 새문서수(src.documents, src.briefing)),
     conditions,
   };
 
   return {
-    site: 헤더(src.siteId, src.siteName, cards, src.documents, src.briefing.generatedAt),
+    site: 헤더(
+      src.siteId,
+      src.siteName,
+      cards,
+      src.date,
+      src.documents,
+      src.briefing.generatedAt,
+    ),
     briefing,
     calendar: 캘린더(src.week, src.date),
     columns: BOARD_COLUMNS,

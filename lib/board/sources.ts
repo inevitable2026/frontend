@@ -51,7 +51,13 @@ export type BoardSources = {
   items: WorkItem[];
   week: WeekPage;
   briefing: Briefing;
-  documents: BoardSourceDocument[];
+  /**
+   * 이 현장의 문서 목록. **읽지 못했으면 `null` 이다.**
+   *
+   * 빈 배열로 바꿔 내려보내면 화면이 "새 문서 0" 과 "등록된 문서가 없습니다" 를 사실처럼
+   * 그린다. 질의가 실패한 것과 한 건도 없는 것은 전혀 다른 사실이라 여기서 갈라 둔다.
+   */
+  documents: BoardSourceDocument[] | null;
 };
 
 /**
@@ -181,7 +187,7 @@ export async function loadBoardSources(
     items: page.items,
     week: buildWeekPage(siteId, date, 이번주카드(page.items, ...주범위(date))),
     briefing,
-    documents: documents ?? [],
+    documents,
   };
 }
 

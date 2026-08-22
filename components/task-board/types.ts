@@ -319,7 +319,11 @@ export type TaskCard = {
 
 export type BriefingMetric = {
   key: string;
-  value: number;
+  /**
+   * 셀 수 없었으면 null 이다. 화면은 그 자리에 숫자 대신 '—' 를 그린다.
+   * 0 으로 바꿔 두면 "한 건도 없었다" 는 단언이 되어 확인하지 못한 것을 확인했다고 말한다.
+   */
+  value: number | null;
   /** "읽은 소스" · "새 문서" · "감지한 조건" · "만든 태스크" · "쓴 초안" · "사람 확인 필요" */
   label: string;
   tone: "neutral" | "ai";
@@ -400,6 +404,13 @@ export type CalendarDay = {
   dayNumber: number;
   /** 그날 전체 건수. */
   count: number;
+  /**
+   * 그날 칸에 놓인 카드의 식별자. 칸반의 날짜 거르기가 이 목록을 그대로 쓴다.
+   *
+   * 주간 라우트는 기한이 없는 카드를 생성일에 놓는다. 화면이 dueBy 만 보고 거르면 캘린더가
+   * "1건" 이라고 말한 날의 칸반이 통째로 비어, 같은 화면의 두 숫자가 어긋난다.
+   */
+  itemIds: string[];
   /** 상위 두 건. */
   chips: CalendarChip[];
   /** "+2건" 의 숫자. 0 이면 줄을 그리지 않는다. */

@@ -146,6 +146,9 @@ export const 공문DraftSchema = z.object({
 
 export const 회의자료DraftSchema = z.object({
   제목: z.string().min(1),
+  회의시각: z
+    .string()
+    .describe("회의 예정 시각. '2026-08-19T14:00:00+09:00' 형식. 근거에 시각이 없으면 그 현장의 통상 회의 시각으로 잡되 안건에 확인이 필요하다고 적는다"),
   안건: z
     .array(
       z.object({
@@ -159,7 +162,11 @@ export const 회의자료DraftSchema = z.object({
 
 export const TBM자료DraftSchema = z.object({
   팀: z.string().min(1),
+  사용시각: z
+    .string()
+    .describe("이 자료를 쓰는 TBM 시각. '2026-08-20T06:40:00+09:00' 형식. 대개 작업 당일 이른 아침이다"),
   항목: z.array(z.string()).min(1).describe("작업 전에 짚어야 할 것들"),
+  구호: z.string().min(1).describe("그날 TBM 에서 함께 외는 짧은 구호. 그날 짚는 위험과 이어져야 한다"),
   통역필요인원: z.number().int().min(0).describe("근거에서 확인되지 않으면 0"),
 });
 

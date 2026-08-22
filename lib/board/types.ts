@@ -124,11 +124,37 @@ export type RiskRowDraft = {
   derivedFrom: { evidenceIds: string[]; contextDocRefs: string[] };
 };
 
+/**
+ * 초안 여섯 서식.
+ *
+ * 회의자료의 `회의시각` 과 TBM자료의 `사용시각` · `구호` 는 화면이 채우던 값이었다.
+ * components/task-board/presentation.ts 에 "T14:00:00+09:00" 과 "T06:40:00+09:00" 이
+ * 현장 상수로 박혀 있었고, 초안의 dueBy 에 시각이 없으면 화면이 그것을 붙여 "오후 2시
+ * 협의체" 라고 적었다. 회의를 오전에 하는 현장에서도 똑같이 적었다.
+ *
+ * 그 값을 초안 자신이 들고 오게 바꾼 이유가 그것이다. 시각은 그 회의의 사실이지 화면의
+ * 문구가 아니고, 화면이 모르는 것을 지어내면 담당자는 어긋난 시각을 그대로 결재에 올린다.
+ */
 export type Draft =
   | { form: "회의록"; 제목: string; supersedes: string | null; rows: RiskRowDraft[] }
   | { form: "공문"; 수신: string; 제목: string; 본문: string; 첨부: string[] }
-  | { form: "회의자료"; 제목: string; 안건: Array<{ 번호: number; 제목: string; 문항: string[] }> }
-  | { form: "TBM자료"; 팀: string; 항목: string[]; 통역필요인원: number }
+  | {
+      form: "회의자료";
+      제목: string;
+      /** 회의 예정 시각. ISO8601 (KST) */
+      회의시각: string;
+      안건: Array<{ 번호: number; 제목: string; 문항: string[] }>;
+    }
+  | {
+      form: "TBM자료";
+      팀: string;
+      /** 이 자료를 쓰는 TBM 시각. ISO8601 (KST) */
+      사용시각: string;
+      항목: string[];
+      /** 그날 TBM 에서 함께 외는 구호 */
+      구호: string;
+      통역필요인원: number;
+    }
   | { form: "점검표"; 제목: string; 항목: Array<{ 확인: string; done: boolean }> }
   | { form: "기록"; 제목: string; 본문: string };
 
@@ -322,6 +348,14 @@ export type Briefing = {
   conditionCount: number;
   createdCount: number;
   draftedCount: number;
+  /**
+   * 창 안의 새 카드 가운데 사람 확인이 필요한 건수.
+   *
+   * 머리글 문장과 화면의 계량 칸이 같은 값을 말해야 해서 여기 한 번만 센다. 예전에는 화면이
+   * 카드 목록에서 다시 셌는데 세는 기준이 서로 달라, 같은 패널에서 머리글이 6건이라고 적고
+   * 바로 아래 계량 칸이 5 를 그렸다.
+   */
+  confirmationCount: number;
   paragraphs: string[];
   entries: BriefingEntry[];
 };

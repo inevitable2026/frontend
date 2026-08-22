@@ -25,8 +25,15 @@ import postgres from "postgres";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const SQL_FILE = path.join(ROOT, "docs/migration-board.sql");
 
-// board 스키마에 있어야 하는 다섯 테이블. lib/board/store-pg.ts 의 TABLES 와 같아야 한다.
-const TABLES = ["work_items", "snapshot_facts", "detection_events", "invalidations", "work_item_events"];
+// board 스키마에 있어야 하는 여섯 테이블. lib/board/store-pg.ts 의 TABLES 와 같아야 한다.
+const TABLES = [
+  "work_items",
+  "snapshot_facts",
+  "detection_events",
+  "invalidations",
+  "work_item_events",
+  "briefing_narratives",
+];
 
 // 적용 전후로 세는 public 테이블. 이 숫자가 움직이면 마이그레이션이 남의 데이터를
 // 건드렸다는 뜻이라 즉시 드러나야 한다.

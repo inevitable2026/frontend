@@ -5,7 +5,6 @@ import type {
   Evidence,
   FactType,
   Invalidation,
-  Produces,
   SnapshotFact,
   TriggerRule,
 } from "@/lib/board/types";
@@ -20,9 +19,12 @@ import type {
 // 사실로 들어와 있다고 전제한다.
 
 // 혼용 시공은 세 자리에서 위험을 만든다 — 조립(좌굴) · 두 방식이 만나는 경계 구간
-// (하중 전달 불연속) · 타설 중 변형 감시. 시나리오 8.2 의 RI-01 · RI-03 · RI-05 가
-// 그 셋이고, 그래서 수시평가 회의록에 붙는 신규 행은 세 줄이다.
-const 신규평가행수 = 3;
+// (하중 전달 불연속) · 타설 중 변형 감시.
+//
+// 예전에는 그것을 `신규평가행수 = 3` 이라는 상수로 못 박아 회의록 신규 행이 언제나 세 줄
+// 이었다. 이 규칙이 다루는 것은 시스템동바리 대체만이 아니고, 자재가 무엇으로 바뀌느냐에
+// 따라 새로 평가해야 할 자리는 하나일 수도 다섯일 수도 있다. 그 판단은 근거를 읽는 쪽
+// (lib/generate/cards.ts)이 한다.
 
 type 자재변경 = {
   fromCode: string;
@@ -171,7 +173,11 @@ function isRunningOrUpcoming(작업: 공정, 오늘: string): boolean {
 
 // TBM 자료는 팀 단위로 나간다. 현장에 어느 팀이 있는지는 회의록 참석자 사실이 이미
 // 알고 있으므로 여기서 되짚는다. watches 에 넣지 않은 것은 팀 명부가 바뀌었다고
-// 자재 변경을 다시 판정할 이유가 없기 때문이다 — 발화 조건이 아니라 산출물 계산이다.
+// 자재 변경을 다시 판정할 이유가 없기 때문이다 — 발화 조건이 아니다.
+//
+// 이 값은 근거로 실어 보낸다. 예전에는 produces 의 teams 에만 담겼고, 그래서 규칙이
+// 산출물을 정하지 않게 된 지금 그대로 두면 통째로 사라진다. 어느 팀에 전파해야 하는지는
+// 이 조건을 읽는 사람이 알아야 하는 사실이므로 근거에 있는 편이 원래 맞다.
 function tbmTeams(lookup: DetectLookup): string[] {
   const 본것 = new Set<string>();
   const 팀: string[] = [];
@@ -269,6 +275,17 @@ export const t03Material: TriggerRule = {
       if (변경.targetDate) 조각.push(`반입 목표 ${변경.targetDate}`);
 
       const evidence: Evidence[] = [
+        ...(팀.length > 0
+          ? [
+              {
+                factType: "tbmMinutesAttendees" as const,
+                key: "teams",
+                observedAt: 추출.observedAt,
+                sourceDocId: null,
+                excerpt: `현장 팀 ${팀.length}개 — ${팀.join(" · ")}`,
+              },
+            ]
+          : []),
         {
           factType: "documentExtraction",
           key: 추출.key,
@@ -313,16 +330,6 @@ export const t03Material: TriggerRule = {
         }),
       );
 
-      const produces: Produces[] = [
-        { form: "회의록", count: 신규평가행수, into: `ra_draft_${오늘.replace(/-/g, "")}` },
-        // 반입 보류라는 계약상 효력이 따라오는 문서다. 수신처를 모르면 비워 두고 사람이 채운다.
-        { form: "공문", ...(변경.counterparty ? { to: 변경.counterparty } : {}) },
-        { form: "회의자료", for: "협력사 안전보건협의체" },
-        { form: "TBM자료", ...(팀.length > 0 ? { count: 팀.length, teams: 팀 } : {}) },
-        // 회의록 초안의 위험도를 매기려면 같은 방식으로 시공된 구간의 현재 상태가 필요하다.
-        { form: "기록", for: "동일 공법 시공 구간 사진 촬영과 근거 등록" },
-      ];
-
       const 감지: Detection = {
         ruleId: "T-03",
         siteId: input.siteId,
@@ -331,7 +338,9 @@ export const t03Material: TriggerRule = {
         confidence: Math.min(1, Math.max(0, 추출.confidence)),
         evidence,
         invalidates,
-        produces,
+        // 무엇을 만들지는 규칙이 정하지 않는다. lib/generate/cards.ts 가 근거를 읽고
+        // 정한 뒤 엔진이 여기 채워 넣는다.
+        produces: [],
         summary: `${작업라벨} 자재가 ${변경.fromLabel}에서 ${대체표현}${josaRo(대체표현)} 변경될 예정입니다.`,
       };
 
