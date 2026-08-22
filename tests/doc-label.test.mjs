@@ -63,6 +63,33 @@ test("표시는 「 」 로 감싸고 키는 title 로만 나간다", () => {
   assert.equal(문서키툴팁(null), undefined);
 });
 
+test("재평가 카드가 새로 가리키는 문서 세 건도 사람 이름으로 읽힌다", () => {
+  // 이행확인이 남아 있는 건을 만들려고 새로 넣은 문서다. 키 규칙에 걸리지 않으면
+  // 서랍 제목이 총칭 "문서" 로 떨어져 어느 평가서를 여는지 알 수 없게 된다.
+  assert.equal(문서이름("ra_2026_09_occasional"), "2026년 9월 수시 위험성평가 회의록");
+  assert.equal(문서이름("ra_2026_08_monthly"), "2026년 8월 월례 위험성평가 회의록");
+  assert.equal(문서이름("tbm_20260821_night"), "8월 21일 TBM 기록");
+  // 저장용 이름도 나와야 한다. null 이면 팩트에 이름을 적지 못한다.
+  assert.equal(문서이름확정("ra_2026_09_occasional"), "2026년 9월 수시 위험성평가 회의록");
+  assert.equal(문서이름확정("tbm_20260821_night"), "8월 21일 TBM 기록");
+});
+
+test("시드 카드가 여는 문서는 하나도 총칭으로 떨어지지 않는다", () => {
+  // 카드를 늘릴 때마다 손으로 시험을 늘리지 않아도 되도록 시드에서 직접 모은다.
+  // 서랍이 여는 문서는 produces.into 가 먼저이고 없으면 invalidates 다
+  // (components/risk/risk-doc-panel.tsx 의 `대상문서`).
+  const 시드 = JSON.parse(readFileSync(path.resolve("data/board/seed-items.json"), "utf8"));
+  const 문서들 = new Set();
+  for (const 카드 of 시드.items) {
+    for (const p of 카드.produces ?? []) if (p.into) 문서들.add(p.into);
+    for (const v of 카드.invalidates ?? []) if (v.docId) 문서들.add(v.docId);
+  }
+  assert.ok(문서들.size > 0);
+  for (const docId of 문서들) {
+    assert.notEqual(문서이름확정(docId), null, `${docId} 를 사람 이름으로 읽지 못합니다`);
+  }
+});
+
 test("시드의 결재 팩트는 모두 키가 아닌 이름을 들고 있다", () => {
   const seed = JSON.parse(readFileSync(path.resolve("data/board/seed-facts.json"), "utf8"));
   const 결재들 = seed.facts.filter((f) => f.factType === "documentApprovalState");

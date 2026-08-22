@@ -1,8 +1,8 @@
 {
-  "설명": "2026년 8월 19일 김포 고촌 물류센터 보드의 시드 카드 11건입니다. 회사·인물·문서는 모두 허구이며 docs/scenario-gimpo-logistics.md 의 이름과 수치를 그대로 씁니다.",
+  "설명": "2026년 8월 19일 김포 고촌 물류센터 보드의 시드 카드 19건입니다. 회사·인물·문서는 모두 허구이며 docs/scenario-gimpo-logistics.md 의 이름과 수치를 그대로 씁니다.",
   "siteId": "site_gimpo_gochon_01",
   "기준시각": "2026-08-19T08:10:00+09:00",
-  "total": 16,
+  "total": 19,
   "items": [
     {
       "itemId": "card_photo_3f",
@@ -952,6 +952,135 @@
       "confirmedAt": null,
       "dueBy": "2026-08-21T17:00:00+09:00",
       "estimatedMinutes": 70,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_sep_shoring",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "9월 타설 강관동바리 혼용 구간 재평가",
+      "summary": "층고 8.2m 구간에 강관동바리 혼용이 검토되면서 9월 수시 회의록 8행이 올라왔습니다. 구조 검토서를 아직 받지 못해 6행의 이행확인이 비어 있습니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "4층 슬래브 동바리가 시스템동바리에서 강관동바리 혼용으로 바뀌고, 반입 목표일이 8월 24일로 잡혀 있습니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm"
+        ],
+        "confidence": 0.92,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_09_occasional",
+          "scope": "동바리 혼용 구간 행 8건",
+          "reason": "구조 검토서를 아직 받지 못해 등재된 조립 기준이 확정되지 않은 전제 위에 서 있습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 6,
+          "into": "ra_2026_09_occasional"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-22T17:00:00+09:00",
+      "estimatedMinutes": 80,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_monthly_lighting",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "8월 월례평가 조도 대책 이행 불일치 재평가",
+      "summary": "월례 회의록에는 야간 타설 구간 조도 대책이 이행함으로 표시돼 있는데, 8월 18일 TBM 기록에는 같은 건이 미조치로 남아 있습니다. 표시와 실제가 어긋난 1행을 포함해 4행을 다시 봅니다.",
+      "trigger": {
+        "ruleId": "T-02",
+        "condition": "TBM 에서 제기된 조도 건이 미조치로 남아 있는데 월례 회의록의 같은 행은 이행확인이 표시되어 있습니다.",
+        "sourceDocRefs": [
+          "tbm_20260818_pour"
+        ],
+        "confidence": 0.9,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_08_monthly",
+          "scope": "조도 관련 행 1건과 이행확인이 비어 있는 3건",
+          "reason": "TBM 기록이 미조치로 남아 있어 이행확인란에 적힌 판정이 그대로 성립하지 않습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 4,
+          "into": "ra_2026_08_monthly"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-20T14:00:00+09:00",
+      "estimatedMinutes": 45,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_night_tbm",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "8월 21일 야간 타설 TBM 위험요인 재평가",
+      "summary": "야간 타설 구간이 늘어 8월 18일 TBM 항목을 그대로 쓸 수 없습니다. 새로 적은 4개 항목은 아직 이행확인이 한 건도 채워지지 않았습니다.",
+      "trigger": {
+        "ruleId": "T-02",
+        "condition": "야간 타설 구간이 넓어졌고, 8월 18일 TBM 에서 제기된 조도 건이 아직 미조치로 남아 있습니다.",
+        "sourceDocRefs": [
+          "tbm_20260818_pour"
+        ],
+        "confidence": 0.86,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "tbm_20260821_night",
+          "scope": "야간 타설 TBM 항목 4건",
+          "reason": "타설 구간이 달라져 8월 18일 TBM 에 적힌 항목을 그대로 옮겨 쓸 수 없습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 4,
+          "into": "tbm_20260821_night"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-21T16:00:00+09:00",
+      "estimatedMinutes": 40,
       "assignee": "user_park",
       "delegable": false,
       "blockedBy": [],
