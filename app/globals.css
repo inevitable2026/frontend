@@ -2532,17 +2532,15 @@ button {
   margin: 0;
 }
 
-/* 첫 줄은 오늘 무슨 일이 있었는지 세는 줄이라 나머지보다 한 눈금 크게 둔다. */
+/* 첫 줄은 오늘 무슨 일이 있었는지 세는 줄이라 조금 더 눌러 둔다. */
 .board-brief-lede p:first-child {
   font-weight: 500;
 }
 
-/* 조건 이름과 요약이 이어지는 줄들. 세는 줄과 구분되도록 한 칸 들여 세로줄을 세운다. */
-.board-brief-lede p:not(:first-child) {
-  padding-left: 11px;
-  border-left: 2px solid var(--board-hairline);
-  color: var(--text-muted);
+/* 뒤따르는 줄들은 한 줄에 한 가지만 말한다. 눈으로 훑을 수 있도록 크기를 한 단계 낮춘다. */
+.board-brief-lede p + p {
   font-size: 13.5px;
+  line-height: 1.58;
 }
 
 .board-brief-lede b {
