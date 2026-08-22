@@ -11,7 +11,9 @@
     "test:build": "node scripts/test/build.mjs",
     "test": "npm run test:build && node --test \"tests/*.test.mjs\"",
     "test:chunk": "npm run test:build && node --test tests/chunk.test.mjs",
-    "test:risk-row-applications": "node scripts/verify-risk-row-applications.mjs"
+    "test:risk-row-applications": "node scripts/verify-risk-row-applications.mjs",
+    "live:receipt": "node scripts/live-receipt.mjs",
+    "live:sweep": "node scripts/live-sweep.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.35",
