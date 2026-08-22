@@ -108,6 +108,11 @@ export function SiteContextPanel() {
   const [mailThreads, setMailThreads] = useState<MailThread[]>([]);
   const [openedThread, setOpenedThread] = useState<string | null>(null);
   const [demoRetryFile, setDemoRetryFile] = useState<File | null>(null);
+  // 라이브가 거절되어 재시도 버튼을 열어 둘지. 예전에는 안내 문구를 문자열로 훑어 판별했는데
+  // 서버는 `readiness.reason`(예: "Studio 라이브 적재 플래그가 꺼져 있습니다.")을 그대로 보내므로
+  // 어떤 문구와도 맞지 않아 버튼이 영원히 렌더되지 않았다. 문구 대신 createIngestJob 의
+  // kind === "live_disabled" 를 근거로 삼는다.
+  const [liveDisabled, setLiveDisabled] = useState(false);
   // 첨부를 누르면 띄울 미리보기. 어느 현장의 메일이었는지를 창 머리에 적어야 해서
   // 첨부와 현장명을 함께 들고 있는다.
   const [openedAttachment, setOpenedAttachment] = useState<
@@ -193,6 +198,9 @@ export function SiteContextPanel() {
     setMessage(null);
     setRanAsDemo(requestedMode === "demo");
     setExecution(null);
+    // 새 시도가 시작되면 직전 거절의 흔적은 지운다. 재시도 버튼이 이번 시도의 결과와
+    // 무관하게 남아 있으면 다시 "왜 눌러도 되는지" 를 알 수 없게 된다.
+    setLiveDisabled(false);
     setDemoRetryFile(null);
 
     try {
@@ -214,8 +222,12 @@ export function SiteContextPanel() {
         setMessage(
           "지금은 실제 분석을 할 수 없습니다. 올린 파일은 저장되지도, 분석되지도 않았습니다. 데모로 고정된 예시를 볼 수 있습니다.",
         );
+        // 같은 파일로 데모를 다시 돌릴 수 있을 때만 재시도 파일을 쥔다(stream-terminal 계약).
         if (created.retryWithDemo) setDemoRetryFile(file);
+        setLiveDisabled(true);
         setMode("demo");
+        // 여기서 데모를 자동으로 돌리지 않는다. "업로드·저장·분석되지 않았습니다" 라고 고지한
+        // 직후에 동의 없이 다른 실행을 붙이면 이 패널이 지키려는 정직성이 무너진다.
         return;
       }
       if (created.kind === "failed") {
@@ -297,6 +309,12 @@ export function SiteContextPanel() {
   const chunkPreview = stages.find((s) => s.이름 === "청킹")?.산출 as
     | { 청크수: number; 미리보기: Array<{ seq: number; page: number; text: string }> }
     | undefined;
+  // 데모의 완료 이벤트는 `추천: null` 이다 — 저장 흐름을 열지 않으려는 의도라 그대로 둔다.
+  // 대신 녹화 원본에 남아 있는 프로젝트판정 단계 산출을 읽어 화면에 표시만 한다.
+  // 녹화본이라 `충분함` 같은 최신 필드가 없으므로 SiteRecommendation 으로 단정하지 않고
+  // 필드별로 확인해서 쓴다. 아래 렌더는 출처가 `recorded` 일 때만 연다 — "녹화된 판정" 이라고
+  // 적는 문구가 참이 되는 조건이 그것뿐이고, 합성 실행에 남의 판정이 실려 와도 여기서 막힌다.
+  const siteVerdict = record(stages.find((s) => s.이름 === "프로젝트판정")?.산출);
   // 한 줄 요약에 쓸 "읽어낸 항목" 수. 화면에 실제로 값이 찍히는 항목만 센다.
   const 읽은항목수 = extracted
     ? Object.values(extracted).filter((value) => hasExtractedDisplayValue(value)).length
@@ -368,7 +386,7 @@ export function SiteContextPanel() {
         {fileName ? <span className="context-filename">{fileName}</span> : null}
       </section>
 
-      {mode === "demo" && demoRetryFile ? (
+      {mode === "demo" && liveDisabled && demoRetryFile ? (
         <button type="button" className="upload-button" onClick={() => void upload(demoRetryFile, "demo")}>
           이 파일로 데모 보기
         </button>
@@ -436,6 +454,17 @@ export function SiteContextPanel() {
           <p className="context-note">
             데모(고정 예시) · 올린 파일은 분석하지 않았습니다. 이 결과는 저장되지 않습니다.
           </p>
+          {text(execution?.source) === "recorded" && text(siteVerdict?.name) ? (
+            <p className="context-note">
+              녹화된 현장 판정: {text(siteVerdict?.name)}
+              {text(siteVerdict?.code) ? ` (${text(siteVerdict?.code)})` : ""}
+              {typeof siteVerdict?.confidence === "number"
+                ? ` · 확신 ${Math.round(siteVerdict.confidence * 100)}%`
+                : ""}
+              {text(siteVerdict?.reason) ? ` · ${text(siteVerdict?.reason)}` : ""}
+              <br />올린 파일이 아니라 녹화 원본의 판정이며, 읽기 전용입니다.
+            </p>
+          ) : null}
           <details className="context-note context-tech">
             <summary>기술 정보</summary>
             <dl>

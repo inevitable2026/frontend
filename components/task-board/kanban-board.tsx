@@ -15,12 +15,15 @@ type KanbanBoardProps = {
   selectedDate: string | null;
   focusedCardId: string | null;
   draggingCardId: string | null;
+  /** 증거 서랍이 열고 있는 카드. 판단은 하지 않고 그대로 내린다. */
+  openCardId: string | null;
   onClearDateFilter: () => void;
   onMove: (intent: CardMoveIntent) => void;
   onDragStateChange: (cardId: string | null) => void;
   onFocusCard: (cardId: string | null) => void;
   onApprove: (card: TaskCard, edits: DraftEdit[]) => void;
   onRequestReject: (card: TaskCard) => void;
+  onOpenCard: (cardId: string, columnId: BoardColumnId) => void;
 };
 
 const COLUMN_IDS: BoardColumnId[] = ["todo", "approval", "done"];
@@ -51,12 +54,14 @@ export function KanbanBoard({
   selectedDate,
   focusedCardId,
   draggingCardId,
+  openCardId,
   onClearDateFilter,
   onMove,
   onDragStateChange,
   onFocusCard,
   onApprove,
   onRequestReject,
+  onOpenCard,
 }: KanbanBoardProps): JSX.Element {
   // 드래그가 지금 어느 열 위에 있고 어느 자리에 놓이는지만 자기 상태로 든다.
   // 카드의 실제 위치는 언제나 컨테이너의 cards 다.
@@ -174,7 +179,7 @@ export function KanbanBoard({
           카드를 끌어 옮기거나, 카드를 고른 뒤 <kbd className="board-kanban-hint-key">←</kbd>{" "}
           <kbd className="board-kanban-hint-key">→</kbd> 로 열을,{" "}
           <kbd className="board-kanban-hint-key">↑</kbd> <kbd className="board-kanban-hint-key">↓</kbd> 로 순서를
-          바꿉니다
+          바꿉니다. 카드를 누르거나 <kbd className="board-kanban-hint-key">Enter</kbd> 로 근거 서랍을 엽니다
         </span>
       </div>
 
@@ -194,11 +199,13 @@ export function KanbanBoard({
             isOver={overColumnId === column.id}
             focusedCardId={focusedCardId}
             draggingCardId={draggingCardId}
+            openCardId={openCardId}
             dropIndex={overColumnId === column.id ? dropIndex : null}
             onMove={emitMove}
             onFocusCard={onFocusCard}
             onApprove={onApprove}
             onRequestReject={onRequestReject}
+            onOpenCard={onOpenCard}
             onPointerEnterColumn={setOverColumnId}
           />
         ))}

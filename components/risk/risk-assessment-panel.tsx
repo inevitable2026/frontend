@@ -238,12 +238,18 @@ export function RiskAssessmentPanel() {
     }
   }, []);
 
+  // 효과 본문에서 곧장 부르면 `react-hooks` 가 "효과에서 동기적으로 setState 한다"고 본다.
+  // 실제로는 await 뒤에서만 바뀌지만 규칙이 그 구분을 못 한다. 규칙을 끄는 것보다 낫다.
   useEffect(() => {
-    void 대기열읽기();
+    void (async () => {
+      await 대기열읽기();
+    })();
   }, [대기열읽기]);
 
   useEffect(() => {
-    void 기록읽기();
+    void (async () => {
+      await 기록읽기();
+    })();
   }, [기록읽기]);
 
   /**
@@ -539,6 +545,41 @@ export function RiskAssessmentPanel() {
    * 덮어썼다 — 눌렀는데 체크가 안 남는다. 병합은 여기서, 최신 상태 위에서 한다.
    */
   /**
+   * 이행확인을 저쪽에 보낸다.
+   *
+   * **`저장예약` 보다 위에 둔다.** 아래에 두면 함수 선언 호이스팅으로 돌기는 하지만,
+   * 읽는 사람도 린트도 "선언 전 접근" 으로 읽는다.
+   */
+  async function 저장하기(next: Assessment) {
+    if (!next.id) {
+      set저장중(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/risk/${next.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        console.error("[risk] assessment save failed", { id: next.id, status: res.status, error: body?.error });
+        throw new Error("이행확인을 저장하지 못했습니다.");
+      }
+      마지막저장본.current = next;
+      set오류(null);
+    } catch (err) {
+      set오류(
+        `${실패문구(err, "이행확인을 저장하지 못했습니다.")} 화면을 저장 전 상태로 되돌렸습니다.`,
+      );
+      // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
+      if (마지막저장본.current) setAssessment(마지막저장본.current);
+    } finally {
+      set저장중(false);
+    }
+  }
+
+  /**
    * 저장을 모아서 보낸다. 담당자 이름은 글자마다 onChange 가 나므로 그대로 두면
    * 한 글자에 한 번씩 PATCH 가 날아간다. 저쪽은 전체 payload 치환이라 순서가 뒤집히면
    * 먼저 보낸 값이 나중에 도착해 덮어쓸 수도 있다.
@@ -575,35 +616,6 @@ export function RiskAssessmentPanel() {
    * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
    */
   const 마지막저장본 = useRef<Assessment | null>(null);
-
-  async function 저장하기(next: Assessment) {
-    if (!next.id) {
-      set저장중(false);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/risk/${next.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(next),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        console.error("[risk] assessment save failed", { id: next.id, status: res.status, error: body?.error });
-        throw new Error("이행확인을 저장하지 못했습니다.");
-      }
-      마지막저장본.current = next;
-      set오류(null);
-    } catch (err) {
-      set오류(
-        `${실패문구(err, "이행확인을 저장하지 못했습니다.")} 화면을 저장 전 상태로 되돌렸습니다.`,
-      );
-      // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
-      if (마지막저장본.current) setAssessment(마지막저장본.current);
-    } finally {
-      set저장중(false);
-    }
-  }
 
   /** 대기열에 카드가 실제로 있는 현장만. 빈 현장 버튼은 누를 이유가 없다. */
   const 현장있는것: Array<[string, string]> = [...new Set(대기열.map((i) => i.siteId))].map((id) => [
