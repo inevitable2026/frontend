@@ -37,6 +37,7 @@ import {
   type 평가행,
   type 행팩트,
 } from "@/lib/risk/rows";
+import { 대상문서 as 문서고르기, 무효문서 as 무효문서고르기 } from "@/lib/risk/doc-target";
 
 /**
  * 오른쪽에서 밀려 나오는 평가서 패널.
@@ -125,25 +126,11 @@ export default function RiskDocPanel({
   const 현재카드키 = useRef(`${siteId}\u001f${item.itemId}`);
   const 서랍 = useRef<HTMLDivElement>(null);
 
-  /**
-   * 이 서랍이 열 문서.
-   *
-   * **`produces.into` 가 먼저다.** 초안을 든 카드는 새 행이 들어갈 문서가 따로 있고,
-   * 그게 사람이 보고 싶어 하는 문서다. `invalidates[0].docId` 를 먼저 보다가
-   * `card_ra_draft_3rows` 에서 틀렸다 — 그 카드는 `ra_2026_07_regular` 를 무효화하지만
-   * 새 3행은 `ra_draft_20260819` 로 들어간다. 무효화 대상을 열었더니 그 문서에는
-   * 행 팩트가 없어(전제 팩트 하나뿐) **0행이 떴고**, 화면이 "행을 한 건도 읽지
-   * 못했습니다" 라고 말했다. 읽지 못한 게 아니라 엉뚱한 문서를 연 것이었다.
-   */
-  const 대상문서 =
-    item.produces.find((p) => typeof p.into === "string" && p.into)?.into ??
-    item.invalidates[0]?.docId ??
-    item.trigger?.sourceDocRefs?.[0] ??
-    null;
+  // 문서를 고르는 규칙은 `lib/risk/doc-target.ts` 한 곳에 있다. 예전에는 이 자리와
+  // 태스크 보드가 각자 골라서 **같은 카드가 화면마다 다른 문서를 열었다.**
+  const 대상문서 = 문서고르기(item);
   const docId = 대상문서;
-
-  /** 이 카드가 무너뜨린 문서. 대상 문서와 다르면 맥락으로 함께 적는다. */
-  const 무효문서 = item.invalidates[0]?.docId ?? null;
+  const 무효문서 = 무효문서고르기(item);
 
   /**
    * 평가서 행을 읽는다.

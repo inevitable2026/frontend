@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { RiskRowDraft } from "@/lib/board/types";
+import { 대상문서 } from "./doc-target.ts";
 
 export type RiskRowApplicationCommand = {
   commandId: string;
@@ -54,14 +55,20 @@ export function assertRiskRowApplicationCommand(
   }
 }
 
+/**
+ * 반영 대상 문서.
+ *
+ * 예전에는 **비어 있지 않은 문자열이면 뭐든 통과**시켰고, 그 값이 그대로
+ * `key = `${targetDocumentId}#${rowId}`` 와 `source_doc_id` 가 되어 저장됐다. 그래서
+ * 「문서 결재 시스템」 같은 모델 출력이 문서 ID 로 DB 에 들어앉았다. 이제 문서 ID 꼴인지
+ * 검사한다 — 아니면 `null` 이고, 호출부가 `target_document_missing` 으로 막는다.
+ */
 export function targetDocumentId(item: {
   produces: Array<{ into?: string }>;
   invalidates: Array<{ docId?: string }>;
   trigger: { sourceDocRefs?: string[] } | null;
 }): string | null {
-  const target = item.produces.find((produce) => typeof produce.into === "string" && produce.into.trim())?.into ??
-    item.invalidates[0]?.docId ?? item.trigger?.sourceDocRefs?.[0] ?? null;
-  return typeof target === "string" && target.trim() ? target.trim() : null;
+  return 대상문서(item);
 }
 
 /** Hash only the immutable material that makes an approved draft safe to apply. */

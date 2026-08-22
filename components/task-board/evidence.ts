@@ -22,6 +22,7 @@ import { kstClock } from "@/lib/board/briefing";
 import type { FactType, SnapshotFact, WorkItem } from "@/lib/board/types";
 import { asRecord, readBoolean, readNumber, readRiskScore, readString } from "@/lib/detect/delta";
 import { 위험도표시, 이행상태읽기, type 평가행 } from "@/lib/risk/rows";
+import { 대상문서 } from "@/lib/risk/doc-target";
 
 /* ------------------------------------------------------------------ *
  * 어느 종류를 읽는가
@@ -86,11 +87,12 @@ export function 카드문서들(item: WorkItem): 문서참조[] {
 /**
  * 이 카드가 여는 평가서.
  *
- * **risk-doc-panel.tsx:51 과 글자 그대로 같은 식이어야 한다.** 갈라지면 우리가 평가서를
- * 끼운 칸에 저쪽이 "이 카드는 어떤 평가서를 가리키는지 밝히지 않았습니다" 를 그린다.
+ * 주석으로 "저쪽과 같은 식이어야 한다" 고 적어 두었지만 지켜지지 않았다 — 이쪽은
+ * `produces.into` 를 안 봐서 **카드 19장이 대기열과 다른 문서를 열었다.** 규칙을
+ * `lib/risk/doc-target.ts` 로 옮겨 같은 함수를 쓴다.
  */
 export function 평가서문서(item: WorkItem): string | null {
-  return item.invalidates[0]?.docId ?? item.trigger?.sourceDocRefs?.[0] ?? null;
+  return 대상문서(item);
 }
 
 /* ------------------------------------------------------------------ *

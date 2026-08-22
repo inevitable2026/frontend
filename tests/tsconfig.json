@@ -43,6 +43,7 @@
     "../lib/context/upstage-doc.ts",
     "../lib/risk/rows.ts",
     "../lib/risk/doc-label.ts",
+    "../lib/risk/doc-target.ts",
     "../lib/risk/vocab.ts",
     "../lib/board/types.ts",
     "../components/chat/parse.ts",
