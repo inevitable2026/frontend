@@ -13,11 +13,11 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "JSON 본문이 필요합니다." }, { status: 400, headers: HEADERS });
+    return Response.json({ error: "검색 요청을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요." }, { status: 400, headers: HEADERS });
   }
 
   const q = body.q?.trim();
-  if (!q) return Response.json({ error: "q 가 필요합니다." }, { status: 400, headers: HEADERS });
+  if (!q) return Response.json({ error: "검색어를 입력해 주세요." }, { status: 400, headers: HEADERS });
 
   const k = Math.min(Math.max(body.k ?? 8, 1), 30);
   const siteId = body.siteId ?? null;

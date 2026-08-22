@@ -19,8 +19,10 @@ export async function GET() {
   try {
     return Response.json(await 평가목록(), { headers: HEADERS });
   } catch (err) {
+    // 조회가 실패한 것이다. "만든 평가가 없습니다" 와 절대 같은 문구로 합치지 않는다.
+    console.error("[risk/list]", err);
     return Response.json(
-      { error: (err as Error).message || "평가 목록 조회 실패" },
+      { error: "평가 목록을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.", code: "list_failed" },
       { status: 502, headers: HEADERS },
     );
   }

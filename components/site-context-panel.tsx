@@ -8,6 +8,7 @@ import { MailAttachmentViewer } from "@/components/mail-attachment-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import { formatExtractedField, hasExtractedDisplayValue } from "@/lib/context/extracted-display";
 import type { MailAttachment, MailThread } from "@/lib/context/mail-threads";
+import { 단계설명, 단계이름 } from "@/lib/context/stage-label";
 import { consumeIngestStream, createIngestJob } from "@/lib/context/stream-terminal";
 import {
   DOCUMENT_KINDS,
@@ -18,7 +19,6 @@ import {
   type IngestEvent,
   type IngestStage,
   type SiteRecommendation,
-  type StageName,
 } from "@/lib/context/types";
 
 type Site = { id: string; code: string; name: string; document_count: number };
@@ -55,20 +55,9 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
 }
 
-const STAGE_HINT: Record<StageName, string> = {
-  수신: "파일 접수",
-  레이아웃분석: "Upstage Document Parse",
-  "표·서명인식": "표 구조 · 서명 영역",
-  필드추출: "Upstage Information Extract",
-  프로젝트판정: "현장 자동 매칭",
-  청킹: "검색 단위로 분할",
-  임베딩: "Upstage Embedding",
-  색인: "Vector DB 적재",
-};
-
 function seconds(ms: number | null): string {
   if (ms == null) return "";
-  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}초`;
+  return ms < 1000 ? "1초 미만" : `${(ms / 1000).toFixed(1)}초`;
 }
 
 function mailStamp(iso: string): string {
@@ -119,6 +108,11 @@ export function SiteContextPanel() {
   const [mailThreads, setMailThreads] = useState<MailThread[]>([]);
   const [openedThread, setOpenedThread] = useState<string | null>(null);
   const [demoRetryFile, setDemoRetryFile] = useState<File | null>(null);
+  // 라이브가 거절되어 재시도 버튼을 열어 둘지. 예전에는 안내 문구를 문자열로 훑어 판별했는데
+  // 서버는 `readiness.reason`(예: "Studio 라이브 적재 플래그가 꺼져 있습니다.")을 그대로 보내므로
+  // 어떤 문구와도 맞지 않아 버튼이 영원히 렌더되지 않았다. 문구 대신 createIngestJob 의
+  // kind === "live_disabled" 를 근거로 삼는다.
+  const [liveDisabled, setLiveDisabled] = useState(false);
   // 첨부를 누르면 띄울 미리보기. 어느 현장의 메일이었는지를 창 머리에 적어야 해서
   // 첨부와 현장명을 함께 들고 있는다.
   const [openedAttachment, setOpenedAttachment] = useState<
@@ -204,6 +198,10 @@ export function SiteContextPanel() {
     setMessage(null);
     setRanAsDemo(requestedMode === "demo");
     setExecution(null);
+    // 새 시도가 시작되면 직전 거절의 흔적은 지운다. 재시도 버튼이 이번 시도의 결과와
+    // 무관하게 남아 있으면 다시 "왜 눌러도 되는지" 를 알 수 없게 된다.
+    setLiveDisabled(false);
+    setDemoRetryFile(null);
 
     try {
       const form = new FormData();
@@ -217,11 +215,19 @@ export function SiteContextPanel() {
       const params = new URLSearchParams({ mode: requestedMode, kind });
       const created = await createIngestJob(fetch, `/api/context/ingest?${params}`, { method: "POST", body: form });
       if (created.kind === "live_disabled") {
+        // 서버가 준 사유는 설비 상태를 적은 문장이라 화면에 그대로 두지 않는다.
+        console.error("[ingest] live disabled:", created.message);
         setPhase("idle");
         setStages(emptyStages());
-        setMessage(`${created.message} 파일은 업로드·저장·분석되지 않았습니다. 데모로 전환해 고정된 예시를 볼 수 있습니다.`);
-        setDemoRetryFile(file);
+        setMessage(
+          "지금은 실제 분석을 할 수 없습니다. 올린 파일은 저장되지도, 분석되지도 않았습니다. 데모로 고정된 예시를 볼 수 있습니다.",
+        );
+        // 같은 파일로 데모를 다시 돌릴 수 있을 때만 재시도 파일을 쥔다(stream-terminal 계약).
+        if (created.retryWithDemo) setDemoRetryFile(file);
+        setLiveDisabled(true);
         setMode("demo");
+        // 여기서 데모를 자동으로 돌리지 않는다. "업로드·저장·분석되지 않았습니다" 라고 고지한
+        // 직후에 동의 없이 다른 실행을 붙이면 이 패널이 지키려는 정직성이 무너진다.
         return;
       }
       if (created.kind === "failed") {
@@ -256,7 +262,7 @@ export function SiteContextPanel() {
         record((event as IngestEvent & { provenance?: unknown }).provenance);
       if (!details && !wasDemo) {
         setPhase("failed");
-        setMessage("Studio 실행 출처와 원격 파일 정리를 확인할 수 없어 결과를 저장하지 않습니다.");
+        setMessage("이 분석이 어떻게 처리됐는지 확인하지 못해 결과를 저장하지 않습니다. 다시 업로드해 주세요.");
         return;
       }
       setPhase("done");
@@ -286,10 +292,10 @@ export function SiteContextPanel() {
     const body = await res.json();
     setSaving(false);
     if (!res.ok) {
-      setMessage(body.error ?? "저장에 실패했습니다.");
+      setMessage(body.error ?? "문서를 저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
       return;
     }
-    setMessage(`${body.siteName} 문서함에 청크 ${body.chunkCount}개를 저장했습니다.`);
+    setMessage(`${body.siteName} 문서함에 저장했습니다. 검색 조각 ${body.chunkCount}개를 만들었습니다.`);
     setPhase("idle");
     setJobId(null);
     setStages(emptyStages());
@@ -303,6 +309,16 @@ export function SiteContextPanel() {
   const chunkPreview = stages.find((s) => s.이름 === "청킹")?.산출 as
     | { 청크수: number; 미리보기: Array<{ seq: number; page: number; text: string }> }
     | undefined;
+  // 데모의 완료 이벤트는 `추천: null` 이다 — 저장 흐름을 열지 않으려는 의도라 그대로 둔다.
+  // 대신 녹화 원본에 남아 있는 프로젝트판정 단계 산출을 읽어 화면에 표시만 한다.
+  // 녹화본이라 `충분함` 같은 최신 필드가 없으므로 SiteRecommendation 으로 단정하지 않고
+  // 필드별로 확인해서 쓴다. 아래 렌더는 출처가 `recorded` 일 때만 연다 — "녹화된 판정" 이라고
+  // 적는 문구가 참이 되는 조건이 그것뿐이고, 합성 실행에 남의 판정이 실려 와도 여기서 막힌다.
+  const siteVerdict = record(stages.find((s) => s.이름 === "프로젝트판정")?.산출);
+  // 한 줄 요약에 쓸 "읽어낸 항목" 수. 화면에 실제로 값이 찍히는 항목만 센다.
+  const 읽은항목수 = extracted
+    ? Object.values(extracted).filter((value) => hasExtractedDisplayValue(value)).length
+    : 0;
 
   return (
     <div className="context-panel">
@@ -311,7 +327,7 @@ export function SiteContextPanel() {
           <p className="eyebrow">현장 맥락 관리</p>
           <h1>문서를 올리면 읽고 나눠서 저장합니다</h1>
           <p className="context-sub">
-            Upstage 가 레이아웃과 필드를 읽고, 검색 단위로 잘라 현장별 Vector DB 에 넣습니다.
+            문서 구조와 항목을 읽고, 검색할 수 있게 잘라 현장별 문서함에 저장합니다.
           </p>
         </div>
         <div className="mode-toggle" role="group" aria-label="분석 모드">
@@ -330,8 +346,8 @@ export function SiteContextPanel() {
 
       {mode === "demo" ? (
         <p className="context-demo-note">
-          데모 모드입니다. 올린 파일은 화면에 그대로 보이지만 <b>분석 결과는 미리 녹화해 둔 고정
-          응답</b>이고 Upstage 를 호출하지 않습니다. 고정 결과는 문서함에 저장하지 않습니다.
+          데모 모드입니다. 올린 파일은 화면에 그대로 보이지만 <b>분석 결과는 미리 준비해 둔 고정
+          예시</b>이고 올린 파일을 실제로 읽지 않습니다. 고정 결과는 문서함에 저장하지 않습니다.
         </p>
       ) : null}
 
@@ -370,7 +386,7 @@ export function SiteContextPanel() {
         {fileName ? <span className="context-filename">{fileName}</span> : null}
       </section>
 
-      {mode === "demo" && message?.includes("라이브 분석은") && demoRetryFile ? (
+      {mode === "demo" && liveDisabled && demoRetryFile ? (
         <button type="button" className="upload-button" onClick={() => void upload(demoRetryFile, "demo")}>
           이 파일로 데모 보기
         </button>
@@ -382,17 +398,13 @@ export function SiteContextPanel() {
             {previewUrl ? (
               <iframe src={previewUrl} title="올린 문서" />
             ) : (
-              <p className="context-empty">문서 미리보기</p>
+              <p className="context-empty">미리볼 문서가 없습니다.</p>
             )}
           </div>
 
           {layout?.요소?.length ? (
             <div className="context-regions">
-              <h2>
-                읽어낸 영역
-                {layout.역할 ? <span className="context-role">{layout.역할}</span> : null}
-              </h2>
-              <p className="context-note">도식 레이아웃 — PDF 위에 겹쳐진 것이 아닙니다.</p>
+              <h2>읽어낸 영역</h2>
               <ParseOverlay
                 regions={layout.요소}
                 agent={layout.agent ?? null}
@@ -405,14 +417,11 @@ export function SiteContextPanel() {
           <ol className="stage-list">
             {stages.map((stage) => (
               <li key={stage.이름} className={`stage stage--${stage.상태}`}>
-                <span className="stage-name">{stage.이름}</span>
-                <span className="stage-hint">{STAGE_HINT[stage.이름]}</span>
+                <span className="stage-name">{단계이름[stage.이름]}</span>
+                <span className="stage-hint">{단계설명[stage.이름] ?? ""}</span>
                 <span className="stage-meta">
-                  {stage.상태 === "실행중" ? "실행중" : seconds(stage.소요ms)}
+                  {stage.상태 === "실행중" ? "실행 중" : seconds(stage.소요ms)}
                 </span>
-                {stage.이름 === "레이아웃분석" && layout?.agent ? (
-                  <span className="stage-agent">{layout.agent}</span>
-                ) : null}
                 {stage.실패사유 ? <p className="stage-error">{stage.실패사유}</p> : null}
               </li>
             ))}
@@ -434,49 +443,156 @@ export function SiteContextPanel() {
               ))}
           </dl>
 
-          {/* 실행 증거는 main 의 `execution`(provenance·metrics)이 훨씬 자세히 적는다.
-              내가 붙였던 한 줄짜리 요약은 그쪽에 흡수되어 지웠다. */}
-          {chunkPreview ? <p className="context-note">청크 {chunkPreview.청크수}개로 나눴습니다.</p> : null}
+          {chunkPreview ? (
+            <p className="context-note">검색 조각 {chunkPreview.청크수}개로 나눴습니다.</p>
+          ) : null}
         </section>
       ) : null}
 
       {phase === "done" && ranAsDemo ? (
         <section className="context-save">
           <p className="context-note">
-            {text(execution?.source) === "recorded" ? "녹화" : "합성"} 데모 · 선택한 문서 종류: {text(execution?.selectedKind) ?? kind}
-            {text(execution?.recordedAt) ? ` · 기록 시각 ${text(execution?.recordedAt)}` : ""}
-            {text(execution?.agent) ? ` · 원본 에이전트 ${text(execution?.agent)}` : ""}
-            {text(execution?.requestedConfigId) ? ` · 구성 ${text(execution?.requestedConfigId)}` : ""}
-            <br />Upstage 호출 {upstageCalls}회 · 업로드한 파일은 분석하지 않았고 결과는 고정 예시입니다. 데모 결과는 저장하지 않습니다.
+            데모(고정 예시) · 올린 파일은 분석하지 않았습니다. 이 결과는 저장되지 않습니다.
           </p>
+          {text(execution?.source) === "recorded" && text(siteVerdict?.name) ? (
+            <p className="context-note">
+              녹화된 현장 판정: {text(siteVerdict?.name)}
+              {text(siteVerdict?.code) ? ` (${text(siteVerdict?.code)})` : ""}
+              {typeof siteVerdict?.confidence === "number"
+                ? ` · 확신 ${Math.round(siteVerdict.confidence * 100)}%`
+                : ""}
+              {text(siteVerdict?.reason) ? ` · ${text(siteVerdict?.reason)}` : ""}
+              <br />올린 파일이 아니라 녹화 원본의 판정이며, 읽기 전용입니다.
+            </p>
+          ) : null}
+          <details className="context-note context-tech">
+            <summary>기술 정보</summary>
+            <dl>
+              <div>
+                <dt>예시 종류</dt>
+                <dd>{text(execution?.source) === "recorded" ? "미리 녹화한 응답" : "직접 만든 예시"}</dd>
+              </div>
+              <div>
+                <dt>선택한 문서 종류</dt>
+                <dd>{text(execution?.selectedKind) ?? kind}</dd>
+              </div>
+              {text(execution?.recordedAt) ? (
+                <div>
+                  <dt>기록 시각</dt>
+                  <dd>{text(execution?.recordedAt)}</dd>
+                </div>
+              ) : null}
+              {text(execution?.agent) ? (
+                <div>
+                  <dt>원본 에이전트</dt>
+                  <dd>{text(execution?.agent)}</dd>
+                </div>
+              ) : null}
+              {text(execution?.requestedConfigId) ? (
+                <div>
+                  <dt>요청 구성</dt>
+                  <dd>{text(execution?.requestedConfigId)}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>문서 분석 호출</dt>
+                <dd>{upstageCalls}회</dd>
+              </div>
+            </dl>
+          </details>
         </section>
       ) : null}
 
       {phase === "done" && !ranAsDemo ? (
         <section className="context-save">
+          <p className="context-note" aria-live="polite">
+            실제 분석 · 항목 {읽은항목수}건을 읽었습니다.
+          </p>
           {execution ? (
-            <p className="context-note" aria-live="polite">
-              실행: {text(execution.mode) ?? "기존 실행"}
-              {text(execution.source) ? ` · 출처 ${text(execution.source)}` : ""}
-              {text(execution.agent) ? ` · Studio 에이전트 ${text(execution.agent)}` : ""}
-              {text(execution.requestedConfigId) ? ` · 요청 구성 ${text(execution.requestedConfigId)}` : ""}
-              {text(record(execution.boundByReceipt)?.id) ? ` · 준비 영수증 바인딩 ${text(record(execution.boundByReceipt)?.id)}` : ""}
-              {text(execution.servedIdentity) ? ` · 응답 에이전트 ${text(execution.servedIdentity)}` : ""}
-              {text(execution.fingerprint) ? ` · 지문 ${text(execution.fingerprint)}` : ""}
-              {text(execution.response ?? execution.responseId) ? ` · 응답 ${text(execution.response ?? execution.responseId)}` : ""}
-              {text(execution.cleanup ?? execution.cleanupStatus) ? ` · 정리 ${text(execution.cleanup ?? execution.cleanupStatus)}` : ""}
-              {stringList(execution.steps ?? execution.studioSteps).length > 0
-                ? ` · Studio 단계 ${stringList(execution.steps ?? execution.studioSteps).join(" → ")} · 검증·리뷰: 앱 소유`
-                : ""}
-            </p>
+            <details className="context-note context-tech">
+              <summary>기술 정보</summary>
+              <dl>
+                <div>
+                  <dt>실행 방식</dt>
+                  <dd>{text(execution.mode) ?? "기존 실행"}</dd>
+                </div>
+                {text(execution.source) ? (
+                  <div>
+                    <dt>출처</dt>
+                    <dd>{text(execution.source)}</dd>
+                  </div>
+                ) : null}
+                {text(execution.agent) ? (
+                  <div>
+                    <dt>처리 에이전트</dt>
+                    <dd>{text(execution.agent)}</dd>
+                  </div>
+                ) : null}
+                {text(execution.requestedConfigId) ? (
+                  <div>
+                    <dt>요청 구성</dt>
+                    <dd>{text(execution.requestedConfigId)}</dd>
+                  </div>
+                ) : null}
+                {text(record(execution.boundByReceipt)?.id) ? (
+                  <div>
+                    <dt>준비 확인</dt>
+                    <dd>{text(record(execution.boundByReceipt)?.id)}</dd>
+                  </div>
+                ) : null}
+                {text(execution.servedIdentity) ? (
+                  <div>
+                    <dt>응답 에이전트</dt>
+                    <dd>{text(execution.servedIdentity)}</dd>
+                  </div>
+                ) : null}
+                {text(execution.fingerprint) ? (
+                  <div>
+                    <dt>지문</dt>
+                    <dd>{text(execution.fingerprint)}</dd>
+                  </div>
+                ) : null}
+                {text(execution.response ?? execution.responseId) ? (
+                  <div>
+                    <dt>응답</dt>
+                    <dd>{text(execution.response ?? execution.responseId)}</dd>
+                  </div>
+                ) : null}
+                {text(execution.cleanup ?? execution.cleanupStatus) ? (
+                  <div>
+                    <dt>원본 파일 정리</dt>
+                    <dd>{text(execution.cleanup ?? execution.cleanupStatus)}</dd>
+                  </div>
+                ) : null}
+                {stringList(execution.steps ?? execution.studioSteps).length > 0 ? (
+                  <>
+                    <div>
+                      <dt>처리 단계</dt>
+                      <dd>{stringList(execution.steps ?? execution.studioSteps).join(" → ")}</dd>
+                    </div>
+                    <div>
+                      <dt>검증·리뷰</dt>
+                      <dd>앱에서 수행</dd>
+                    </div>
+                  </>
+                ) : null}
+                <div>
+                  <dt>문서 분석 호출</dt>
+                  <dd>{upstageCalls}회</dd>
+                </div>
+              </dl>
+            </details>
           ) : null}
           {cleanupBlocksSave(execution) ? (
-            <p className="context-message">원격 파일 정리가 확인되지 않았거나 대체 실행입니다. 이 결과는 저장할 수 없습니다.</p>
+            <p className="context-message">
+              이 분석이 끝까지 정상으로 처리됐는지 확인되지 않아 문서함에 저장할 수 없습니다. 다시
+              업로드해 주세요.
+            </p>
           ) : null}
           <label>
             저장할 현장
             <select value={chosenSiteId} onChange={(e) => setChosenSiteId(e.target.value)}>
-              <option value="">현장을 고르세요</option>
+              <option value="">현장을 골라 주세요</option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -487,8 +603,7 @@ export function SiteContextPanel() {
           <p className="context-note">
             {recommendation
               ? recommendation.reason
-              : "문서에서 현장명을 찾지 못했습니다. 직접 고르세요."}
-            {upstageCalls > 0 ? ` · Upstage 호출 ${upstageCalls}회` : " · Upstage 호출 0회"}
+              : "문서에서 현장명을 찾지 못했습니다. 직접 골라 주세요."}
           </p>
           <button type="button" className="upload-button" disabled={!chosenSiteId || saving || cleanupBlocksSave(execution)} onClick={save}>
             {saving ? "저장 중…" : "문서함에 저장"}
@@ -505,7 +620,7 @@ export function SiteContextPanel() {
           </header>
 
           {mailThreads.length === 0 ? (
-            <p className="context-empty">이 현장으로 분류된 메일 스레드가 없습니다.</p>
+            <p className="context-empty">이 현장으로 분류된 메일이 없습니다.</p>
           ) : (
             <ul className="mail-list">
               {mailThreads.map((thread) => {
@@ -652,7 +767,7 @@ export function SiteContextPanel() {
                 <th>종류</th>
                 <th>제목</th>
                 <th>쪽</th>
-                <th>청크</th>
+                <th>검색 조각</th>
                 <th>원본</th>
               </tr>
             </thead>

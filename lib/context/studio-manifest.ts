@@ -27,7 +27,15 @@ export function canonicalizeStudioValue(value: unknown): unknown {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
+        // 코드유닛 비교로 고정한다. `localeCompare` 는 런타임 기본 Collator 로케일에 의존해서
+        // 같은 바이트가 환경마다 다른 지문을 낸다 — 서명에 쓸 수 없는 성질이다. 이 매니페스트의
+        // 키에는 `저감조치ID`·`작업단계ID`·`지적사항ID`처럼 한글 뒤에 라틴 접미사가 붙은 것이
+        // 있고, ICU 한국어 콜레이션은 그 접미사를 한글 뒤로 보내지만 코드유닛 정렬은 앞으로
+        // 보낸다. 그래서 ko-KR 개발 머신에서만 검증이 실패했다. 커밋된 지문은 코드유닛
+        // 계열(scripts/studio-reconcile.mjs 와 같은 정렬)로 찍힌 값이라 여기서 바꿀 것은
+        // 서명값이 아니라 비교 함수다 — 지문을 다시 찍으면 "누가 어느 로케일에서 찍었나"의
+        // 기록이 되어 제3자가 재현할 수 없고, 그때 위조 감지가 무의미해진다.
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
         .map(([key, child]) => [key, canonicalizeStudioValue(child)]),
     );
   }

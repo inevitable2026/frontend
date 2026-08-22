@@ -23,4 +23,9 @@ export type ToolCall = {
 export const TOOL_LABELS: Record<string, string> = {
   search_official_law: "공식 법령 후보 검색",
   read_official_law: "공식 조문 원문 조회",
+  search_company_context: "사내 문서 후보 검색",
+  read_company_document: "사내 문서 원문 조회",
+  search_assessments: "위험성평가 기록 검색",
+  read_assessment: "위험성평가 기록 조회",
+  read_site_facts: "현장 사실 조회",
 };

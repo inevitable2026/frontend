@@ -14,13 +14,13 @@ import type { 필드 } from "@/components/risk/agent-panel";
  * 생성할 수 있다. 그 순서를 사람이 추측하는 대신 화면이 한 걸음씩 말한다.
  *
  * **연출이 아니다.** 말풍선에 들어가는 것은 실제로 일어난 일뿐이다 — 올린 파일 이름,
- * Upstage 가 뽑아낸 값, 실측 소요시간. 아직 안 한 일을 미리 말하지 않는다.
+ * 문서에서 읽어낸 값, 실측 소요시간. 아직 안 한 일을 미리 말하지 않는다.
  */
 
 export type 대화항목 =
   | { 종류: "안내"; 글: string }
   | { 종류: "올림"; 파일명: string; 크기: number }
-  | { 종류: "결과"; 파일명: string; 엔진: string; 소요: number; 필드들: 필드[] }
+  | { 종류: "결과"; 파일명: string; 소요: number; 필드들: 필드[] }
   | { 종류: "실패"; 파일명: string; 사유: string };
 
 function 크기표시(bytes: number): string {
@@ -28,7 +28,7 @@ function 크기표시(bytes: number): string {
 }
 
 function 초표시(ms: number): string {
-  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}초`;
+  return ms < 1000 ? "1초 미만" : `${(ms / 1000).toFixed(1)}초`;
 }
 
 export default function RiskComposer({
@@ -52,8 +52,8 @@ export default function RiskComposer({
         {/* 첫 말은 항상 같다. 무엇을 올리면 되는지부터 말한다. */}
         <div className="risk-bubble is-system">
           <p>
-            계약서·자재표·점검표 같은 현장 문서를 올려 주세요. Upstage 가 읽어 <b>공종·장비·자재</b>
-            를 채웁니다. 사진을 올리면 현장 상태도 함께 봅니다.
+            계약서·자재표·점검표 같은 현장 문서를 올려 주세요. 문서에서 <b>공종·장비·자재</b>
+            를 읽어 채웁니다. 사진을 올리면 현장 상태도 함께 확인합니다.
           </p>
         </div>
 
@@ -88,9 +88,7 @@ export default function RiskComposer({
             <div className="risk-bubble is-system" key={i}>
               <p className="risk-bubble-head">
                 {it.파일명} 에서 읽어냈습니다
-                <em>
-                  {it.엔진} · {초표시(it.소요)}
-                </em>
+                <em>{초표시(it.소요)}</em>
               </p>
               <dl className="risk-readout">
                 {it.필드들.map((f) => (
@@ -107,7 +105,7 @@ export default function RiskComposer({
         {분석중 ? (
           <div className="risk-bubble is-system is-working">
             <p>
-              읽는 중<span className="risk-dots" aria-hidden="true" />
+              올린 파일을 읽는 중입니다<span className="risk-dots" aria-hidden="true" />
             </p>
           </div>
         ) : null}
@@ -124,7 +122,7 @@ export default function RiskComposer({
         <button type="button" onClick={() => 카메라입력.current?.click()} disabled={분석중}>
           촬영
         </button>
-        <span className="risk-composer-note">PDF · 이미지 · 여러 장 가능</span>
+        <span className="risk-composer-note">PDF 와 사진을 여러 장 한꺼번에 올릴 수 있습니다.</span>
       </div>
 
       <input

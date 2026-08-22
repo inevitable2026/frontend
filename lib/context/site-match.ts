@@ -32,6 +32,20 @@ export async function siteCandidates(fields: ExtractedFields, limit = 3): Promis
   }));
 }
 
+/** 마지막 글자에 받침이 있는지. 한글이 아니면 없는 것으로 본다. */
+function 받침있음(word: string): boolean {
+  const last = word.trim().slice(-1);
+  if (!last) return false;
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return false;
+  return (code - 0xac00) % 28 !== 0;
+}
+
+/** 앞말 받침에 맞는 조사를 고른다. */
+function 조사(word: string, 받침: string, 무받침: string): string {
+  return 받침있음(word) ? 받침 : 무받침;
+}
+
 /**
  * 문서가 어느 현장 것인지 추천한다.
  *
@@ -57,7 +71,7 @@ export async function recommendSite(fields: ExtractedFields): Promise<SiteRecomm
     confidence: Number(top.score.toFixed(3)),
     충분함,
     reason: 충분함
-      ? `문서의 "${top.matched}" 이(가) 현장 "${top.name}"(${top.code}) 과 ${percent}% 일치합니다.`
-      : `가장 가까운 현장이 "${top.name}" 이지만 일치도가 ${percent}% 로 낮습니다. 직접 고르세요.`,
+      ? `문서의 "${top.matched}"${조사(top.matched, "이", "가")} 현장 "${top.name}"${조사(top.name, "과", "와")} ${percent}% 일치합니다.`
+      : `가장 가까운 현장이 "${top.name}"${조사(top.name, "이지만", "지만")} 일치도가 ${percent}%로 낮습니다. 현장을 직접 골라 주세요.`,
   };
 }

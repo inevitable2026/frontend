@@ -1,5 +1,8 @@
 "use client";
 
+import { 서식이름 } from "@/components/risk/risk-queue";
+import { 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
+
 import type { WorkItem } from "@/lib/board/types";
 
 /**
@@ -16,10 +19,10 @@ import type { WorkItem } from "@/lib/board/types";
 type 사건종류 = "변경" | "작성" | "승인" | "할일";
 
 const 사건표시: Record<사건종류, { 기호: string; 라벨: string; 클래스: string }> = {
-  변경: { 기호: "▲", 라벨: "변경 감지", 클래스: "is-변경" },
-  작성: { 기호: "●", 라벨: "작성 중", 클래스: "is-작성" },
-  승인: { 기호: "■", 라벨: "승인됨", 클래스: "is-승인" },
-  할일: { 기호: "○", 라벨: "할 일", 클래스: "is-할일" },
+  변경: { 기호: "▲", 라벨: "평가 전제 바뀜", 클래스: "is-변경" },
+  작성: { 기호: "●", 라벨: "평가서 작성 중", 클래스: "is-작성" },
+  승인: { 기호: "■", 라벨: "평가서 승인 완료", 클래스: "is-승인" },
+  할일: { 기호: "○", 라벨: "남은 할 일", 클래스: "is-할일" },
 };
 
 function 종류판정(item: WorkItem): 사건종류 {
@@ -76,10 +79,10 @@ export default function RiskTimeline({
     <div className="risk-timeline">
       <header className="risk-ws-head">
         <button type="button" className="risk-ws-back" onClick={뒤로}>
-          ← 대기열
+          ← 할 일 목록
         </button>
         <div>
-          <p className="risk-ws-site">현장 시간축</p>
+          <p className="risk-ws-site">현장별 이력</p>
           <h2>{현장이름}</h2>
         </div>
         <span className="risk-ws-progress">{항목들.length}건</span>
@@ -96,6 +99,10 @@ export default function RiskTimeline({
               {목록.map((item) => {
                 const 종류 = 종류판정(item);
                 const { 기호, 라벨, 클래스 } = 사건표시[종류];
+                // 이름을 모르는 서식은 값을 그대로 내보내는 대신 빼 둔다.
+                const 자동생성 = item.produces
+                  .map((p) => 서식이름(p.form))
+                  .filter((이름): 이름 is string => 이름 !== null);
 
                 return (
                   <li className={`risk-tl-item ${클래스}`} key={item.itemId}>
@@ -114,14 +121,18 @@ export default function RiskTimeline({
                       )}
 
                       {item.invalidates.map((inv) => (
-                        <span className="risk-tl-invalid" key={`${inv.docId}-${inv.scope}`}>
-                          ↳ <b>{inv.docId}</b> {inv.scope || "전체"} 의 전제가 무너졌습니다
+                        <span
+                          className="risk-tl-invalid"
+                          key={`${inv.docId}-${inv.scope}`}
+                          title={문서키툴팁(inv.docId)}
+                        >
+                          ↳ {문서표시(inv.docId)} {inv.scope || "전체"}의 전제가 바뀌었습니다
                         </span>
                       ))}
 
-                      {item.produces.length > 0 ? (
+                      {자동생성.length > 0 ? (
                         <span className="risk-tl-produces">
-                          ↳ 파생 {item.produces.map((p) => p.form).join(" · ")}
+                          ↳ 자동 생성: {자동생성.join(" · ")}
                         </span>
                       ) : null}
                     </button>

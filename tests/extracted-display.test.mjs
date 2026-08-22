@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatExtractedField, formatExtractedFieldValue, hasExtractedDisplayValue } from "../tmp/test-dist/lib/context/extracted-display.js";
+import {
+  formatExtractedField,
+  formatExtractedFieldValue,
+  hasExtractedDisplayValue,
+  알려진필드인가,
+  필드이름,
+} from "../tmp/test-dist/lib/context/extracted-display.js";
 
 test("formats primitive extracted values and lists without changing their readable form", () => {
   assert.equal(formatExtractedFieldValue("강남 업무시설"), "강남 업무시설");
@@ -40,4 +46,24 @@ test("compacts top-level evidence without leaking technical anchor fields", () =
 
   assert.equal(display, "근거 2건");
   assert.doesNotMatch(display, /\[object Object\]|page|responseId|coordinates/);
+});
+
+test("labels identifier fields without the ID wording", () => {
+  assert.equal(필드이름("stepId"), "작업 단계");
+  assert.equal(필드이름("itemId"), "평가 항목");
+  assert.equal(필드이름("mitigationId"), "저감조치");
+  assert.equal(필드이름("actionId"), "조치");
+  for (const key of ["stepId", "itemId", "mitigationId", "actionId"]) {
+    assert.doesNotMatch(필드이름(key), /ID/i);
+  }
+});
+
+test("flags field keys that would print an english field name on screen", () => {
+  assert.equal(알려진필드인가("hazard"), true);
+  assert.equal(알려진필드인가("evidence"), true);
+  assert.equal(알려진필드인가("업체명"), true);
+  assert.equal(알려진필드인가("중점위험요인"), true);
+  assert.equal(알려진필드인가("rawScore"), false);
+  assert.equal(알려진필드인가("responseId"), false);
+  assert.equal(필드이름("rawScore"), "rawScore");
 });

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState, type FormEvent, type JSX } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
-import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
+import { ASSISTANT_LABEL, isActivePrompt, PROMPT_CARDS } from "@/components/chat/prompts";
 import type { BoardActionOutput, BoardContext } from "@/lib/board/assistant-tools";
 
 import { AssistantMessageView } from "./assistant-stream";
@@ -248,9 +248,9 @@ function AssistantIntro({ onPick }: { onPick: (value: string) => void }): JSX.El
       <div className="board-assistant-prompts">
         {PROMPT_CARDS.map((card) => (
           <button
-            aria-disabled={card.label !== ACTIVE_PROMPT_LABEL}
-            className={`board-assistant-prompt${card.label === ACTIVE_PROMPT_LABEL ? " is-enabled" : ""}`}
-            disabled={card.label !== ACTIVE_PROMPT_LABEL}
+            aria-disabled={!isActivePrompt(card.label)}
+            className={`board-assistant-prompt${isActivePrompt(card.label) ? " is-enabled" : ""}`}
+            disabled={!isActivePrompt(card.label)}
             key={card.label}
             onClick={() => onPick(card.prompt)}
             type="button"

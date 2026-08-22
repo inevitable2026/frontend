@@ -18,8 +18,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     return Response.json({ assessment: await 평가읽기(id) }, { headers: HEADERS });
   } catch (err) {
+    console.error("[risk/:id] 조회", id, err);
     return Response.json(
-      { error: (err as Error).message || "평가 조회 실패" },
+      { error: "평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.", code: "read_failed" },
       { status: 502, headers: HEADERS },
     );
   }
@@ -41,14 +42,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     assessment = (await req.json()) as Assessment;
   } catch {
-    return Response.json({ error: "요청 형식을 읽지 못했습니다." }, { status: 400, headers: HEADERS });
+    return Response.json(
+      {
+        error: "이행확인을 저장하지 못했습니다. 보낸 내용을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+        code: "body_not_json",
+      },
+      { status: 400, headers: HEADERS },
+    );
   }
 
   try {
     return Response.json({ assessment: await 이행확인저장(id, assessment) }, { headers: HEADERS });
   } catch (err) {
+    console.error("[risk/:id] 이행확인 저장", id, err);
     return Response.json(
-      { error: (err as Error).message || "이행확인 저장 실패" },
+      { error: "이행확인을 저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.", code: "save_failed" },
       { status: 502, headers: HEADERS },
     );
   }

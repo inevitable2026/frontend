@@ -14,7 +14,9 @@ function 베이스(): string {
   const url = process.env.SAFEGRID_API_URL;
   if (!url) {
     // 주소를 코드에 적어 두지 않는다 — public 저장소다. 없으면 없다고 말한다.
-    throw new Error("SAFEGRID_API_URL 이 설정되지 않았습니다.");
+    // 어떤 환경변수가 비었는지는 화면이 아니라 서버 로그로 내린다.
+    console.error("[safegrid] SAFEGRID_API_URL 환경변수가 비어 있습니다.");
+    throw new Error("평가 서버 주소가 설정되지 않았습니다. 관리자에게 문의해 주세요.");
   }
   return url.replace(/\/+$/, "");
 }
@@ -110,7 +112,11 @@ export async function 평가생성(모드: 생성모드, 입력: 생성입력): 
 
   if (!res.ok) {
     const 사유 = await res.text().catch(() => "");
-    throw new Error(`평가 생성 실패 (${res.status})${사유 ? ` — ${사유.slice(0, 200)}` : ""}`);
+    // 상태코드와 백엔드 원문은 화면에 올리지 않는다. 원인을 찾을 사람은 여기를 본다.
+    console.error("[safegrid] POST /assess", res.status, 사유.slice(0, 200));
+    throw new Error(
+      "평가표를 만들지 못했습니다. 평가 서버가 요청을 처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+    );
   }
   return 널정규화(await res.json()) as Assessment;
 }
@@ -126,7 +132,12 @@ export async function 문서파싱(file: File): Promise<문서분석> {
   const fd = new FormData();
   fd.append("file", file, file.name);
   const res = await 부르기("/ingest/doc", { method: "POST", body: fd }, 인제스트_제한시간);
-  if (!res.ok) throw new Error(`문서 파싱 실패 (${res.status}) — ${file.name}`);
+  if (!res.ok) {
+    console.error("[safegrid] POST /ingest/doc", res.status, file.name);
+    throw new Error(
+      `「${file.name}」 파일을 읽지 못했습니다. 문서 분석 서버가 응답하지 않았습니다. 파일을 확인한 뒤 다시 올려 주세요.`,
+    );
+  }
   return 널정규화(await res.json()) as 문서분석;
 }
 
@@ -135,13 +146,23 @@ export async function 사진판독(files: File[]): Promise<사진분석> {
   const fd = new FormData();
   for (const f of files) fd.append("files", f, f.name);
   const res = await 부르기("/ingest/photo", { method: "POST", body: fd }, 인제스트_제한시간);
-  if (!res.ok) throw new Error(`사진 판독 실패 (${res.status})`);
+  if (!res.ok) {
+    console.error("[safegrid] POST /ingest/photo", res.status, files.length);
+    throw new Error(
+      "사진을 판독하지 못했습니다. 판독 서버가 응답하지 않았습니다. 잠시 뒤 다시 올려 주세요.",
+    );
+  }
   return 널정규화(await res.json()) as 사진분석;
 }
 
 export async function 어휘읽기(): Promise<어휘> {
   const res = await 부르기("/vocabulary", {}, 10_000);
-  if (!res.ok) throw new Error(`어휘 조회 실패 (${res.status})`);
+  if (!res.ok) {
+    console.error("[safegrid] GET /vocabulary", res.status);
+    throw new Error(
+      "선택 목록을 불러오지 못했습니다. 평가 서버가 응답하지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+    );
+  }
   return (await res.json()) as 어휘;
 }
 
@@ -151,14 +172,24 @@ export type 평가일자 = { date: string; items: 평가요약[] };
 
 export async function 평가목록(): Promise<{ days: 평가일자[] }> {
   const res = await 부르기("/assessments", {}, 조회_제한시간);
-  if (!res.ok) throw new Error(`평가 목록 조회 실패 (${res.status})`);
+  if (!res.ok) {
+    console.error("[safegrid] GET /assessments", res.status);
+    throw new Error(
+      "평가 목록을 불러오지 못했습니다. 평가 서버가 응답하지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+    );
+  }
   return (await res.json()) as { days: 평가일자[] };
 }
 
 /** 평가 1건 조회. 새로고침 복원과 이행확인 저장 후 재확인에 쓴다. */
 export async function 평가읽기(id: string): Promise<Assessment> {
   const res = await 부르기(`/assessments/${encodeURIComponent(id)}`, {}, 조회_제한시간);
-  if (!res.ok) throw new Error(`평가 조회 실패 (${res.status})`);
+  if (!res.ok) {
+    console.error("[safegrid] GET /assessments/{id}", res.status, id);
+    throw new Error(
+      "평가표를 불러오지 못했습니다. 평가 서버가 응답하지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+    );
+  }
   return 널정규화(await res.json()) as Assessment;
 }
 
@@ -181,7 +212,12 @@ export async function 이행확인저장(id: string, assessment: Assessment): Pr
     },
     조회_제한시간,
   );
-  if (!res.ok) throw new Error(`이행확인 저장 실패 (${res.status})`);
+  if (!res.ok) {
+    console.error("[safegrid] PATCH /assessments/{id}", res.status, id);
+    throw new Error(
+      "이행 확인을 저장하지 못했습니다. 평가 서버가 응답하지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+    );
+  }
   return 널정규화(await res.json()) as Assessment;
 }
 
