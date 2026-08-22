@@ -305,7 +305,12 @@ export function createPgBoardStore(): BoardStore {
           trigger           = excluded.trigger,
           invalidates       = excluded.invalidates,
           produces          = excluded.produces,
-          draft             = excluded.draft,
+          -- 확정된 초안은 재감지가 계산한 새 후보로 덮지 않는다. confirmed_at 가 있으면
+          -- 사람이 확정한 본문이므로, 감지는 다음 카드/미확정 카드만 갱신할 수 있다.
+          draft             = case
+                                when board.work_items.confirmed_at is null then excluded.draft
+                                else board.work_items.draft
+                              end,
           due_by            = excluded.due_by,
           estimated_minutes = excluded.estimated_minutes,
           delegable         = excluded.delegable,

@@ -19,6 +19,7 @@
     "../lib/console-url.ts",
     "../lib/board/scene.ts",
     "../lib/board/site.ts",
+    "../lib/board/transition.ts",
     "../lib/context/chunk.ts",
     "../lib/context/types.ts",
     "../lib/context/studio.ts",
@@ -35,6 +36,8 @@
     "../lib/context/demo.ts",
     "../lib/context/upstage-doc.ts",
     "../lib/risk/row-review-access.ts",
-    "../lib/risk/row-review-types.ts"
+    "../lib/risk/row-review-types.ts",
+    "../lib/risk/row-application-types.ts",
+    "../lib/risk/row-application-client.ts"
   ]
 }
