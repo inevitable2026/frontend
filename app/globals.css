@@ -1356,3 +1356,258 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 현장 맥락 관리 */
+
+.context-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 960px;
+  padding: 48px 40px 80px;
+  overflow-y: auto;
+}
+
+.context-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.context-head h1 {
+  margin: 6px 0 8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.context-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+}
+
+.mode-toggle button {
+  padding: 7px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.mode-toggle button.is-active {
+  background: var(--purple-primary);
+  color: #ffffff;
+}
+
+.context-upload,
+.context-save {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--sidebar-surface);
+}
+
+.context-upload label,
+.context-save label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-sidebar);
+  font-size: 13px;
+}
+
+.context-panel select {
+  min-width: 200px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-default);
+  font: inherit;
+  font-size: 14px;
+}
+
+.context-filename {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.context-analysis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.context-preview {
+  min-height: 380px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--sidebar-surface);
+}
+
+.context-preview iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  border: 0;
+}
+
+.stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.stage-name {
+  font-weight: 600;
+}
+
+.stage-hint {
+  color: var(--text-muted);
+}
+
+.stage-meta {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stage--실행중 {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(92, 82, 255, 0.12);
+}
+
+.stage--실행중 .stage-meta {
+  color: var(--purple-primary);
+}
+
+.stage--완료 {
+  background: var(--sidebar-surface);
+}
+
+.stage--실패 {
+  border-color: #e2574c;
+}
+
+.stage-error {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  color: #e2574c;
+}
+
+.context-extracted {
+  padding: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+}
+
+.context-extracted h2,
+.context-library h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.context-extracted dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.context-extracted dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.context-extracted dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+}
+
+.context-note,
+.context-message,
+.context-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.context-message {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+}
+
+.context-save .context-note {
+  flex-basis: 100%;
+}
+
+.context-library header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.context-filters {
+  display: flex;
+  gap: 10px;
+}
+
+.context-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.context-table th,
+.context-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+}
+
+.context-table th {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+@media (max-width: 1080px) {
+  .context-analysis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

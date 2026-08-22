@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { JsonViewer } from "@/components/json-viewer";
 import { MarkdownContent } from "@/components/markdown-content";
+import { SiteContextPanel } from "@/components/site-context-panel";
 
 const navigation = [
   { label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
@@ -429,6 +430,9 @@ export function ConstructionConsole() {
       </aside>
 
       <section className="workspace">
+        {activeNav === 1 ? (
+          <SiteContextPanel />
+        ) : (
         <div className={`content-stack${lastQuestion ? " is-chatting" : ""}`}>
           {!lastQuestion ? <>
           <header className="hero-copy">
@@ -543,6 +547,7 @@ export function ConstructionConsole() {
             </p>
           </form>
         </div>
+        )}
       </section>
     </main>
   );
