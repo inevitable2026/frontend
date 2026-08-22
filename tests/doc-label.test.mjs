@@ -35,12 +35,13 @@ test("접두사로 알 수 있는 종류는 그 종류로 부른다", () => {
   assert.equal(문서이름("nm_20260818_01"), "8월 18일 아차사고 보고");
   assert.equal(문서이름("notice_20260818_molab"), "8월 18일 공문");
   assert.equal(문서이름("rev_gamri"), "외부 검토 의견");
+  assert.equal(문서이름("doc_2_k3f9x1qm"), "업로드한 문서");
 });
 
 test("종류를 모르면 종류를 지어내지 않는다", () => {
   // 예전에는 규칙에 안 맞는 키를 전부 "위험성평가 회의록" 이라 불렀다. 그러면
   // 업로드 문서와 TBM 기록이 위험성평가 회의록으로 둔갑한다.
-  for (const 키 of ["doc_2_k3f9x1qm", "ra_something", "", null, undefined]) {
+  for (const 키 of ["zzz_9", "ra_something", "", null, undefined]) {
     const 이름 = 문서이름(키);
     assert.equal(이름, "문서");
     assert.equal(이름.includes("위험성평가"), false);
@@ -52,7 +53,7 @@ test("저장용 이름은 확실할 때만 나온다", () => {
   // 화면은 총칭을 써도 되지만, 팩트에 적히면 다음에 읽는 사람에게 사실로 보인다.
   assert.equal(문서이름확정("ra_2026_08_regular"), "2026년 8월 정기 위험성평가 회의록");
   assert.equal(문서이름확정("tbm_20260818_pour"), "8월 18일 TBM 기록");
-  assert.equal(문서이름확정("doc_2_k3f9x1qm"), null);
+  assert.equal(문서이름확정("zzz_9"), null);
   assert.equal(문서이름확정(null), null);
 });
 

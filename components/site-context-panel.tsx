@@ -455,19 +455,35 @@ export function SiteContextPanel() {
             데모(고정 예시) · 올린 파일은 분석하지 않았습니다. 이 결과는 저장되지 않습니다.
           </p>
           {text(execution?.source) === "recorded" && text(siteVerdict?.name) ? (
+            /*
+             * 현장 코드(`gangnam-off`)와 녹화된 `reason` 문장은 여기 두지 않는다.
+             * 코드는 저장소 키고, `reason` 은 **녹화 당시**에 만들어진 문장이라
+             * 지금 코드가 쓰는 문장과 다르다(옛 조사 처리가 그대로 남아 `이(가)` 가 보였다).
+             * 둘 다 녹화본을 대조할 때나 쓰는 값이므로 「기술 정보」로 내린다.
+             */
             <p className="context-note">
               녹화된 현장 판정: {text(siteVerdict?.name)}
-              {text(siteVerdict?.code) ? ` (${text(siteVerdict?.code)})` : ""}
               {typeof siteVerdict?.confidence === "number"
                 ? ` · 확신 ${Math.round(siteVerdict.confidence * 100)}%`
                 : ""}
-              {text(siteVerdict?.reason) ? ` · ${text(siteVerdict?.reason)}` : ""}
               <br />올린 파일이 아니라 녹화 원본의 판정이며, 읽기 전용입니다.
             </p>
           ) : null}
           <details className="context-note context-tech">
             <summary>기술 정보</summary>
             <dl>
+              {text(siteVerdict?.code) ? (
+                <div>
+                  <dt>녹화 현장 키</dt>
+                  <dd>{text(siteVerdict?.code)}</dd>
+                </div>
+              ) : null}
+              {text(siteVerdict?.reason) ? (
+                <div>
+                  <dt>녹화 당시 판정 문구</dt>
+                  <dd>{text(siteVerdict?.reason)}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>예시 종류</dt>
                 <dd>{text(execution?.source) === "recorded" ? "미리 녹화한 응답" : "직접 만든 예시"}</dd>

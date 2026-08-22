@@ -32,6 +32,9 @@ const 접두사종류: Array<[string, string]> = [
   ["notice_", "공문"],
   ["rev_", "외부 검토 의견"],
   ["council_", "안전보건협의체 회의록"],
+  // `doc_2_k3f9x1qm` 처럼 문서함(현장 맥락 관리)을 거쳐 들어온 문서다. 제목은
+  // `documentExtraction` 팩트에 있지만 이 서랍은 그 팩트를 읽지 않는다. 종류까지만 말한다.
+  ["doc_", "업로드한 문서"],
 ];
 
 function 월일(yyyymmdd: string): string | null {
