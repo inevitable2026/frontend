@@ -431,7 +431,7 @@ export function createReadinessReceipt({ manifest, artifact, smoke, dbHealth, cr
 function argument(name) { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1]; }
 function has(name) { return process.argv.includes(name); }
 function load(path) { return JSON.parse(readFileSync(path, "utf8")); }
-function usage(message) { if (message) console.error(message); console.error("Usage: node scripts/studio-provision.mjs [plan|--apply|rollback|smoke|scope|spike|evidence|readiness] [--artifact path] [--receipt path]; scope emits credential-scope/v1; spike requires --pdf; evidence requires --official-docs --spike; readiness requires --smoke --db-health --credential-scope --config-pin-evidence (or --project-identity for production)."); process.exitCode = 1; }
+function usage(message) { if (message) console.error(message); console.error("Usage: node scripts/studio-provision.mjs [plan|--apply|rollback|smoke|scope|spike|evidence|readiness] [--artifact path] [--receipt path]; scope emits credential-scope/v1; spike requires --pdf; evidence requires --official-docs --spike; readiness requires --smoke --db-health --credential-scope --config-pin-evidence (or --project-identity for production) and accepts --ttl-ms."); process.exitCode = 1; }
 
 export async function main() {
   const mode = has("--apply") ? "apply" : process.argv[2] === "rollback" ? "rollback" : process.argv[2] === "smoke" ? "smoke" : process.argv[2] === "scope" ? "scope" : process.argv[2] === "spike" ? "spike" : process.argv[2] === "evidence" ? "evidence" : process.argv[2] === "readiness" ? "readiness" : "plan";
@@ -442,8 +442,19 @@ export async function main() {
   if (mode === "readiness") {
     const smokePath = argument("--smoke"); const dbHealthPath = argument("--db-health"); const scopePath = argument("--credential-scope"); const evidencePath = argument("--config-pin-evidence"); const projectIdentityPath = argument("--project-identity");
     if (!smokePath || !dbHealthPath) throw new Error("Readiness mode requires --smoke and --db-health JSON proofs.");
+    /*
+     * 영수증 수명. 기본은 1시간이고, `--ttl-ms` 로 늘릴 수 있다.
+     *
+     * 늘려도 되는 이유는 **회수기 생사를 더 이상 영수증이 지지 않기 때문**이다.
+     * `lib/context/live-readiness.ts` 가 그 값을 매 요청마다 저장소에서 읽는다. 영수증에
+     * 남은 것은 잘 변하지 않는 사실뿐이다 — 에이전트 신원, config 핀, 매니페스트 지문,
+     * 정리 마이그레이션 버전. 그래도 게이트가 `issuedAt` 을 24시간으로 자르므로
+     * 그보다 길게 잡는 것은 뜻이 없다.
+     */
+    const ttlArg = Number(argument("--ttl-ms"));
+    const ttlMs = Number.isFinite(ttlArg) && ttlArg > 0 ? Math.min(ttlArg, 24 * 60 * 60_000) : undefined;
     if ((!scopePath && !projectIdentityPath) || !evidencePath || (scopePath && projectIdentityPath)) throw new Error("Readiness mode requires exactly one of --credential-scope/--project-identity plus --config-pin-evidence.");
-    const receipt = createReadinessReceipt({ manifest, artifact: load(artifactPath), smoke: load(smokePath), dbHealth: load(dbHealthPath), credentialScope: scopePath ? load(scopePath) : undefined, projectIdentity: projectIdentityPath ? load(projectIdentityPath) : undefined, configPinEvidence: load(evidencePath) });
+    const receipt = createReadinessReceipt({ manifest, artifact: load(artifactPath), smoke: load(smokePath), dbHealth: load(dbHealthPath), credentialScope: scopePath ? load(scopePath) : undefined, projectIdentity: projectIdentityPath ? load(projectIdentityPath) : undefined, configPinEvidence: load(evidencePath), ...(ttlMs ? { ttlMs } : {}) });
     writeJson(receiptPath, receipt);
     console.log(JSON.stringify({ mode: "readiness", receipt: resolve(receiptPath), manifestSha: receipt.manifestSha, workflowCount: Object.keys(receipt.workflows).length, redacted: true }, null, 2));
     return;

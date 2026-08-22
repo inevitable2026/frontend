@@ -16,7 +16,9 @@ type FormRequest = Pick<Request, "url" | "formData">;
  */
 export async function prepareIngestRequest(
   request: FormRequest,
-  getReadiness: () => StudioLiveReadiness,
+  // 회수기가 지금 도는지는 저장소를 읽어야 알 수 있어 비동기다. 동기 구현도 그대로 받는다 —
+  // 시험은 가짜를 끼워 넣고 저장소 없이 이 순서를 밟는다.
+  getReadiness: () => StudioLiveReadiness | Promise<StudioLiveReadiness>,
 ): Promise<PreparedIngestRequest> {
   const params = new URL(request.url).searchParams;
   const mode = params.get("mode");
@@ -36,7 +38,7 @@ export async function prepareIngestRequest(
     };
   }
   if (mode === "live") {
-    const readiness = getReadiness();
+    const readiness = await getReadiness();
     if (!readiness.enabled) {
       return {
         ok: false,

@@ -35,6 +35,7 @@
     "../lib/context/ingest-execution.ts",
     "../lib/context/ingest-control.ts",
     "../lib/context/sweeper.ts",
+    "../lib/context/sweeper-health.ts",
     "../lib/context/job-save-policy.ts",
     "../lib/context/extracted-display.ts",
     "../lib/context/stream-terminal.ts",

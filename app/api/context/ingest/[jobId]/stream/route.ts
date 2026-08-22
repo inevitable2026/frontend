@@ -73,7 +73,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ jobId: string }
 
       let claimed = false;
       try {
-        const readiness = job.mode === "live" ? getStudioLiveReadiness() : null;
+        const readiness = job.mode === "live" ? await getStudioLiveReadiness() : null;
         if (readiness && !readiness.enabled) {
           const reason = `${readiness.code}: ${readiness.reason}`;
           if (job.status === "pending") {

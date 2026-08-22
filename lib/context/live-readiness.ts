@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getStudioWorkflowIdentity, STUDIO_MANIFEST_SHA } from "./studio-manifest.ts";
 import type { StudioIdentity } from "./studio.ts";
+import { readSweeperHeartbeat, type SweeperProbe } from "./sweeper-health.ts";
 import { INGEST_DOCUMENT_KINDS } from "./types.ts";
 
 // v3 separates deployable project identity from a deliberately local-only
@@ -260,7 +261,18 @@ export function parseStudioLiveReadinessReceipt(raw: string): StudioLiveReadines
   return receipt as StudioLiveReadinessReceipt;
 }
 
-export function getStudioLiveReadiness(now = Date.now()): StudioLiveReadiness {
+/**
+ * 회수기 하트비트를 몇 분까지 신선하다고 볼 것인가.
+ *
+ * 예전에 영수증 안에서 쓰던 창과 같은 값이다. 옮긴 것은 **어디서 읽느냐**이지 얼마나
+ * 엄격하냐가 아니다. 프로덕션 크론이 5분 주기이므로 두 번을 놓쳐야 막힌다.
+ */
+const SWEEPER_FRESHNESS_MS = 15 * 60_000;
+
+export async function getStudioLiveReadiness(
+  now = Date.now(),
+  probe: SweeperProbe = readSweeperHeartbeat,
+): Promise<StudioLiveReadiness> {
   if (process.env.STUDIO_LIVE_INGEST_ENABLED !== "true") {
     return disabled(
       "문서 분석 기능이 꺼져 있습니다. 시스템 담당자에게 문의해 주세요.",
@@ -326,13 +338,55 @@ export function getStudioLiveReadiness(now = Date.now()): StudioLiveReadiness {
   if (
     Date.parse(receipt.issuedAt) > now + 60_000 ||
     Date.parse(receipt.issuedAt) < now - 24 * 60 * 60_000 ||
-    Date.parse(receipt.expiresAt) <= now ||
-    Date.parse(receipt.sweeper.checkedAt) > now + 60_000 ||
-    Date.parse(receipt.sweeper.checkedAt) < now - 15 * 60_000
+    Date.parse(receipt.expiresAt) <= now
   ) {
     return disabled(
       "문서 분석 사용 승인 기한이 지났습니다. 시스템 담당자에게 문의해 주세요.",
-      "Receipt window or sweeper heartbeat is out of range.",
+      "Receipt issue/expiry window is out of range.",
+    );
+  }
+
+  /*
+   * **회수기가 지금 도는지는 영수증에게 묻지 않는다.**
+   *
+   * 예전에는 `receipt.sweeper.checkedAt` 이 15분 이내인지를 여기서 봤다. 그런데 그 값은
+   * 발급 시점에 굳는다 — "그때 살아 있었다" 는 기록이지 "지금 살아 있다" 가 아니다.
+   * 게이트가 보증하려는 것은 지금이다: 지금 올린 계약서가 지워질 것인가.
+   *
+   * 그 결과가 나빴다. 환경변수에 영수증을 넣어 둔 배포는 **15분 뒤 저절로 꺼졌다.**
+   * 15분마다 환경변수를 갈아 끼울 수는 없으니, 배포된 곳에서는 사실상 못 켜는 기능이었다.
+   *
+   * 그래서 갈랐다. 영수증은 **잘 변하지 않는 사실**을 진다 — 에이전트 신원, config 핀,
+   * 매니페스트 지문, 정리 마이그레이션 버전. 회수기 생사는 살아 있는 값이므로 매 요청마다
+   * 저장소에서 읽는다.
+   *
+   * **느슨해진 것이 아니다.** 예전에는 한 번 확인하면 그 뒤 회수기가 죽어도 창이 닫힐
+   * 때까지 몰랐다. 지금은 회수기가 멎으면 **다음 요청에서 바로 막힌다.**
+   */
+  const heartbeat = await probe();
+  if (!heartbeat) {
+    return disabled(
+      "문서 정리 기능이 지금 도는지 확인하지 못했습니다. 시스템 담당자에게 문의해 주세요.",
+      "Sweeper health row is missing or unreadable.",
+    );
+  }
+  if (heartbeat.recoveryPolicy !== receipt.sweeper.recoveryPolicy) {
+    // 영수증은 `cleanup-only-v1` 을 약속했는데 마지막으로 돈 회수기는 그 표식을 남기지
+    // 않았다. 무엇이 돌았는지 모르는 상태다.
+    return disabled(
+      "문서 정리 기능이 승인된 방식으로 돌고 있지 않습니다. 시스템 담당자에게 문의해 주세요.",
+      `Sweeper heartbeat policy ${heartbeat.recoveryPolicy ?? "null"} does not match the receipt.`,
+    );
+  }
+  const heartbeatAt = Date.parse(heartbeat.checkedAt);
+  if (
+    !Number.isFinite(heartbeatAt) ||
+    heartbeatAt > now + 60_000 ||
+    heartbeatAt < now - SWEEPER_FRESHNESS_MS
+  ) {
+    return disabled(
+      "문서 정리 기능이 멈춰 있습니다. 시스템 담당자에게 문의해 주세요.",
+      "Sweeper heartbeat is stale or in the future.",
     );
   }
   return { enabled: true, receipt };

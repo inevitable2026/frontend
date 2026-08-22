@@ -2,13 +2,14 @@
 /**
  * 라이브 적재 영수증을 **다시 발급한다.**
  *
- * **왜 다시 발급해야 하는가.** 영수증에는 두 개의 시계가 달려 있다 —
- * 전체 유효기간 1시간, 그리고 **회수기 하트비트 15분**
- * (`lib/context/live-readiness.ts:326-337`). 발급해 두고 몇 시간 뒤에 시연하면
- * 라이브가 다시 막힌다. 이건 결함이 아니라 설계다: "정리기가 지금 살아 있다" 는 주장은
- * 오래 유지될 수 없는 종류의 주장이다.
+ * **언제 다시 발급해야 하는가.** 영수증은 기본 12시간이고 게이트가 `issuedAt` 을 24시간으로
+ * 자른다. 즉 하루에 한 번이면 된다.
  *
- * 그래서 데모 직전에 이 한 줄을 돌린다:
+ * 예전에는 15분마다 다시 발급해야 했다. 영수증이 **회수기 생사까지 지고 있었기 때문**이다 —
+ * "정리기가 살아 있다" 는 얼려붙은 값으로는 오래 유지할 수 없는 종류의 주장이라 창을 짧게
+ * 잡을 수밖에 없었고, 그래서 배포된 환경에서는 사실상 못 켜는 기능이었다. 지금은 그 값을
+ * `lib/context/live-readiness.ts` 가 매 요청마다 저장소에서 읽는다. 영수증에 남은 것은 잘
+ * 변하지 않는 사실뿐이다 — 에이전트 신원, config 핀, 매니페스트 지문, 마이그레이션 버전.
  *
  *   npm run live:receipt
  *
@@ -19,7 +20,8 @@
  *   3. 그 증명으로 영수증을 발급한다
  *   4. `.env.local` 의 `STUDIO_LIVE_READINESS_RECEIPT_JSON` 을 덮는다
  *
- * 1→2 를 붙여 두는 것이 요점이다. 떼어 놓으면 남이 4분 뒤에 찍은 하트비트로 서명하게 된다.
+ * 1→2 를 붙여 두는 것이 요점이다. 떼어 놓으면 남이 4분 뒤에 찍은 하트비트로 서명하게 된다
+ * (공유 DB 에는 출처를 알 수 없는 회수기가 하나 더 돌면서 같은 행을 갱신한다).
  *
  * **이미 있어야 하는 것** (한 번만 만들면 되고, 유효기간이 없다):
  *   `.studio-provision/pins.json` · `scope.json` · `evidence.json` · `smoke.json`
@@ -39,11 +41,21 @@ const NEEDED = {
   "smoke.json": "node scripts/studio-provision.mjs smoke --pdf … --receipt .studio-provision/smoke.json",
 };
 
+/**
+ * 기본 수명 12시간.
+ *
+ * 회수기 생사는 게이트가 매 요청마다 저장소에서 읽으므로 영수증이 짧을 이유가 없어졌다.
+ * 게이트가 `issuedAt` 을 24시간으로 자르니 그 절반을 잡아, 행사 하루를 한 번 발급으로
+ * 덮으면서도 다음 날까지 끌고 가지는 않게 한다.
+ */
+const DEFAULT_TTL_MS = 12 * 60 * 60_000;
+
 export function parseArgs(argv) {
-  const options = { baseUrl: process.env.BASE ?? "http://localhost:3000", write: true };
+  const options = { baseUrl: process.env.BASE ?? "http://localhost:3000", write: true, ttlMs: DEFAULT_TTL_MS };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--base-url") options.baseUrl = argv[++index];
+    else if (arg === "--ttl-ms") options.ttlMs = Number(argv[++index]);
     else if (arg === "--no-write") options.write = false;
     else if (arg === "--help" || arg === "-h") return { help: true };
     else throw new Error(`Unknown argument: ${arg}`);
@@ -70,7 +82,7 @@ export function replaceEnvLine(text, key, value) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
-    console.log("Usage: npm run live:receipt -- [--base-url http://localhost:3000] [--no-write]");
+    console.log("Usage: npm run live:receipt -- [--base-url http://localhost:3000] [--ttl-ms 43200000] [--no-write]");
     return;
   }
 
@@ -113,6 +125,7 @@ async function main() {
     "--db-health", `${DIR}/db-health.json`,
     "--credential-scope", `${DIR}/scope.json`,
     "--config-pin-evidence", `${DIR}/evidence.json`,
+    "--ttl-ms", String(options.ttlMs),
     "--receipt", `${DIR}/readiness.json`,
   ], { encoding: "utf8", stdio: ["ignore", "ignore", "inherit"] });
 
