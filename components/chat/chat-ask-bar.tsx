@@ -58,6 +58,12 @@ export function ChatAskBar({
         placeholder={placeholder}
         rows={rows}
       />
+      <div className="model-indicator" aria-label="현재 모델: Upstage Solar Pro 4">
+        <span className="model-indicator-mark" aria-hidden="true">
+          <Image src="/assets/sola.svg" alt="" width={106} height={91} />
+        </span>
+        <span>Solar Pro 4</span>
+      </div>
       <button className="submit-question" type="submit" aria-label="질문 보내기" disabled={disabled || !value.trim()}>
         <Image src="/assets/arrow-up.svg" alt="" width={24} height={24} />
       </button>
