@@ -4227,6 +4227,80 @@ button {
   color: var(--purple-primary);
 }
 
+.context-demo-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.context-demo-cases {
+  padding: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.context-demo-cases-head {
+  margin-bottom: 14px;
+}
+
+.context-demo-cases-head .eyebrow {
+  margin: 0 0 4px;
+}
+
+.context-demo-cases h2 {
+  margin: 0;
+  color: var(--text-sidebar);
+  font-size: 18px;
+}
+
+.context-demo-case-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.context-demo-case {
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: rgba(92, 82, 255, 0.035);
+}
+
+.context-demo-case-label {
+  margin: 0 0 10px;
+  color: var(--purple-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.context-demo-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-sidebar);
+  font-size: 15px;
+}
+
+.context-demo-change strong {
+  color: var(--purple-primary);
+}
+
+.context-demo-case > p:last-child {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (max-width: 680px) {
+  .context-demo-case-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 파싱 영역 오버레이 */
 
 .context-analysis {

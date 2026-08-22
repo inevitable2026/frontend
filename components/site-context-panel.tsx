@@ -65,6 +65,21 @@ const ATTACH_STATE_SLUG: Record<MailThread["messages"][number]["첨부"][number]
   제외: "skipped",
 };
 
+const DEMO_CHANGE_CASES = [
+  {
+    label: "Concrete pour",
+    before: "Day shift",
+    after: "Night shift",
+    message: "The 4th-floor concrete pour was moved from the day shift to the night shift.",
+  },
+  {
+    label: "Slab formwork",
+    before: "Plywood forms",
+    after: "Aluminum forms",
+    message: "The 4th-floor slab formwork system changed from plywood forms to aluminum forms.",
+  },
+] as const;
+
 function emptyStages(): IngestStage[] {
   return STAGE_ORDER.map((name) => ({ 이름: name, 상태: "대기", 시작: null, 소요ms: null }));
 }
@@ -288,10 +303,31 @@ export function SiteContextPanel() {
         </header>
 
       {mode === "demo" ? (
-        <p className="context-demo-note">
-          데모 모드입니다. 올린 파일은 화면에 그대로 보이지만 <b>분석 결과는 미리 녹화해 둔 고정
-          응답</b>이고 Upstage 를 호출하지 않습니다. 고정 결과는 문서함에 저장하지 않습니다.
-        </p>
+        <section className="context-demo-panel" aria-labelledby="demo-change-title">
+          <p className="context-demo-note">
+            데모 모드입니다. 올린 파일은 화면에 그대로 보이지만 <b>분석 결과는 미리 녹화해 둔 고정
+            응답</b>이고 Upstage 를 호출하지 않습니다. 고정 결과는 문서함에 저장하지 않습니다.
+          </p>
+          <div className="context-demo-cases">
+            <div className="context-demo-cases-head">
+              <p className="eyebrow">Demo cases</p>
+              <h2 id="demo-change-title">Work change detected</h2>
+            </div>
+            <div className="context-demo-case-grid">
+              {DEMO_CHANGE_CASES.map((change) => (
+                <article className="context-demo-case" key={change.label}>
+                  <p className="context-demo-case-label">{change.label}</p>
+                  <div className="context-demo-change">
+                    <span>{change.before}</span>
+                    <span aria-hidden="true">→</span>
+                    <strong>{change.after}</strong>
+                  </div>
+                  <p>{change.message}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
       ) : null}
 
       <section className="context-upload">
