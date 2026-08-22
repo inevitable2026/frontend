@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>정기 위험성평가표</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-RA-2026-07-001 · ra_2026_07_regular</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)한신종합건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사</div>
+<h1>정기 위험성평가표</h1>
+
+<table class="approval">
+<tr><th rowspan="2" style="writing-mode:vertical-rl;padding:2mm 1mm">결재</th><th>담당</th><th>공무팀장</th><th>안전관리자</th><th>현장소장</th></tr>
+<tr><td>(인)</td><td>(인)</td><td>(인)</td><td>(인)</td></tr>
+</table>
+<div class="clear"></div>
+<table class="doc-meta"><tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>현장코드</th><td>GGC-01</td></tr>
+<tr><th>평가번호</th><td>ra_2026_07_regular</td><th>평가종류</th><td>정기 위험성평가</td></tr>
+<tr><th>실 시 일</th><td>2026-07-03</td><th>다음 정기평가</th><td>2026-10-02</td></tr>
+<tr><th>대상 공정</th><td colspan="3">3층 벽체 콘크리트 타설(task_3f_wall) · 4층 슬래브 거푸집 및 동바리(task_4f_slab)</td></tr>
+<tr><th>평가 방법</th><td colspan="3">3단계 판단법 · 빈도(1~5) × 강도(1~5) = 위험도(1~25). 등급 기준은 이 시나리오 안에서만 유효한 예시다.</td></tr></table>
+
+<h2>1. 평가 전제 — 동바리 공법</h2>
+<p>이 평가표의 4층 슬래브 관련 행 8건은 아래 전제 위에서 작성되었다.
+전제가 바뀌면 해당 행은 다시 평가해야 한다.</p>
+<table class="grid "><colgroup><col style="width:18%"><col style="width:82%"></colgroup><thead><tr><th>구분</th><th>내용</th></tr></thead><tbody><tr><td class="">적용 공법</td><td class=""><b>시스템동바리</b> (자재코드 <b>MAT_SYS_SHORE</b>)</td></tr>
+<tr><td class="">규격</td><td class="">수직재 φ60.5×2.3t · 수평재 1,800mm · 헤드 U-Head 조절식</td></tr>
+<tr><td class="">임대사</td><td class="">대일가설</td></tr>
+<tr><td class="">적용 범위</td><td class="">4층 슬래브 전 구간 (층고 8.2m 구간 포함)</td></tr>
+<tr><td class="">조립 단수</td><td class="">층고 8.2m 구간 4단</td></tr>
+<tr><td class="">대체 공법 검토</td><td class=""><b>없음.</b> 강관동바리 혼용은 이 평가에서 검토하지 않았다.</td></tr></tbody></table>
+<div class="note">
+전제 확인란 &nbsp;&nbsp; 시스템동바리 적용 <span class="chk">✔</span> &nbsp;·&nbsp;
+강관동바리 혼용 <span class="blank sm"></span> &nbsp;·&nbsp; 기타 <span class="blank sm"></span>
+</div>
+
+<h2>2. 위험성평가 등재 행 (14건)</h2>
+<table class="grid "><colgroup><col style="width:4%"><col style="width:9%"><col style="width:7%"><col style="width:15%"><col style="width:18%"><col style="width:14%"><col style="width:8%"><col style="width:16%"><col style="width:8%"><col style="width:6%"><col style="width:13%"></colgroup><thead><tr><th>연번</th><th>대상공정</th><th>공종분류</th><th>단위작업</th><th>위험요인</th><th>현재 안전조치</th><th>개선 전 위험도</th><th>위험 감소대책</th><th>개선 후 위험도</th><th>담당</th><th>법적 근거</th></tr></thead><tbody><tr><td class="c">1</td><td class="c">task_3f_wall</td><td class="c">골조공사</td><td class="">3층 벽체 철근 배근</td><td class="">벽체 철근 자립 상태에서 전도되어 근로자 맞음</td><td class="">가새 설치 후 배근</td><td class="c">3×3=<b>9</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>3m 이상 벽체 철근 가새 2방향 설치</li><li>배근 중 하부 출입 통제</li></ul></td><td class="c">2×3=<b>6</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제20조(출입의 금지 등)</td></tr>
+<tr><td class="c">2</td><td class="c">task_3f_wall</td><td class="c">골조공사</td><td class="">3층 벽체 거푸집 조립</td><td class="">갱폼 인양 중 결속 이탈로 낙하</td><td class="">인양 전 결속 확인 후 신호</td><td class="c">3×5=<b>15</b><br><small>매우 높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>갱폼 인양 전 2인 상호 확인</li><li>인양 경로 하부 전면 통제</li></ul></td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제14조(낙하물에 의한 위험의 방지)</td></tr>
+<tr><td class="c">3</td><td class="c">task_3f_wall</td><td class="c">골조공사</td><td class="">3층 벽체 콘크리트 타설</td><td class="">타설 중 측압으로 거푸집 배부름 및 붕괴</td><td class="">타설 속도 관리</td><td class="c">3×4=<b>12</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>1.0m/h 이하 타설</li><li>타설 중 폼타이 상태 순회 확인</li></ul></td><td class="c">2×4=<b>8</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제334조(콘크리트의 타설작업)</td></tr>
+<tr><td class="c">4</td><td class="c">task_3f_wall</td><td class="c">골조공사</td><td class="">3층 벽체 거푸집 해체</td><td class="">해체재 낙하 및 잔재 정리 미흡</td><td class="">해체 구간 통제 후 작업</td><td class="c">3×3=<b>9</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>해체 순서 준수</li><li>해체재 당일 반출</li></ul></td><td class="c">2×3=<b>6</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class=""><span class="blank"></span></td></tr>
+<tr class="hi"><td class="c">5</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 시스템동바리 자재 반입 및 야적</td><td class="">야적 부재 붕괴 및 하역 중 협착</td><td class="">야적 높이 제한 및 구획</td><td class="c">2×3=<b>6</b><br><small>보통</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>야적 높이 1.5m 이하</li><li>하역 구간 신호수 배치</li></ul></td><td class="c">1×3=<b>3</b><br><small>낮음</small></td><td class="c">(주)서진건설</td><td class=""><span class="blank"></span></td></tr>
+<tr class="hi"><td class="c">6</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 시스템동바리 설치</td><td class="">수직재 연결부 이탈 및 좌굴에 의한 붕괴</td><td class="">시스템동바리 조립도(대일가설 제공)에 따른 설치. 층고 8.2m 구간 4단 조립을 전제로 한다.</td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>시스템동바리 조립도 준수 및 수직도 1/200 이내 관리</li><li>수평재 1,800mm 간격 전 구간 설치</li><li>설치 완료 후 원청·하도급 합동 점검</li></ul></td><td class="c">1×5=<b>5</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제332조(거푸집 및 동바리의 구조)</td></tr>
+<tr class="hi"><td class="c">7</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 동바리 수직도 및 연결재 점검</td><td class="">점검 누락 구간의 부분 침하</td><td class="">시스템동바리는 규격 부재라 점검 항목이 단순하다는 전제로 1회 점검</td><td class="c">2×4=<b>8</b><br><small>보통</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>타설 전 1회 전수 점검</li><li>점검 결과 사진 기록</li></ul></td><td class="c">1×4=<b>4</b><br><small>낮음</small></td><td class="c">(주)한신종합건설</td><td class=""><span class="blank"></span></td></tr>
+<tr class="hi"><td class="c">8</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 거푸집(합판) 설치</td><td class="">동바리 상부 작업 중 8.2m 아래로 떨어짐</td><td class="">시스템동바리 자체 발판 및 안전난간 사용</td><td class="c">3×5=<b>15</b><br><small>매우 높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>시스템동바리 부속 작업발판 전 구간 설치</li><li>안전대 부착설비 확보</li></ul></td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제42조(추락의 방지)</td></tr>
+<tr class="hi"><td class="c">9</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 철근 배근</td><td class="">배근 하중 편중으로 동바리 국부 과하중</td><td class="">시스템동바리 허용하중 내 배근 물량 분산</td><td class="c">2×4=<b>8</b><br><small>보통</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>철근 야적 분산 배치</li><li>1개 구간 집중 적재 금지</li></ul></td><td class="c">1×4=<b>4</b><br><small>낮음</small></td><td class="c">(주)서진건설</td><td class=""><span class="blank"></span></td></tr>
+<tr class="hi"><td class="c">10</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 콘크리트 타설</td><td class="">타설 하중 집중으로 동바리 변형 및 붕괴</td><td class="">시스템동바리 기준 타설 순서 계획</td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>타설 순서 계획 준수</li><li>타설 중 동바리 하부 순회 감시</li></ul></td><td class="c">1×5=<b>5</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제334조(콘크리트의 타설작업)</td></tr>
+<tr class="hi"><td class="c">11</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 양생</td><td class="">양생 구간 갈탄 사용 시 질식</td><td class="">양생 구간 출입 통제</td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>농도 측정 후 출입</li><li>감시인 배치</li></ul></td><td class="c">1×5=<b>5</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class="">「산업안전보건기준에 관한 규칙」 제619조(밀폐공간 작업 프로그램의 수립·시행)</td></tr>
+<tr class="hi"><td class="c">12</td><td class="c">task_4f_slab</td><td class="c">골조공사</td><td class="">4층 슬래브 동바리 존치 및 해체</td><td class="">존치기간 미준수 해체로 슬래브 처짐 및 붕괴</td><td class="">시스템동바리 기준 존치기간 적용</td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>압축강도 확인 후 해체</li><li>해체 순서 계획 수립</li></ul></td><td class="c">1×5=<b>5</b><br><small>보통</small></td><td class="c">(주)서진건설</td><td class=""><span class="blank"></span></td></tr>
+<tr><td class="c">13</td><td class="c">공통</td><td class="c">양중작업</td><td class="">타워크레인 자재 인양</td><td class="">인양물 낙하 및 하부 근로자 맞음</td><td class="">신호수 배치 및 하부 통제</td><td class="c">2×5=<b>10</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>줄걸이 일일 점검</li><li>인양 하부 출입 금지</li></ul></td><td class="c">1×5=<b>5</b><br><small>보통</small></td><td class="c">(주)중앙양중</td><td class="">「산업안전보건기준에 관한 규칙」 제163조(와이어로프 등 달기구의 안전계수)</td></tr>
+<tr><td class="c">14</td><td class="c">공통</td><td class="c">전기공사</td><td class="">가설전기 배선 및 분전반 관리</td><td class="">누전 및 피복 손상에 의한 감전</td><td class="">누전차단기 설치</td><td class="c">3×4=<b>12</b><br><small>높음</small></td><td class=""><ul class="tight" style="font-size:7.6pt"><li>주 1회 작동시험</li><li>배선 보호관 사용</li></ul></td><td class="c">2×4=<b>8</b><br><small>보통</small></td><td class="c">(주)한신종합건설</td><td class=""><span class="blank"></span></td></tr></tbody></table>
+<div class="legend">음영 처리한 8개 행(연번 5, 6, 7, 8, 9, 10, 11, 12)은 4층 슬래브 공정을 다루며 위 1항의 동바리 전제에 직접 걸려 있다.
+법적 근거는 조문 번호와 제목까지만 적는다 — 조문 본문은 공식 원문 조회 결과로만 채운다.</div>
+
+<div class="page-break"></div>
+<h2>3. 평가 참여자 및 확인</h2>
+<p>「사업장 위험성평가에 관한 지침」에 따라 해당 작업에 종사하는 근로자를 참여시켜 실시하였다.</p>
+<h3>평가 참여자 서명</h3><table class="sign-table"><tr><th>(주)한신종합건설 현장소장</th><th>(주)한신종합건설 안전관리자</th><th>(주)한신종합건설 안전보건담당</th><th>(주)한신종합건설 공무팀장</th></tr><tr><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">최민서</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">정태식</span><span class="rule"></span><span class="seal">(서명)</span></td></tr>
+<tr><th>(주)서진건설 작업반장</th><th>(주)한빛가설 반장</th><th>(주)중앙양중 신호수</th><th>(주)서진건설 근로자대표</th></tr><tr><td class="sign-cell"><span class="who">이재훈</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">김성태</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">오현수</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">문상혁</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<h2>4. 재실시 사유 (해당 시 기재)</h2>
+<table class="grid "><colgroup><col style="width:22%"><col style="width:8%"><col style="width:70%"></colgroup><thead><tr><th>구분</th><th>해당</th><th>내용</th></tr></thead><tbody><tr><td class="c">기계·기구·설비 등의 신규 도입 또는 변경</td><td class="c"><span class="blank sm"></span></td><td class=""><span class="blank"></span></td></tr>
+<tr><td class="c">원재료·자재의 변경</td><td class="c"><span class="blank sm"></span></td><td class=""><span class="blank"></span></td></tr>
+<tr><td class="c">건설물·공법의 변경</td><td class="c"><span class="blank sm"></span></td><td class=""><span class="blank"></span></td></tr>
+<tr><td class="c">중대산업사고 또는 산업재해 발생</td><td class="c"><span class="blank sm"></span></td><td class=""><span class="blank"></span></td></tr>
+<tr><td class="c">그 밖에 사업주가 필요하다고 판단한 경우</td><td class="c"><span class="blank sm"></span></td><td class=""><span class="blank"></span></td></tr></tbody></table>
+<div class="legend">실시일 기준으로 해당 사항 없음. 이후 사유가 발생하면 수시 위험성평가로 별도 실시한다.</div>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-RA-2026-07-001 · ra_2026_07_regular
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>출역 이력 기준 집계표</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-ATT-BASE-202607</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)한신종합건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사</div>
+<h1>출역 이력 기준 집계표</h1>
+
+<table class="doc-meta"><tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>문서번호</th><td>GGC-01-ATT-BASE-202607</td></tr>
+<tr><th>집계 기간</th><td>2026-07-15 ~ 2026-08-13</td><th>가동 일수</th><td>23일</td></tr>
+<tr><th>집계 대상</th><td>출입관리시스템 기록 기준 전 인원</td><th>작성일</th><td>2026-08-14</td></tr>
+<tr><th>용    도</th><td colspan="3">신규 입장자 판정 기준 — 이 표에 없는 인원이 신규다.</td></tr></table>
+
+<h2>1. 업체별 연인원</h2>
+<table class="grid "><colgroup><col style="width:34%"><col style="width:22%"><col style="width:12%"><col style="width:14%"><col style="width:18%"></colgroup><thead><tr><th>업체</th><th>구분</th><th>등록 인원</th><th>연인원</th><th>평균 출역일</th></tr></thead><tbody><tr><td class="">(주)한신종합건설</td><td class="c">원청</td><td class="c">11명</td><td class="r">206</td><td class="c">18.7일</td></tr>
+<tr><td class="">(주)서진건설</td><td class="c">골조(철근콘크리트)</td><td class="c">62명</td><td class="r">1,220</td><td class="c">19.7일</td></tr>
+<tr><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">골조 재하도급</td><td class="c">22명</td><td class="r">427</td><td class="c">19.4일</td></tr>
+<tr><td class="">(주)한빛가설</td><td class="c">가설·비계</td><td class="c">21명</td><td class="r">394</td><td class="c">18.8일</td></tr>
+<tr><td class="">(주)중앙양중</td><td class="c">양중(타워크레인)</td><td class="c">6명</td><td class="r">117</td><td class="c">19.5일</td></tr></tbody></table>
+
+<h2>2. 개인별 출역일수 (122명)</h2>
+<table class="grid "><colgroup><col style="width:6%"><col style="width:14%"><col style="width:9%"><col style="width:31%"><col style="width:14%"><col style="width:13%"><col style="width:13%"></colgroup><thead><tr><th>연번</th><th>성명</th><th>생년</th><th>소속</th><th>직종</th><th>최초 출역일</th><th>출역일수</th></tr></thead><tbody><tr><td class="c">1</td><td class="">문주준</td><td class="c">1984</td><td class="">(주)한신종합건설</td><td class="c">공무</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">2</td><td class="">한국길</td><td class="c">1991</td><td class="">(주)한신종합건설</td><td class="c">현장관리</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">3</td><td class="">박우철</td><td class="c">1980</td><td class="">(주)한신종합건설</td><td class="c">공무</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">4</td><td class="">남인수</td><td class="c">1965</td><td class="">(주)한신종합건설</td><td class="c">공무</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">5</td><td class="">추상남</td><td class="c">1992</td><td class="">(주)한신종합건설</td><td class="c">안전</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">6</td><td class="">천해만</td><td class="c">1967</td><td class="">(주)한신종합건설</td><td class="c">안전</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">7</td><td class="">도서근</td><td class="c">1966</td><td class="">(주)한신종합건설</td><td class="c">현장관리</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">8</td><td class="">박영길</td><td class="c">1994</td><td class="">(주)한신종합건설</td><td class="c">공무</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">9</td><td class="">유영일</td><td class="c">1985</td><td class="">(주)한신종합건설</td><td class="c">현장관리</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">10</td><td class="">곽대일</td><td class="c">2001</td><td class="">(주)한신종합건설</td><td class="c">공무</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">11</td><td class="">석성민</td><td class="c">1997</td><td class="">(주)한신종합건설</td><td class="c">안전</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">12</td><td class="">오준훈</td><td class="c">1972</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">13</td><td class="">반진선</td><td class="c">1984</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">14</td><td class="">구철희</td><td class="c">1966</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">15</td><td class="">서도연</td><td class="c">1978</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">16</td><td class="">현환옥</td><td class="c">1980</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">17</td><td class="">강용길</td><td class="c">1969</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">18</td><td class="">엄형남</td><td class="c">1963</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">19</td><td class="">전대준</td><td class="c">1979</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">20</td><td class="">지상환</td><td class="c">1962</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">21</td><td class="">손우수</td><td class="c">1981</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">22</td><td class="">차찬남</td><td class="c">1992</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">18 / 23</td></tr>
+<tr><td class="c">23</td><td class="">표형순</td><td class="c">1963</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">24</td><td class="">진윤옥</td><td class="c">1987</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">25</td><td class="">성찬동</td><td class="c">1978</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">26</td><td class="">최지남</td><td class="c">1963</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">27</td><td class="">장주옥</td><td class="c">1997</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">28</td><td class="">도인남</td><td class="c">1963</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">29</td><td class="">민은연</td><td class="c">2001</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">30</td><td class="">노원희</td><td class="c">1979</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">31</td><td class="">송호우</td><td class="c">1972</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">32</td><td class="">고식영</td><td class="c">1987</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">33</td><td class="">문은자</td><td class="c">1993</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">34</td><td class="">원민규</td><td class="c">1989</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">35</td><td class="">이창수</td><td class="c">1989</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">36</td><td class="">설성훈</td><td class="c">1994</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">37</td><td class="">명윤중</td><td class="c">1969</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">38</td><td class="">배동름</td><td class="c">1998</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">39</td><td class="">선영규</td><td class="c">1985</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">40</td><td class="">원예선</td><td class="c">1983</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">18 / 23</td></tr>
+<tr><td class="c">41</td><td class="">엄호만</td><td class="c">1963</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">42</td><td class="">선기름</td><td class="c">1962</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">43</td><td class="">변경호</td><td class="c">1969</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">44</td><td class="">류상중</td><td class="c">1977</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">45</td><td class="">신철성</td><td class="c">1974</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">46</td><td class="">배대훈</td><td class="c">1976</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">18 / 23</td></tr>
+<tr><td class="c">47</td><td class="">현성일</td><td class="c">1985</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">48</td><td class="">김건석</td><td class="c">1989</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">49</td><td class="">배국만</td><td class="c">1979</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">50</td><td class="">전인근</td><td class="c">1972</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">51</td><td class="">하환우</td><td class="c">1993</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">52</td><td class="">고도수</td><td class="c">2000</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">53</td><td class="">류진민</td><td class="c">1982</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">54</td><td class="">윤태호</td><td class="c">2000</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">55</td><td class="">명환수</td><td class="c">1999</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">56</td><td class="">백성근</td><td class="c">2000</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">57</td><td class="">황환근</td><td class="c">1989</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">58</td><td class="">석국순</td><td class="c">1973</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">59</td><td class="">문수희</td><td class="c">1976</td><td class="">(주)서진건설</td><td class="c">콘크리트공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">60</td><td class="">권승순</td><td class="c">1973</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">61</td><td class="">주태일</td><td class="c">1971</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">62</td><td class="">염경정</td><td class="c">1974</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">63</td><td class="">조윤옥</td><td class="c">1991</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">64</td><td class="">권주근</td><td class="c">1996</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">65</td><td class="">류도옥</td><td class="c">1975</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">66</td><td class="">명서진</td><td class="c">1964</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">67</td><td class="">서찬옥</td><td class="c">1991</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">68</td><td class="">함지길</td><td class="c">1963</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">69</td><td class="">윤원우</td><td class="c">1972</td><td class="">(주)서진건설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">18 / 23</td></tr>
+<tr><td class="c">70</td><td class="">표해남</td><td class="c">1989</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">71</td><td class="">엄영식</td><td class="c">1977</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">72</td><td class="">양대빈</td><td class="c">1975</td><td class="">(주)서진건설</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">73</td><td class="">연지철</td><td class="c">1995</td><td class="">(주)서진건설</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">74</td><td class="">유민훈</td><td class="c">1985</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">75</td><td class="">임기성</td><td class="c">2001</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">76</td><td class="">성창희</td><td class="c">1987</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">77</td><td class="">우광자</td><td class="c">1969</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">78</td><td class="">백창빈</td><td class="c">1967</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">79</td><td class="">류동름</td><td class="c">1967</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">80</td><td class="">길하영</td><td class="c">1984</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">81</td><td class="">길호식</td><td class="c">1965</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">82</td><td class="">한국희</td><td class="c">1968</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">83</td><td class="">길건만</td><td class="c">1965</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">84</td><td class="">변인자</td><td class="c">1976</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">85</td><td class="">한철규</td><td class="c">1985</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">86</td><td class="">류상길</td><td class="c">1972</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">87</td><td class="">백용일</td><td class="c">1968</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">19 / 23</td></tr>
+<tr><td class="c">88</td><td class="">민서선</td><td class="c">1980</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">89</td><td class="">석창복</td><td class="c">1985</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">90</td><td class="">원국아</td><td class="c">1996</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">91</td><td class="">함기석</td><td class="c">1977</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">92</td><td class="">진환현</td><td class="c">1994</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">93</td><td class="">장건희</td><td class="c">1987</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">94</td><td class="">윤윤길</td><td class="c">1966</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">철근공</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">95</td><td class="">손창일</td><td class="c">1965</td><td class="">(주)서진건설 협력 물량팀(3팀)</td><td class="c">형틀목공</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">96</td><td class="">진국규</td><td class="c">2001</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">97</td><td class="">강형남</td><td class="c">1966</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">98</td><td class="">문인근</td><td class="c">1980</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">99</td><td class="">민국만</td><td class="c">1979</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">100</td><td class="">서동대</td><td class="c">1981</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">101</td><td class="">안형름</td><td class="c">1976</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">18 / 23</td></tr>
+<tr><td class="c">102</td><td class="">진병연</td><td class="c">1977</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">103</td><td class="">도호동</td><td class="c">1974</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">104</td><td class="">서규훈</td><td class="c">1972</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">105</td><td class="">구창식</td><td class="c">1999</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">106</td><td class="">표대아</td><td class="c">1981</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">18 / 23</td></tr>
+<tr><td class="c">107</td><td class="">천영근</td><td class="c">1982</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">108</td><td class="">변영민</td><td class="c">1968</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">109</td><td class="">오영우</td><td class="c">1979</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr>
+<tr><td class="c">110</td><td class="">주동영</td><td class="c">1964</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">111</td><td class="">장원연</td><td class="c">1984</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">112</td><td class="">임형영</td><td class="c">1984</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">113</td><td class="">지진근</td><td class="c">1994</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">114</td><td class="">방주근</td><td class="c">1992</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">115</td><td class="">정철민</td><td class="c">1982</td><td class="">(주)한빛가설</td><td class="c">비계공</td><td class="c">2026-03-09</td><td class="c">17 / 23</td></tr>
+<tr><td class="c">116</td><td class="">황윤우</td><td class="c">1994</td><td class="">(주)한빛가설</td><td class="c">보통인부</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">117</td><td class="">전창철</td><td class="c">1981</td><td class="">(주)중앙양중</td><td class="c">타워크레인운전</td><td class="c">2026-03-09</td><td class="c">16 / 23</td></tr>
+<tr><td class="c">118</td><td class="">신상동</td><td class="c">1971</td><td class="">(주)중앙양중</td><td class="c">타워크레인운전</td><td class="c">2026-03-09</td><td class="c">20 / 23</td></tr>
+<tr><td class="c">119</td><td class="">성국중</td><td class="c">1979</td><td class="">(주)중앙양중</td><td class="c">타워크레인운전</td><td class="c">2026-03-09</td><td class="c">21 / 23</td></tr>
+<tr><td class="c">120</td><td class="">오승석</td><td class="c">1967</td><td class="">(주)중앙양중</td><td class="c">신호수</td><td class="c">2026-03-09</td><td class="c">22 / 23</td></tr>
+<tr><td class="c">121</td><td class="">고경순</td><td class="c">1966</td><td class="">(주)중앙양중</td><td class="c">타워크레인운전</td><td class="c">2026-03-09</td><td class="c">15 / 23</td></tr>
+<tr><td class="c">122</td><td class="">구예영</td><td class="c">1971</td><td class="">(주)중앙양중</td><td class="c">신호수</td><td class="c">2026-03-09</td><td class="c">23 / 23</td></tr></tbody></table>
+
+<h3>작성 · 확인</h3><table class="sign-table"><tr><th>(주)한신종합건설 작성</th><th>(주)한신종합건설 확인</th><th>(주)한신종합건설 승인</th></tr><tr><td class="sign-cell"><span class="who">최민서</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-ATT-BASE-202607
+</div>
+</td></tr></tbody>
+</table>
+</body></html>
