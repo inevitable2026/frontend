@@ -10,7 +10,7 @@ import type {
   SiteRecommendation,
   StageName,
 } from "@/lib/context/types";
-import { STAGE_ORDER } from "@/lib/context/types";
+import { STAGE_ORDER, 실행증거키 } from "@/lib/context/types";
 import { embedPassages, upstageCallCount } from "@/lib/context/upstage-doc";
 
 export const TOTAL_BUDGET_MS = 55_000;
@@ -123,13 +123,20 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
     const 필드결과 = yield* stage(
       "필드추출",
       () => runStudioFields(input.kind, fileId!, Math.min(deadline, Date.now() + STAGE_LIMITS.필드추출)),
+      // 진단은 **한 칸 안에 넣는다.** 처음에는 필드와 나란히 평평하게 폈는데,
+      // 이 단계의 산출은 `app/api/context/documents/route.ts:57` 이 통째로
+      // `ExtractedFields` 로 캐스팅해 `documents.extracted` 컬럼에 그대로 넣는다.
+      // 그러면 `agent: sitectx-contract` 나 `소요ms: 16412` 가 **문서에서 읽어낸 값**
+      // 으로 저장되고, 화면의 「읽어낸 값」 목록에도 업체명·공종과 나란히 뜬다.
       (r) => ({
         ...r.fields,
-        agent: r.agent.name,
-        체인: r.chain.map((s) => s.name).join(" → "),
-        최종스텝: r.finalStep,
-        소요ms: r.elapsedMs,
-        캐시: r.cached,
+        [실행증거키]: {
+          agent: r.agent.name,
+          체인: r.chain.map((s) => s.name).join(" → "),
+          최종스텝: r.finalStep,
+          소요ms: r.elapsedMs,
+          캐시: r.cached,
+        },
       }),
     );
     const extracted = 필드결과.fields as ExtractedFields;

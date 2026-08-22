@@ -8,6 +8,8 @@ import type { MailThread } from "@/lib/context/mail-threads";
 import {
   DOCUMENT_KINDS,
   STAGE_ORDER,
+  실행증거키,
+  type 실행증거,
   type DocumentKind,
   type ExtractedFields,
   type IngestEvent,
@@ -375,6 +377,9 @@ export function SiteContextPanel() {
           <h2>읽어낸 값</h2>
           <dl>
             {Object.entries(extracted)
+              // 실행 진단은 문서에서 읽어낸 값이 아니다. 같은 목록에 섞으면
+              // `소요ms: 16412` 가 계약금액 옆에 나란히 서게 된다.
+              .filter(([key]) => key !== 실행증거키)
               .filter(([, value]) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))
               .map(([key, value]) => (
                 <div key={key}>
@@ -383,6 +388,18 @@ export function SiteContextPanel() {
                 </div>
               ))}
           </dl>
+
+          {/* 어떻게 읽었는지는 따로 적는다. Studio 체인이 실제로 돌았다는 증거다. */}
+          {(() => {
+            const 증거 = (extracted as Record<string, unknown>)[실행증거키] as 실행증거 | undefined;
+            if (!증거) return null;
+            return (
+              <p className="context-note">
+                {증거.agent} · {증거.체인} · {(증거.소요ms / 1000).toFixed(1)}초
+                {증거.캐시 ? " · 캐시" : ""}
+              </p>
+            );
+          })()}
           {chunkPreview ? <p className="context-note">청크 {chunkPreview.청크수}개로 나눴습니다.</p> : null}
         </section>
       ) : null}

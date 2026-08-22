@@ -57,6 +57,32 @@ export type LayoutElement = {
   coordinates?: Array<{ x: number; y: number }>;
 };
 
+/**
+ * 「필드추출」 단계 산출 안에서 **실행 진단**이 들어앉는 칸의 이름.
+ *
+ * 문서에서 읽어낸 값과 어떻게 읽었는지를 한 객체에 평평하게 섞으면, 그 객체를
+ * `ExtractedFields` 로 받아 `documents.extracted` 에 넣는 쪽이 둘을 구분하지 못한다.
+ * 실제로 `agent`·`소요ms` 가 문서 필드로 저장될 뻔했다. 한 칸에 몰아넣고 읽는 쪽이
+ * 그 칸만 걷어 내게 한다.
+ */
+export const 실행증거키 = "실행증거" as const;
+
+export type 실행증거 = {
+  agent: string;
+  체인: string;
+  최종스텝: string | null;
+  소요ms: number;
+  캐시: boolean;
+};
+
+/** 실행 진단을 걷어 내고 문서에서 읽어낸 값만 남긴다. */
+export function 필드만(산출: unknown): ExtractedFields | null {
+  if (!산출 || typeof 산출 !== "object" || Array.isArray(산출)) return null;
+  const { [실행증거키]: _버림, ...필드 } = 산출 as Record<string, unknown>;
+  void _버림;
+  return 필드 as ExtractedFields;
+}
+
 export type ExtractedFields = {
   업체명?: string | null;
   현장명?: string | null;

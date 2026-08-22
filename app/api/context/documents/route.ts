@@ -1,5 +1,5 @@
 import { db } from "@/lib/context/db";
-import { DOCUMENT_KINDS, type DocumentKind, type ExtractedFields, type IngestStage, type SiteRecommendation } from "@/lib/context/types";
+import { DOCUMENT_KINDS, 필드만, type DocumentKind, type ExtractedFields, type IngestStage, type SiteRecommendation } from "@/lib/context/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,7 +55,9 @@ export async function POST(req: Request) {
 
   const steps = job.steps ?? [];
   const stageOutput = (name: string) => steps.find((s) => s.이름 === name)?.산출;
-  const extracted = (stageOutput("필드추출") ?? null) as ExtractedFields | null;
+  // `필드만` 을 거친다. 그 단계 산출에는 실행 진단(어느 에이전트·어떤 체인·몇 ms)이
+  // 함께 들어 있고, 통째로 캐스팅하면 그것들이 문서에서 읽어낸 값으로 저장된다.
+  const extracted = 필드만(stageOutput("필드추출"));
   const parsed = stageOutput("레이아웃분석") as { 페이지수?: number } | undefined;
   const recommendation = (stageOutput("프로젝트판정") ?? null) as SiteRecommendation | null;
 
