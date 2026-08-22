@@ -16,8 +16,12 @@ export async function GET() {
   try {
     return Response.json(await 어휘읽기(), { headers: HEADERS });
   } catch (err) {
+    console.error("[risk/vocabulary]", err);
     return Response.json(
-      { error: (err as Error).message || "어휘 조회 실패" },
+      {
+        error: "선택 목록을 읽지 못했습니다. 기본 목록으로 계속 작성하실 수 있습니다.",
+        code: "vocabulary_failed",
+      },
       { status: 502, headers: HEADERS },
     );
   }

@@ -3,7 +3,7 @@
 import { 급함색, 기한문구, 종류라벨 } from "@/components/risk/derive";
 import { useState } from "react";
 
-import type { WorkItem } from "@/lib/board/types";
+import type { DraftForm, WorkItem } from "@/lib/board/types";
 
 /**
  * 조치 대기열 — 이 탭의 첫 화면.
@@ -26,6 +26,36 @@ export type 현장 = { id: string; code: string; name: string };
 export function 위험성평가카드인가(item: WorkItem): boolean {
   if (item.draft?.form === "회의록") return true;
   return item.produces.some((p) => p.form === "회의록");
+}
+
+/**
+ * 저장된 서식 값을 화면 이름으로 바꾼다. 값 자체는 서버와 맞물려 있어 그대로 둔다.
+ * 모르는 값이면 이름을 지어내지 않고 `null` 을 준다.
+ */
+const 서식이름표: Record<DraftForm, string> = {
+  회의록: "회의록",
+  공문: "공문",
+  회의자료: "회의 자료",
+  TBM자료: "작업 전 안전점검 자료",
+  점검표: "점검표",
+  기록: "기록",
+};
+
+export function 서식이름(form: string): string | null {
+  return 서식이름표[form as DraftForm] ?? null;
+}
+
+/**
+ * 앞말 받침에 따라 조사를 고른다.
+ *
+ * `이(가)` 같은 괄호 표기가 화면에 그대로 나가면 사람이 읽다 걸린다.
+ * 한글 음절이 아니면 판단할 수 없으므로 받침 있는 쪽을 쓴다.
+ */
+function 조사(앞말: string, 받침있음: string, 받침없음: string): string {
+  const 끝 = 앞말.trim().slice(-1);
+  const 코드 = 끝.charCodeAt(0);
+  if (Number.isNaN(코드) || 코드 < 0xac00 || 코드 > 0xd7a3) return 받침있음;
+  return (코드 - 0xac00) % 28 === 0 ? 받침없음 : 받침있음;
 }
 
 type 묶음 = "재평가" | "작성중" | "최신";
@@ -97,23 +127,25 @@ function DetectBar({
     set단계("도는중");
     set결과(null);
     const r = await 감지();
-    // 문자열이면 실패 사유다. 숫자를 지어내지 않는다.
-    set결과(
-      typeof r === "string"
-        ? r
-        : `조건 ${r.감지}건을 찾아 카드 ${r.생성}장을 올렸습니다.`,
-    );
+    if (typeof r === "string") {
+      // 문자열이면 실패 사유다. 숫자를 지어내지 않는다.
+      // 원인은 화면 문장이 아니라 여기로 내린다.
+      console.error("[risk-queue] detect failed:", r);
+      set결과("점검을 끝내지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+    } else {
+      set결과(`해당하는 상황 ${r.감지}건을 찾아 할 일 ${r.생성}건을 만들었습니다.`);
+    }
     set단계("쉼");
   }
 
   return (
     <div className="risk-detect">
       <div className="risk-detect-bar">
-        <span>지금 보이는 위험성평가 카드 {위험카드수}장은 이미 감지된 것입니다.</span>
+        <span>지금 보이는 위험성평가 할 일 {위험카드수}건은 이미 점검해서 찾아 둔 것입니다.</span>
         {단계 === "확인" ? (
           <>
             <button type="button" className="is-danger" onClick={() => void 돌리기()}>
-              그래도 돌린다
+              점검 실행
             </button>
             <button type="button" onClick={() => set단계("쉼")}>
               취소
@@ -121,16 +153,16 @@ function DetectBar({
           </>
         ) : (
           <button type="button" disabled={단계 === "도는중"} onClick={() => set단계("확인")}>
-            {단계 === "도는중" ? "감지 중…" : "지금 감지"}
+            {단계 === "도는중" ? "점검하는 중입니다…" : "지금 다시 점검"}
           </button>
         )}
       </div>
 
       {단계 === "확인" ? (
         <p className="risk-detect-warn">
-          규칙 여덟 개를 지금 시각으로 다시 돌립니다. 조건에 해당하는 카드가 <b>새로
-          올라와</b> 준비한 시나리오 목록이 달라집니다. 같은 조건을 다시 감지해도 카드가
-          늘지는 않습니다.
+          지금 시점을 기준으로 현장 전체를 다시 점검합니다. 해당하는 할 일이 <b>새로
+          올라와 지금 목록이 달라집니다.</b> 같은 상황을 다시 점검해도 할 일이 늘지는
+          않습니다.
         </p>
       ) : null}
 
@@ -141,8 +173,8 @@ function DetectBar({
 
 const 묶음표시: Record<묶음, { 기호: string; 라벨: string }> = {
   재평가: { 기호: "▲", 라벨: "재평가 필요" },
-  작성중: { 기호: "●", 라벨: "작성 중" },
-  최신: { 기호: "■", 라벨: "최신" },
+  작성중: { 기호: "●", 라벨: "평가서 작성 중" },
+  최신: { 기호: "■", 라벨: "최신 평가" },
 };
 
 const 순서: 묶음[] = ["재평가", "작성중", "최신"];
@@ -156,7 +188,7 @@ export default function RiskQueue({
   기준시각,
 }: {
   항목들: WorkItem[];
-  /** siteId → 현장 이름. 없으면 siteId 를 그대로 보인다. */
+  /** siteId → 현장 이름. 이름이 없으면 저장소 키 대신 「현장 이름 없음」 을 보인다. */
   현장이름: Map<string, string>;
   선택: (item: WorkItem) => void;
   불러오는중: boolean;
@@ -174,7 +206,7 @@ export default function RiskQueue({
   const 묶인것 = new Map<묶음, WorkItem[]>(순서.map((g) => [g, []]));
   for (const item of 위험카드) 묶인것.get(묶음판정(item))!.push(item);
 
-  if (불러오는중) return <p className="risk-queue-empty">대기열을 불러오는 중…</p>;
+  if (불러오는중) return <p className="risk-queue-empty">할 일 목록을 불러오는 중입니다…</p>;
 
   if (위험카드.length === 0) {
     return (
@@ -205,7 +237,13 @@ export default function RiskQueue({
             <ul>
               {목록.map((item) => {
                 const 기한 = 기한문구(item.dueBy, 기준시각);
-                const 막힘 = item.blockedBy.length > 0;
+
+                // 앞선 할 일의 제목만 쓴다. 제목을 못 찾은 것은 건수로만 센다 —
+                // 저장소 식별자를 화면에 내보내지 않기 위해서다.
+                const 앞선제목 = item.blockedBy
+                  .map((id) => 제목찾기.get(id))
+                  .filter((t): t is string => Boolean(t));
+                const 제목못찾음 = item.blockedBy.length - 앞선제목.length;
 
                 return (
                   <li key={item.itemId}>
@@ -216,7 +254,9 @@ export default function RiskQueue({
                       onClick={() => 선택(item)}
                     >
                       <span className="board-card-top">
-                        <span className="board-card-kind is-doc">{종류라벨(item)}</span>
+                        <span className="board-card-kind is-doc">
+                          {서식이름(종류라벨(item)) ?? "할 일"}
+                        </span>
                         {item.origin === "machine" ? (
                           <span className="board-card-ai-mark">
                             <svg
@@ -236,8 +276,11 @@ export default function RiskQueue({
                             자동 생성
                           </span>
                         ) : null}
-                        <span className="risk-queue-site">
-                          {현장이름.get(item.siteId) ?? item.siteId}
+                        <span
+                          className="risk-queue-site"
+                          title={현장이름.has(item.siteId) ? undefined : `현장 키: ${item.siteId}`}
+                        >
+                          {현장이름.get(item.siteId) ?? "현장 이름 없음"}
                         </span>
                       </span>
 
@@ -248,26 +291,39 @@ export default function RiskQueue({
 
                       <span className="board-card-meta">
                         {item.invalidates.length > 0 ? (
-                          <span className="board-tag is-alert">무효 {item.invalidates.length}</span>
-                        ) : null}
-                        {item.produces.slice(1).map((p) => (
-                          <span key={p.form} className="board-tag is-doc">
-                            {p.form}
+                          <span className="board-tag is-alert">
+                            전제 바뀜 {item.invalidates.length}건
                           </span>
-                        ))}
+                        ) : null}
+                        {item.produces.slice(1).map((p) => {
+                          const 이름 = 서식이름(p.form);
+                          if (이름 === null) return null;
+                          return (
+                            <span key={p.form} className="board-tag is-doc">
+                              {이름}
+                            </span>
+                          );
+                        })}
                       </span>
 
-                      {/* 왜 이 카드가 여기 있는지. 규칙이 만든 문구를 그대로 쓴다. */}
+                      {/* 왜 이 카드가 여기 있는지. 규칙이 만든 문구를 그대로 쓴다.
+                          규칙 코드는 문장이 아니라 마우스를 올렸을 때만 보인다. */}
                       {item.trigger === null ? null : (
-                        <span className="board-card-why">
-                          <b>{item.trigger.ruleId}</b> · {item.trigger.condition}
+                        <span className="board-card-why" title={`규칙 코드: ${item.trigger.ruleId}`}>
+                          {item.trigger.condition}
                         </span>
                       )}
 
-                      {막힘 ? (
+                      {앞선제목.length > 0 ? (
                         <span className="board-card-blocked">
-                          {item.blockedBy.map((id) => 제목찾기.get(id) ?? id).join(" · ")} 이(가) 먼저
+                          {앞선제목.map((t) => `「${t}」`).join(" · ")}
+                          {제목못찾음 > 0 ? ` 외 ${제목못찾음}건` : ""}
+                          {제목못찾음 > 0 ? "이" : 조사(앞선제목[앞선제목.length - 1], "이", "가")} 먼저
                           확정돼야 합니다
+                        </span>
+                      ) : item.blockedBy.length > 0 ? (
+                        <span className="board-card-blocked">
+                          먼저 확정돼야 할 할 일이 {item.blockedBy.length}건 있습니다
                         </span>
                       ) : null}
 

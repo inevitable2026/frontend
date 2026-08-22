@@ -22,13 +22,19 @@ function 등급클래스(level: string): string {
 
 function 위험도표시(h: Hazard, 위치: "before" | "after") {
   const r = h[위치];
-  if (!r) return <span className="risk-score is-none">-</span>;
+  // `-` 하나로는 "0" 인지 "안 적혀 있다" 인지 알 수 없다. 없는 값이라고 말한다.
+  if (!r)
+    return (
+      <span className="risk-score is-none">
+        <small>미기재</small>
+      </span>
+    );
   return (
     <span className={`risk-score ${등급클래스(r.level)}`}>
       <b>{r.score}</b>
       <em>{r.level}</em>
       <small>
-        빈도 {r.frequency} · 강도 {r.severity}
+        발생 가능성 {r.frequency} · 피해 크기 {r.severity}
       </small>
     </span>
   );
@@ -68,10 +74,17 @@ export default function RiskTable({
           </strong>
           <span className="risk-progress-pct">{비율}%</span>
         </div>
-        <div className="risk-progress-bar" role="progressbar" aria-valuenow={비율} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className="risk-progress-bar"
+          role="progressbar"
+          aria-label="이행확인 진행률"
+          aria-valuenow={비율}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
           <span style={{ width: `${비율}%` }} />
         </div>
-        {저장중 ? <span className="risk-saving">저장 중…</span> : null}
+        {저장중 ? <span className="risk-saving">변경 내용을 저장하는 중입니다…</span> : null}
       </header>
 
       <ol className="risk-rows">

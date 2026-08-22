@@ -21,14 +21,18 @@ export async function prepareIngestRequest(
   const params = new URL(request.url).searchParams;
   const mode = params.get("mode");
   if (mode !== "live" && mode !== "demo") {
-    return { ok: false, status: 400, body: { error: "mode 쿼리는 live 또는 demo 여야 합니다." } };
+    return {
+      ok: false,
+      status: 400,
+      body: { error: "문서 분석 방식을 알 수 없습니다. 화면을 새로 고친 뒤 다시 올려 주세요." },
+    };
   }
   const kind = params.get("kind") as IngestDocumentKind | null;
   if (!kind || !INGEST_DOCUMENT_KINDS.includes(kind)) {
     return {
       ok: false,
       status: 400,
-      body: { error: `kind 쿼리는 ${INGEST_DOCUMENT_KINDS.join(" · ")} 중 하나여야 합니다.` },
+      body: { error: "문서 종류를 알 수 없습니다. 문서 종류를 다시 고른 뒤 올려 주세요." },
     };
   }
   if (mode === "live") {
@@ -44,6 +48,6 @@ export async function prepareIngestRequest(
   try {
     return { ok: true, intent: { mode, kind }, form: await request.formData() };
   } catch {
-    return { ok: false, status: 400, body: { error: "업로드 형식을 읽지 못했습니다." } };
+    return { ok: false, status: 400, body: { error: "올린 파일을 읽지 못했습니다. 문서를 다시 올려 주세요." } };
   }
 }

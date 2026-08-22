@@ -19,11 +19,17 @@ import type { Clause } from "@/lib/risk/types";
  * 잘린다. 대신 스크롤·리사이즈로 좌표가 낡으므로 열 때마다 다시 잰다.
  */
 
-/** 조문이 어떻게 붙었는지. 사람이 판단하려면 출처를 알아야 한다. */
+/**
+ * 조문이 어떻게 붙었는지. 사람이 판단하려면 출처를 알아야 한다.
+ *
+ * **셋을 한 문장으로 뭉개지 않는다.** 같은 용어가 그대로 있는 것과 뜻이 비슷할 뿐인 것은
+ * 근거의 강도가 다르고, 이 화면에서 그 차이는 법령 인용을 그대로 써도 되는지를 가른다.
+ * 값 자체(`keyword` 등)는 화면에 적지 않고 `title` 로만 내보낸다.
+ */
 const 출처문구: Record<string, string> = {
-  keyword: "키워드 일치로 찾았습니다.",
-  bm25: "본문 유사도(BM25)로 찾았습니다.",
-  embedding: "의미 유사도로 찾았습니다. 사람이 한 번 확인해 주세요.",
+  keyword: "이 조문에 같은 용어가 그대로 있습니다.",
+  bm25: "이 조문의 본문 내용이 비슷합니다.",
+  embedding: "뜻이 비슷해 찾았습니다. 사람이 한 번 확인해 주세요.",
 };
 
 type 위치 = { left: number; top: number; 아래: boolean };
@@ -93,12 +99,15 @@ export default function ClauseTip({
           ) : (
             // 본문이 비어 있으면 그렇다고 말한다. 빈 카드를 띄우면 조회가 실패한 건지
             // 원래 없는 건지 구분이 안 된다.
-            <p className="clause-card-body is-empty">본문을 아직 받아오지 못했습니다.</p>
+            <p className="clause-card-body is-empty">
+              조문 본문을 불러오지 못했습니다. 조문 번호로 법령 원문을 확인해 주세요.
+            </p>
           )}
 
-          <p className="clause-card-foot">
+          {/* 알 수 없는 출처는 지어내지 않고 문장에서 뺀다. 원값은 title 로만 남긴다. */}
+          <p className="clause-card-foot" title={matchSource ? `조문 매칭 출처: ${matchSource}` : undefined}>
             산업안전보건기준에 관한 규칙
-            {matchSource ? ` · ${출처문구[matchSource] ?? `출처 ${matchSource}`}` : ""}
+            {matchSource && 출처문구[matchSource] ? ` · ${출처문구[matchSource]}` : ""}
           </p>
         </div>
       ) : null}

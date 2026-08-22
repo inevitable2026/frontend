@@ -20,6 +20,7 @@
   "include": [
     "../lib/context/chunk.ts",
     "../lib/context/types.ts",
+    "../lib/context/stage-label.ts",
     "../lib/context/studio.ts",
     "../lib/context/studio-parser.ts",
     "../lib/context/studio-metrics.ts",
@@ -34,6 +35,7 @@
     "../lib/context/demo.ts",
     "../lib/context/upstage-doc.ts",
     "../lib/risk/rows.ts",
+    "../lib/risk/doc-label.ts",
     "../lib/risk/vocab.ts"
   ]
 }

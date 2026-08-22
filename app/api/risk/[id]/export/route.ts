@@ -17,8 +17,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const res = await 엑셀받기(id);
   if (!res.ok) {
+    console.error("[risk/:id/export] 엑셀 응답", id, res.status);
     return Response.json(
-      { error: `엑셀 생성 실패 (${res.status})` },
+      {
+        error: "엑셀 파일을 만들지 못했습니다. 잠시 뒤 다시 내려받아 주세요.",
+        code: "excel_failed",
+      },
       { status: 502, headers: { "X-Robots-Tag": "noindex, nofollow" } },
     );
   }

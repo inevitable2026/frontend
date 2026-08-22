@@ -1,14 +1,19 @@
 import type { IngestEvent } from "./types.ts";
 
 const UPLOAD_RETRY_MESSAGE = "업로드 요청에 실패했습니다. 다시 업로드해 주세요.";
-const STREAM_RETRY_MESSAGE = "진행 스트림을 열거나 읽지 못했습니다. 다시 업로드해 주세요.";
-const MALFORMED_STREAM_MESSAGE = "진행 스트림 형식이 올바르지 않습니다. 다시 업로드해 주세요.";
+const STREAM_RETRY_MESSAGE = "분석 진행 상황을 받아오지 못했습니다. 다시 업로드해 주세요.";
+const MALFORMED_STREAM_MESSAGE = "분석 진행 상황을 알아볼 수 없는 형식으로 받았습니다. 다시 업로드해 주세요.";
 
 type JsonRecord = Record<string, unknown>;
+/**
+ * `retryWithDemo` 는 "같은 파일로 데모를 다시 돌려 볼 수 있는가" 를 화면에 알려 주는 자리다.
+ * 예전에는 화면이 `message` 의 부분 문자열을 뒤져서 이 분기를 했다. 그러면 문구를 한 글자만
+ * 고쳐도 버튼이 조용히 사라진다. 판단은 여기서 내리고 화면은 이 값만 읽는다.
+ */
 type IngestCreation =
   | { kind: "created"; jobId: string }
-  | { kind: "live_disabled"; message: string; demoAvailable: boolean }
-  | { kind: "failed"; message: string };
+  | { kind: "live_disabled"; message: string; demoAvailable: boolean; retryWithDemo: boolean }
+  | { kind: "failed"; message: string; retryWithDemo: boolean };
 type StreamOutcome = { kind: "terminal" } | { kind: "failed"; message: string };
 
 function record(value: unknown): JsonRecord | null {
@@ -26,7 +31,7 @@ export function isTerminalIngestEvent(event: IngestEvent): boolean {
 }
 
 export function unterminatedIngestStreamMessage(receivedTerminalEvent: boolean): string | null {
-  return receivedTerminalEvent ? null : "진행 스트림이 완료 신호 없이 종료되었습니다. 다시 업로드해 주세요.";
+  return receivedTerminalEvent ? null : "분석이 끝나기 전에 진행 상황이 끊겼습니다. 다시 업로드해 주세요.";
 }
 
 export async function createIngestJob(
@@ -38,24 +43,29 @@ export async function createIngestJob(
   try {
     response = await fetchImpl(url, init);
   } catch {
-    return { kind: "failed", message: UPLOAD_RETRY_MESSAGE };
+    return { kind: "failed", message: UPLOAD_RETRY_MESSAGE, retryWithDemo: false };
   }
 
   const body = record(await response.json().catch(() => null));
-  if (!body) return { kind: "failed", message: UPLOAD_RETRY_MESSAGE };
+  if (!body) return { kind: "failed", message: UPLOAD_RETRY_MESSAGE, retryWithDemo: false };
   if (!response.ok) {
     if (response.status === 503 && body.code === "STUDIO_LIVE_DISABLED" && body.demoAvailable === true) {
       return {
         kind: "live_disabled",
         message: typeof body.error === "string" ? body.error : "라이브 분석은 현재 비활성화되어 있습니다.",
         demoAvailable: true,
+        retryWithDemo: true,
       };
     }
-    return { kind: "failed", message: typeof body.error === "string" ? body.error : UPLOAD_RETRY_MESSAGE };
+    return {
+      kind: "failed",
+      message: typeof body.error === "string" ? body.error : UPLOAD_RETRY_MESSAGE,
+      retryWithDemo: false,
+    };
   }
   return typeof body.jobId === "string" && body.jobId.length > 0
     ? { kind: "created", jobId: body.jobId }
-    : { kind: "failed", message: UPLOAD_RETRY_MESSAGE };
+    : { kind: "failed", message: UPLOAD_RETRY_MESSAGE, retryWithDemo: false };
 }
 
 export async function consumeIngestStream(

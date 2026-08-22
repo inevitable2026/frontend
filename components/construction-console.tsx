@@ -7,7 +7,7 @@ import { ChatAskBar } from "@/components/chat/chat-ask-bar";
 import { useLatestPin } from "./chat/use-latest-pin";
 import { askBarStatus } from "@/components/chat/status";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
-import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
+import { ASSISTANT_LABEL, isActivePrompt, PROMPT_CARDS } from "@/components/chat/prompts";
 import { useLawChat } from "@/components/chat/use-law-chat";
 import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
 import { 재평가건수 } from "@/components/risk/risk-queue";
@@ -351,11 +351,11 @@ export function ConstructionConsole({
           <div className="prompt-grid">
             {PROMPT_CARDS.map((card) => (
               <button
-                className={`prompt-card${card.label === ACTIVE_PROMPT_LABEL ? " is-enabled" : " is-disabled"}`}
+                className={`prompt-card${isActivePrompt(card.label) ? " is-enabled" : " is-disabled"}`}
                 key={card.label}
                 type="button"
-                disabled={card.label !== ACTIVE_PROMPT_LABEL}
-                aria-disabled={card.label !== ACTIVE_PROMPT_LABEL}
+                disabled={!isActivePrompt(card.label)}
+                aria-disabled={!isActivePrompt(card.label)}
                 onClick={() => chat.setQuestion(card.prompt)}
               >
                 <Image src={card.icon} alt="" width={28} height={28} />

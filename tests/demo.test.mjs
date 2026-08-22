@@ -12,3 +12,13 @@ test("demo emits kind-local synthetic provenance with zero calls and no legacy l
   assert.equal(completed[0].execution.selectedKind, "기타");
   assert.equal(completed[0].execution.cleanup, "not_applicable");
 });
+
+test("explains a missing demo in field words and says what to do next", async () => {
+  const events = [];
+  for await (const event of replayDemo("job-2", "메일", "local.pdf", 1234, async () => {})) events.push(event);
+  const failed = events.filter((event) => event.종류 === "실패");
+  assert.equal(failed.length, 1);
+  assert.doesNotMatch(failed[0].사유, /픽스처|재생/);
+  assert.match(failed[0].사유, /메일/);
+  assert.match(failed[0].사유, /골라 주세요/);
+});

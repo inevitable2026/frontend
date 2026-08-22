@@ -37,10 +37,32 @@ const 기본어휘: 어휘 = {
   criteria: { occurrence_cycles: [], damage_levels: [], past_fatality: [] },
 };
 
+/**
+ * 화면에 적을 실패 문구. 상태 코드·영문 원문은 화면이 아니라 콘솔로 보낸다.
+ *
+ * 네트워크가 끊기면 `err.message` 는 "Failed to fetch" 다. 그걸 그대로 붙이면
+ * 관리자는 무엇을 해야 하는지 알 수 없다. 우리가 쓴 한국어 문장만 그대로 쓴다.
+ */
+function 실패문구(err: unknown, 기본: string): string {
+  const 원문 = err instanceof Error ? err.message.trim() : "";
+  return /[가-힣]/.test(원문) ? 원문 : 기본;
+}
+
+/** 위험도 산정 기준을 사람이 읽는 말로. 저장 값(`4x3`)은 그대로 두고 표시만 바꾼다. */
+function 기준이름(값: string): string {
+  const m = /^(\d+)x(\d+)$/.exec(값);
+  return m ? `빈도 ${m[1]}단계 × 강도 ${m[2]}단계` : 값;
+}
+
+/** 생성 방식 이름. 저장 값은 그대로 두고 화면 표시만 바꾼다. */
+const 모드이름: Record<생성모드, string> = {
+  라이브: "실제 생성",
+  데모: "미리보기",
+};
+
 type 분석패널 = {
   키: string;
   이름: string;
-  엔진: string;
   상태: 패널상태;
   소요: number | null;
   필드들: 필드[];
@@ -250,11 +272,15 @@ export function RiskAssessmentPanel() {
           run?: { detections?: unknown[]; created?: unknown[] };
           error?: string;
         };
-        if (!res.ok) return body.error ?? `감지 실패 (${res.status})`;
+        if (!res.ok) {
+          console.error("[risk] board detect failed", { siteId: id, status: res.status, error: body.error });
+          return "현장을 점검하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+        }
         감지수 += body.run?.detections?.length ?? 0;
         생성수 += body.run?.created?.length ?? 0;
       } catch (e) {
-        return e instanceof Error ? e.message : "감지에 실패했습니다.";
+        console.error("[risk] board detect failed", { siteId: id, error: e });
+        return "현장을 점검하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
       }
     }
 
@@ -297,7 +323,10 @@ export function RiskAssessmentPanel() {
     try {
       const res = await fetch(`/api/risk/${id}`);
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error ?? `평가를 읽지 못했습니다 (${res.status})`);
+      if (!res.ok) {
+        console.error("[risk] assessment fetch failed", { id, status: res.status, error: body?.error });
+        throw new Error("평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+      }
       const a = body.assessment as Assessment;
       setAssessment(a);
       // 방금 저쪽에서 읽어 온 것이므로 이것이 되돌아갈 자리다.
@@ -315,7 +344,7 @@ export function RiskAssessmentPanel() {
       if (a.method) set평가방법(a.method);
       set현장(a.site ?? "");
     } catch (err) {
-      set오류((err as Error).message);
+      set오류(실패문구(err, "평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요."));
     }
   }
 
@@ -334,7 +363,6 @@ export function RiskAssessmentPanel() {
     const 신규: 분석패널[] = 목록.map((f) => ({
       키: `doc-${f.name}-${f.size}`,
       이름: f.name,
-      엔진: "upstage",
       상태: "실행중" as 패널상태,
       소요: null,
       필드들: [],
@@ -355,15 +383,14 @@ export function RiskAssessmentPanel() {
           const res = await fetch("/api/risk/ingest", { method: "POST", body: fd });
           const body = await res.json();
           const 소요 = performance.now() - 시작;
-          if (!res.ok) throw new Error(body?.error ?? `문서 파싱 실패 (${res.status})`);
+          if (!res.ok) {
+            console.error("[risk] doc ingest failed", { file: f.name, status: res.status, error: body?.error });
+            throw new Error("문서를 읽지 못했습니다. 파일을 확인하고 다시 올려 주세요.");
+          }
 
           const r = body.결과 as Record<string, unknown>;
           set패널들((p) =>
-            p.map((x) =>
-              x.키 === 신규[i].키
-                ? { ...x, 상태: "완료", 소요, 엔진: String(r.engine ?? "upstage"), 필드들: 문서필드(r) }
-                : x,
-            ),
+            p.map((x) => (x.키 === 신규[i].키 ? { ...x, 상태: "완료", 소요, 필드들: 문서필드(r) } : x)),
           );
           // 뽑아낸 값을 입력에 합친다. 사용자가 지운 것을 되살리지 않도록 합집합만 만든다.
           set공종((v) => 합치기(v, (r.work_types as string[]) ?? []));
@@ -375,19 +402,13 @@ export function RiskAssessmentPanel() {
             ...v,
             { filename: f.name, extracted_at: new Date().toISOString(), engine: String(r.engine ?? ""), fields: r },
           ]);
-          set대화((d) => [
-            ...d,
-            { 종류: "결과", 파일명: f.name, 엔진: String(r.engine ?? "upstage"), 소요, 필드들: 문서필드(r) },
-          ]);
+          set대화((d) => [...d, { 종류: "결과", 파일명: f.name, 소요, 필드들: 문서필드(r) }]);
         } catch (err) {
           const 소요 = performance.now() - 시작;
-          set패널들((p) =>
-            p.map((x) =>
-              x.키 === 신규[i].키 ? { ...x, 상태: "실패", 소요, 메모: (err as Error).message } : x,
-            ),
-          );
+          const 사유 = 실패문구(err, "문서를 읽지 못했습니다. 파일을 확인하고 다시 올려 주세요.");
+          set패널들((p) => p.map((x) => (x.키 === 신규[i].키 ? { ...x, 상태: "실패", 소요, 메모: 사유 } : x)));
           // 실패를 조용히 지나가지 않는다. 어느 파일이 왜 실패했는지 대화에 남는다.
-          set대화((d) => [...d, { 종류: "실패", 파일명: f.name, 사유: (err as Error).message }]);
+          set대화((d) => [...d, { 종류: "실패", 파일명: f.name, 사유 }]);
         }
       }),
     );
@@ -405,7 +426,6 @@ export function RiskAssessmentPanel() {
       {
         키,
         이름: `현장 사진 ${원본.length}장`,
-        엔진: "vision",
         상태: "실행중",
         소요: null,
         필드들: [],
@@ -425,7 +445,10 @@ export function RiskAssessmentPanel() {
       const res = await fetch("/api/risk/ingest", { method: "POST", body: fd });
       const body = await res.json();
       const 소요 = performance.now() - 시작;
-      if (!res.ok) throw new Error(body?.error ?? `사진 판독 실패 (${res.status})`);
+      if (!res.ok) {
+        console.error("[risk] photo ingest failed", { status: res.status, error: body?.error });
+        throw new Error("사진을 읽지 못했습니다. 잠시 뒤 다시 올려 주세요.");
+      }
 
       const r = body.결과 as Record<string, unknown>;
       const 단서 = (r.photo_findings as string[]) ?? [];
@@ -436,10 +459,9 @@ export function RiskAssessmentPanel() {
                 ...x,
                 상태: "완료",
                 소요,
-                엔진: String(r.engine ?? "vision"),
                 필드들: [
-                  { 이름: "장면", 값: ((r.scenes as string[]) ?? []).join(", ") },
-                  { 이름: "미착용", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
+                  { 이름: "사진 속 상황", 값: ((r.scenes as string[]) ?? []).join(", ") },
+                  { 이름: "미착용 보호구", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
                   { 이름: "공종", 값: ((r.work_types as string[]) ?? []).join(", ") },
                 ].filter((f) => f.값),
                 메모: 단서[0],
@@ -453,12 +475,11 @@ export function RiskAssessmentPanel() {
         {
           종류: "결과",
           파일명: `현장 사진 ${원본.length}장`,
-          엔진: String(r.engine ?? "vision"),
           소요,
           필드들: [
-            { 이름: "장면", 값: ((r.scenes as string[]) ?? []).join(", ") },
-            { 이름: "미착용", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
-            { 이름: "단서", 값: 단서.slice(0, 2).join(" · ") },
+            { 이름: "사진 속 상황", 값: ((r.scenes as string[]) ?? []).join(", ") },
+            { 이름: "미착용 보호구", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
+            { 이름: "사진에서 확인된 사항", 값: 단서.slice(0, 2).join(" · ") },
           ].filter((f) => f.값),
         },
       ]);
@@ -466,9 +487,8 @@ export function RiskAssessmentPanel() {
       set장비((v) => 합치기(v, (r.equipment as string[]) ?? []));
     } catch (err) {
       const 소요 = performance.now() - 시작;
-      set패널들((p) =>
-        p.map((x) => (x.키 === 키 ? { ...x, 상태: "실패", 소요, 메모: (err as Error).message } : x)),
-      );
+      const 사유 = 실패문구(err, "사진을 읽지 못했습니다. 잠시 뒤 다시 올려 주세요.");
+      set패널들((p) => p.map((x) => (x.키 === 키 ? { ...x, 상태: "실패", 소요, 메모: 사유 } : x)));
     }
   }
 
@@ -492,8 +512,11 @@ export function RiskAssessmentPanel() {
         }),
       });
       const body = await res.json();
-      // 실패를 표로 덮지 않는다. 라이브가 실패했으면 그렇게 말한다.
-      if (!res.ok) throw new Error(body?.error ?? `생성 실패 (${res.status})`);
+      // 실패를 표로 덮지 않는다. 만들지 못했으면 그렇게 말한다.
+      if (!res.ok) {
+        console.error("[risk] assessment create failed", { status: res.status, error: body?.error });
+        throw new Error("평가표를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+      }
       const 만든것 = body.assessment as Assessment;
       setAssessment(만든것);
       마지막저장본.current = 만든것;
@@ -501,7 +524,7 @@ export function RiskAssessmentPanel() {
       // 진짜로 만든 것조차 안 보인다.
       void 기록읽기();
     } catch (err) {
-      set오류((err as Error).message);
+      set오류(실패문구(err, "평가표를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       set생성중(false);
     }
@@ -566,13 +589,14 @@ export function RiskAssessmentPanel() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? "이행확인을 저장하지 못했습니다.");
+        console.error("[risk] assessment save failed", { id: next.id, status: res.status, error: body?.error });
+        throw new Error("이행확인을 저장하지 못했습니다.");
       }
       마지막저장본.current = next;
       set오류(null);
     } catch (err) {
       set오류(
-        `${(err as Error).message} — 화면을 저장 전 상태로 되돌렸습니다.`,
+        `${실패문구(err, "이행확인을 저장하지 못했습니다.")} 화면을 저장 전 상태로 되돌렸습니다.`,
       );
       // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
       if (마지막저장본.current) setAssessment(마지막저장본.current);
@@ -637,8 +661,8 @@ export function RiskAssessmentPanel() {
             <p className="eyebrow">위험성평가</p>
             <h1>지금 손봐야 할 것</h1>
             <p className="risk-sub">
-              태스크 보드가 찾아낸 조건 가운데 위험성평가에 해당하는 것입니다. 여기서 열어
-              행 단위로 승인하면 TBM 자료와 공문이 파생됩니다.
+              태스크 보드가 찾아낸 것 가운데 위험성평가에 해당하는 것입니다. 여기서 열어
+              평가 항목마다 승인하면 TBM 자료와 공문이 함께 만들어집니다.
             </p>
           </div>
           <button type="button" className="risk-generate" onClick={새평가시작}>
@@ -649,7 +673,7 @@ export function RiskAssessmentPanel() {
         {/* 현장별 시간축 입구. 대기열은 "지금 무엇을" 이고 시간축은 "이 현장에 무슨 일이" 다.
             현장이 하나뿐일 때도 버튼을 숨기지 않는다 — 두 화면이 다른 질문에 답하기 때문이다. */}
         {현장있는것.length > 0 ? (
-          <nav className="risk-site-bar" aria-label="현장 시간축">
+          <nav className="risk-site-bar" aria-label="현장별 이력">
             {현장있는것.map(([id, 이름]) => (
               <button
                 key={id}
@@ -697,19 +721,19 @@ export function RiskAssessmentPanel() {
         <div>
           <p className="eyebrow">
             <button type="button" className="risk-ws-back" onClick={() => set화면("대기열")}>
-              ← 대기열
+              ← 할 일 목록
             </button>
           </p>
           <h1>문서와 사진을 올리면 평가표를 만듭니다</h1>
           <p className="risk-sub">
-            Upstage 가 계약서·자재표에서 공종과 장비를 읽고, 위험요인마다 산업안전보건기준에 관한
+            계약서·자재표에서 공종과 장비를 읽고, 위험요인마다 산업안전보건기준에 관한
             규칙 조문을 붙입니다.
           </p>
         </div>
-        <div className="mode-toggle" role="group" aria-label="생성 모드">
+        <div className="mode-toggle" role="group" aria-label="평가표 생성 방식">
           {(["라이브", "데모"] as const).map((v) => (
             <button key={v} type="button" className={모드 === v ? "is-active" : ""} onClick={() => set모드(v)}>
-              {v}
+              {모드이름[v]}
             </button>
           ))}
         </div>
@@ -717,13 +741,13 @@ export function RiskAssessmentPanel() {
 
       {모드 === "데모" ? (
         <p className="risk-demo-note">
-          데모 모드입니다. <b>문서 분석은 실제로 돕니다</b> — 올린 PDF 를 Upstage 가 읽습니다.
-          평가표 생성만 미리 녹화해 둔 고정 응답이라 시연 중 45초를 기다리지 않습니다.
+          미리보기입니다. 올린 문서와 사진은 <b>실제로 읽어</b> 공종·장비·자재를 채웁니다.
+          평가표는 예시로 바로 나오며, <b>이 결과는 저장되지 않습니다.</b>
         </p>
       ) : (
         <p className="risk-demo-note is-live">
-          라이브 모드입니다. 생성에 <b>45초 안팎</b>이 걸리고, 실패하면 표 대신 실패 사유가
-          나옵니다 — 실패를 그럴듯한 표로 덮지 않습니다.
+          실제 생성입니다. 평가표를 만드는 데 <b>45초 안팎</b>이 걸리고, 만들지 못하면 평가표 대신
+          그 사유를 알려 드립니다.
         </p>
       )}
 
@@ -750,11 +774,11 @@ export function RiskAssessmentPanel() {
           </select>
         </label>
         <label>
-          매트릭스
+          위험도 산정 기준
           <select value={매트릭스} onChange={(e) => set매트릭스(e.target.value)}>
             {어휘.matrices.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {기준이름(m)}
               </option>
             ))}
           </select>
@@ -773,9 +797,9 @@ export function RiskAssessmentPanel() {
       */}
       {assessment && !입력있음 ? (
         <p className="risk-warn" role="status">
-          이 평가서에는 <b>공종·장비·자재가 저장되어 있지 않습니다.</b> 표의 행은 그대로
-          보이지만 어떤 조건으로 만든 것인지가 남아 있지 않아, 이 상태로는 다시 만들 수
-          없습니다. 아래에서 조건을 채우면 그때부터 편집·재생성이 됩니다.
+          이 평가서에는 <b>공종·장비·자재가 저장되어 있지 않습니다.</b> 평가 항목은 그대로
+          보이지만 어떤 조건으로 만든 것인지가 남아 있지 않아, 지금은 평가표를 다시 만들 수
+          없습니다. 아래에서 조건을 채우면 그때부터 고치고 다시 만들 수 있습니다.
         </p>
       ) : null}
 
@@ -795,7 +819,11 @@ export function RiskAssessmentPanel() {
 
       <div className="risk-actions">
         <button type="button" className="risk-generate" disabled={생성중 || !입력있음} onClick={() => void 생성하기()}>
-          {생성중 ? (모드 === "라이브" ? "생성 중… (45초 안팎)" : "생성 중…") : "위험성평가표 만들기"}
+          {생성중
+            ? 모드 === "라이브"
+              ? "평가표를 만드는 중입니다… (45초 안팎)"
+              : "평가표를 만드는 중입니다…"
+            : "위험성평가표 만들기"}
         </button>
         {!입력있음 ? <span className="risk-hint">공종·장비·자재 중 하나가 필요합니다.</span> : null}
         {assessment?.id ? (
