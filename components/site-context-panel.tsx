@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import {
   DOCUMENT_KINDS,
   STAGE_ORDER,
@@ -68,6 +69,7 @@ export function SiteContextPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [ranAsDemo, setRanAsDemo] = useState(false);
+  const [activeRegion, setActiveRegion] = useState<number | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -214,6 +216,9 @@ export function SiteContextPanel() {
     await Promise.all([loadSites(), loadDocuments()]);
   }
 
+  const layout = stages.find((s) => s.이름 === "레이아웃분석")?.산출 as
+    | { agent?: string; agentId?: string; 역할?: string; 요소?: ParsedRegion[]; 요소수?: number }
+    | undefined;
   const extracted = stages.find((s) => s.이름 === "필드추출")?.산출 as ExtractedFields | undefined;
   const chunkPreview = stages.find((s) => s.이름 === "청킹")?.산출 as
     | { 청크수: number; 미리보기: Array<{ seq: number; page: number; text: string }> }
@@ -293,6 +298,21 @@ export function SiteContextPanel() {
             )}
           </div>
 
+          {layout?.요소?.length ? (
+            <div className="context-regions">
+              <h2>
+                읽어낸 영역
+                {layout.역할 ? <span className="context-role">{layout.역할}</span> : null}
+              </h2>
+              <ParseOverlay
+                regions={layout.요소}
+                agent={layout.agent ?? null}
+                activeId={activeRegion}
+                onHover={setActiveRegion}
+              />
+            </div>
+          ) : null}
+
           <ol className="stage-list">
             {stages.map((stage) => (
               <li key={stage.이름} className={`stage stage--${stage.상태}`}>
@@ -301,6 +321,9 @@ export function SiteContextPanel() {
                 <span className="stage-meta">
                   {stage.상태 === "실행중" ? "실행중" : seconds(stage.소요ms)}
                 </span>
+                {stage.이름 === "레이아웃분석" && layout?.agent ? (
+                  <span className="stage-agent">{layout.agent}</span>
+                ) : null}
                 {stage.실패사유 ? <p className="stage-error">{stage.실패사유}</p> : null}
               </li>
             ))}
