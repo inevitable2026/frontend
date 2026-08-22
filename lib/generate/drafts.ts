@@ -2,6 +2,8 @@ import { generateObject } from "ai";
 
 import type { Detection, Draft, DraftForm } from "@/lib/board/types";
 import { GENERATION_PROVIDER_OPTIONS, GENERATION_RETRIES, DRAFT_MAX_TOKENS, generationModel } from "./model";
+import { 끝맺기 } from "./repair";
+import { 사람시각 } from "./format";
 import { DRAFT_SCHEMA_BY_FORM, type CardPlan } from "./schemas";
 
 // 승인 열에 올라갈 문서 초안의 본문을 쓴다.
@@ -63,7 +65,7 @@ function 근거블록(detection: Detection): string {
   return detection.evidence
     .map((e) => {
       const 출처 = e.sourceDocId ? ` · 출처 ${e.sourceDocId}` : "";
-      return `- [${e.factType} / key=${e.key}] ${e.excerpt} (관측 ${e.observedAt}${출처})`;
+      return `- [${e.factType} / key=${e.key}] ${e.excerpt} (관측 ${사람시각(e.observedAt)}${출처})`;
     })
     .join("\n");
 }
@@ -117,6 +119,7 @@ export async function writeDraft(input: WriteDraftInput): Promise<Draft> {
     maxRetries: GENERATION_RETRIES,
     maxOutputTokens: DRAFT_MAX_TOKENS,
     providerOptions: GENERATION_PROVIDER_OPTIONS,
+    repairText: 끝맺기,
   });
 
   // 스키마에는 form 이 없다. 판별 유니온의 태그는 우리가 이미 알고 있는 값이라
