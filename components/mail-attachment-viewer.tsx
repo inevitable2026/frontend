@@ -102,7 +102,6 @@ export function MailAttachmentViewer({
             </p>
           </div>
           <div className="docview-actions">
-            <span className="mail-badge">목업 — 원본 파일 대신 내용을 다시 그린 화면입니다</span>
             <button ref={closeRef} type="button" className="docview-close" onClick={onClose}>
               닫기
             </button>
