@@ -29,23 +29,30 @@ export function 비교형(값: string): string {
 }
 
 /**
- * 기존 값에 새 값을 합친다. 표기가 겹치면 **더 구체적인 쪽**(글자가 긴 쪽)을 남긴다.
+ * 기존 값에 새 값을 합친다.
  *
- * "굴착기" 와 "굴착기 (백호)" 가 만나면 뒤엣것을 남긴다. 어느 백호인지가 평가표에서
- * 쓸모 있는 정보이고, 잃어버리면 되살릴 방법이 없기 때문이다.
+ * **이미 있는 값은 절대 바꾸지 않는다.** 새로 들어온 값이 기존 것과 표기만 다르면
+ * 그냥 버린다. 처음에는 "더 구체적인 쪽(글자가 긴 쪽)을 남긴다"로 했는데, 그러면
+ * 사용자가 직접 고른 "굴착기" 가 문서에서 들어온 "굴착기 (백호)" 로 **말없이
+ * 바뀐다.** 화면에서 보면 자기가 고른 항목이 사라진 것이고, 되돌릴 방법도 없다.
+ *
+ * 그래서 접는 방향을 한쪽으로 고정한다 — 화면에 이미 있는 것이 이긴다. 더 구체적인
+ * 이름이 필요하면 사용자가 직접 넣을 수 있다(피커가 임의 입력을 받는다).
+ *
+ * 기존 목록 안의 중복은 접지 않는다. 그건 사용자가 그렇게 만들어 둔 상태다.
  */
 export function 합치기(기존: string[], 새것: readonly string[]): string[] {
-  const 자리 = new Map<string, string>();
+  const 결과 = [...기존];
+  const 자리 = new Set(기존.map(비교형).filter(Boolean));
 
-  for (const 값 of [...기존, ...새것]) {
+  for (const 값 of 새것) {
     const v = 값.trim();
     if (!v) continue;
     const key = 비교형(v);
-    if (!key) continue;
-
-    const 있던것 = 자리.get(key);
-    if (있던것 === undefined || v.length > 있던것.length) 자리.set(key, v);
+    if (!key || 자리.has(key)) continue;
+    자리.add(key);
+    결과.push(v);
   }
 
-  return [...자리.values()];
+  return 결과;
 }

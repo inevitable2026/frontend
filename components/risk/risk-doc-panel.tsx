@@ -34,11 +34,14 @@ export default function RiskDocPanel({
   siteId,
   현장이름,
   닫기,
+  카드끝남,
 }: {
   item: WorkItem;
   siteId: string;
   현장이름: string;
   닫기: () => void;
+  /** 카드가 확정되어 대기열에서 빠져야 할 때. 안 부르면 눌러도 화면이 그대로다. */
+  카드끝남?: (itemId: string) => void;
 }) {
   const [행들, set행들] = useState<평가행[] | null>(null);
   const [오류, set오류] = useState<string | null>(null);
@@ -47,8 +50,25 @@ export default function RiskDocPanel({
   const [저장중, set저장중] = useState<Set<string>>(new Set());
   const 서랍 = useRef<HTMLDivElement>(null);
 
-  // 이 카드가 무효로 지목한 문서. 없으면 근거 문서에서 찾는다.
-  const docId = item.invalidates[0]?.docId ?? item.trigger?.sourceDocRefs?.[0] ?? null;
+  /**
+   * 이 서랍이 열 문서.
+   *
+   * **`produces.into` 가 먼저다.** 초안을 든 카드는 새 행이 들어갈 문서가 따로 있고,
+   * 그게 사람이 보고 싶어 하는 문서다. `invalidates[0].docId` 를 먼저 보다가
+   * `card_ra_draft_3rows` 에서 틀렸다 — 그 카드는 `ra_2026_07_regular` 를 무효화하지만
+   * 새 3행은 `ra_draft_20260819` 로 들어간다. 무효화 대상을 열었더니 그 문서에는
+   * 행 팩트가 없어(전제 팩트 하나뿐) **0행이 떴고**, 화면이 "행을 한 건도 읽지
+   * 못했습니다" 라고 말했다. 읽지 못한 게 아니라 엉뚱한 문서를 연 것이었다.
+   */
+  const 대상문서 =
+    item.produces.find((p) => typeof p.into === "string" && p.into)?.into ??
+    item.invalidates[0]?.docId ??
+    item.trigger?.sourceDocRefs?.[0] ??
+    null;
+  const docId = 대상문서;
+
+  /** 이 카드가 무너뜨린 문서. 대상 문서와 다르면 맥락으로 함께 적는다. */
+  const 무효문서 = item.invalidates[0]?.docId ?? null;
 
   /**
    * 평가서 행을 읽는다.
@@ -124,7 +144,7 @@ export default function RiskDocPanel({
    * 덮어쓰지 않으므로 바뀐 이력이 남는다.
    */
   const 저장 = useCallback(
-    async (행: 평가행) => {
+    async (행: 평가행): Promise<boolean> => {
       const key = `${행.회의록}#${행.행id}`;
       set저장중((p) => new Set(p).add(key));
       try {
@@ -140,8 +160,11 @@ export default function RiskDocPanel({
         // 서버가 받은 뒤에 화면을 바꾼다. 반대로 하면 실패했는데 저장된 것처럼 보인다.
         set행들((prev) => (prev ?? []).map((r) => (r.행id === 행.행id ? 행 : r)));
         set오류(null);
+        return true;
       } catch (e) {
         set오류(e instanceof Error ? `저장 실패: ${e.message}` : "저장에 실패했습니다.");
+        // 성패를 돌려준다. 챗봇 갈래가 실패한 제안을 "적용됨"으로 굳히던 자리다.
+        return false;
       } finally {
         set저장중((p) => {
           const n = new Set(p);
@@ -152,6 +175,65 @@ export default function RiskDocPanel({
     },
     [siteId],
   );
+
+  /**
+   * 초안 3행을 문서에 반영하고 카드를 확정한다.
+   *
+   * 이게 없으면 **카드를 열어도 끝낼 방법이 없다.** 초안 행이 보이기만 하고 아무
+   * 동작이 없어서, 대기열에서 영영 안 없어진다. 예전 작업장에는 행 단위 승인이
+   * 있었는데 서랍으로 바꾸면서 같이 사라졌다.
+   *
+   * 순서가 중요하다 — **행을 먼저 쓰고, 다 들어간 뒤에 카드를 확정한다.** 반대로 하면
+   * 카드는 끝났다고 적혀 있는데 행은 문서에 없는 상태가 남는다.
+   *
+   * 새 행의 이행확인은 비워 둔다. 방금 만든 행이 현장에서 실행됐을 리 없다.
+   */
+  const [반영중, set반영중] = useState(false);
+
+  async function 초안반영() {
+    if (!docId || 초안행.length === 0 || 반영중) return;
+    set반영중(true);
+    try {
+      for (const [i, r] of 초안행.entries()) {
+        const 행: 평가행 = {
+          회의록: docId,
+          행id: r.itemId || `NEW-${String(i + 1).padStart(2, "0")}`,
+          공종분류: r.hazardClass,
+          단위작업: r.process,
+          위험요인: r.hazard,
+          대책: r.measures.map((m) => m.text),
+          개선전: { 빈도: r.risk.likelihood, 강도: r.risk.severity, 위험도: r.risk.score },
+          개선후: {
+            빈도: r.residualRisk.likelihood,
+            강도: r.residualRisk.severity,
+            위험도: r.residualRisk.score,
+          },
+          // 이행확인은 비운다. 방금 만든 행이다.
+        };
+        const 됐다 = await 저장(행);
+        if (!됐다) throw new Error(`${행.행id} 를 문서에 넣지 못했습니다. 카드는 그대로 둡니다.`);
+      }
+
+      // 행이 전부 들어간 뒤에만 카드를 확정한다.
+      const res = await fetch(`/api/board/items/${encodeURIComponent(item.itemId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done", confirmedBy: "user_park" }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(`행은 들어갔지만 카드를 확정하지 못했습니다: ${body.error ?? res.status}`);
+      }
+      // 대기열에서 빼 달라고 알린다. 이게 없으면 서버는 확정했는데 화면에는 카드가
+      // 그대로 남아, 사용자가 보기엔 아무 일도 안 일어난 것과 같다.
+      카드끝남?.(item.itemId);
+      닫기();
+    } catch (e) {
+      set오류(e instanceof Error ? e.message : "반영하지 못했습니다.");
+    } finally {
+      set반영중(false);
+    }
+  }
 
   return (
     <>
@@ -245,6 +327,13 @@ export default function RiskDocPanel({
                 </h3>
                 <p className="risk-drawer-draft-note">
                   아직 문서에 들어가지 않은 초안입니다. 아래 기존 행과 구분해 두었습니다.
+                  {무효문서 && 무효문서 !== docId ? (
+                    <>
+                      {" "}
+                      이 카드는 <b>{무효문서}</b> 의 전제가 무너져 올라왔고, 새 행은{" "}
+                      <b>{docId}</b> 로 들어갑니다.
+                    </>
+                  ) : null}
                 </p>
                 <ol>
                   {초안행.map((r) => (
@@ -260,14 +349,52 @@ export default function RiskDocPanel({
                     </li>
                   ))}
                 </ol>
+
+                {/* 카드를 끝낼 수 있는 유일한 자리. 이게 없으면 열어 봐도 대기열에서
+                    안 없어진다. */}
+                <div className="risk-drawer-draft-acts">
+                  <button type="button" onClick={() => void 초안반영()} disabled={반영중 || !docId}>
+                    {반영중 ? "반영 중…" : `${초안행.length}행을 ${docId} 에 넣고 카드 끝내기`}
+                  </button>
+                  <span>
+                    새 행의 이행확인은 비워 둡니다 — 방금 만든 행이 현장에서 실행됐을 리 없습니다.
+                  </span>
+                </div>
               </section>
             ) : null}
 
             {갈래 === "직접" ? (
               보일행.length === 0 ? (
-                <p className="risk-drawer-empty">
-                  {미확인만 ? "이행확인이 빈 행이 없습니다. 결재 상신을 올릴 수 있습니다." : "행이 없습니다."}
-                </p>
+                /*
+                 * **행이 0건인 것과 전부 확인된 것을 가르지 않으면 거짓말이 된다.**
+                 *
+                 * 처음에는 필터가 켜져 있으면 무조건 "빈 행이 없습니다. 결재 상신을 올릴 수
+                 * 있습니다." 라고 적었다. 그런데 평가서를 한 행도 못 읽었을 때도 `보일행` 은
+                 * 0이라, **읽지 못한 평가서를 결재 가능하다고 단언**하게 된다. 이 화면에서
+                 * 가장 하면 안 되는 종류의 문장이다.
+                 */
+                행들.length === 0 ? (
+                  // 초안이 있으면 0행은 **아직 안 만든 문서**라는 뜻이다. 위에 이미
+                  // "이번에 제안된 신규 행 3" 이 떠 있는데 여기서 "읽지 못했습니다" 라고
+                  // 하면 같은 화면이 두 가지 말을 한다.
+                  초안행.length > 0 ? (
+                    <p className="risk-drawer-empty">
+                      {docId} 에는 아직 행이 없습니다. 위 {초안행.length}행이 이 문서의 첫 행이
+                      됩니다.
+                    </p>
+                  ) : (
+                    <p className="risk-drawer-empty">
+                      이 평가서에서 행을 한 건도 읽지 못했습니다. 결재 가능 여부는 여기서
+                      판단할 수 없습니다.
+                    </p>
+                  )
+                ) : 미확인만 ? (
+                  <p className="risk-drawer-empty">
+                    {행들.length}행 모두 이행확인이 끝났습니다. 결재 상신을 올릴 수 있습니다.
+                  </p>
+                ) : (
+                  <p className="risk-drawer-empty">행이 없습니다.</p>
+                )
               ) : (
                 <ol className="risk-drawer-rows">
                   {보일행.map((행) => (

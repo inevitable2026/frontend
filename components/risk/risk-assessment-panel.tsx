@@ -562,6 +562,7 @@ export function RiskAssessmentPanel() {
         siteId={고른카드.siteId}
         현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
         닫기={() => set고른카드(null)}
+        카드끝남={(itemId) => set대기열((v) => v.filter((i) => i.itemId !== itemId))}
       />
     ) : null;
 

@@ -36,7 +36,8 @@ export default function RiskRowChat({
   행들: 평가행[];
   docId: string | null;
   현장이름: string;
-  저장: (행: 평가행) => void;
+  /** 저장이 실제로 성공했는지 돌려준다. 실패했는데 "적용됨"으로 굳으면 안 된다. */
+  저장: (행: 평가행) => Promise<boolean>;
 }) {
   const [대화, set대화] = useState<말[]>([]);
   const [입력, set입력] = useState("");
@@ -76,20 +77,22 @@ export default function RiskRowChat({
     }
   }
 
-  function 적용(p: 제안, 표시: string) {
+  async function 적용(p: 제안, 표시: string) {
     const 행 = 행들.find((r) => r.행id === p.행id);
     if (!행) return;
 
     const 남길 = (행.대책 ?? []).filter((c) => !p.대책삭제.includes(c));
     const 더할 = p.대책추가.filter((c) => !남길.includes(c));
 
-    저장({
+    const 됐다 = await 저장({
       ...행,
       대책: [...남길, ...더할],
       ...(p.담당사 ? { 담당사: p.담당사 } : {}),
       // 이행확인은 손대지 않는다. 여기서 켜면 사람이 확인하지 않은 것이 확인된 것이 된다.
     });
-    set적용됨((s) => new Set(s).add(표시));
+    // 저쪽이 받았을 때만 굳힌다. 실패했는데 "적용됨"이 되면 사용자는 반영된 줄 알고
+    // 넘어가고, 버튼이 비활성이라 다시 누를 수도 없다.
+    if (됐다) set적용됨((s) => new Set(s).add(표시));
   }
 
   return (
@@ -157,7 +160,7 @@ export default function RiskRowChat({
                       <p className="risk-proposal-line is-add">담당사 → {회사표시(p.담당사)}</p>
                     ) : null}
 
-                    <button type="button" disabled={끝남 || !행} onClick={() => 적용(p, 표시)}>
+                    <button type="button" disabled={끝남 || !행} onClick={() => void 적용(p, 표시)}>
                       {끝남 ? "적용됨" : "적용"}
                     </button>
                   </div>

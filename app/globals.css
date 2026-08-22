@@ -7796,3 +7796,87 @@ button {
   background: #fff0a8;
   color: inherit;
 }
+
+/* 초안 반영 — 카드를 끝낼 수 있는 유일한 자리다. */
+.risk-drawer-draft-acts {
+  display: grid;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--purple-primary);
+}
+
+.risk-drawer-draft-acts button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.risk-drawer-draft-acts button:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.risk-drawer-draft-acts span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+/*
+ * 서랍 안의 말풍선.
+ *
+ * `.risk-bubble` 은 새 평가 화면(어두운 바탕)에서 쓰라고 만든 것이라 그대로 가져오면
+ * 흰 서랍 위에 흰 글씨가 된다. 서랍 안에서만 바탕과 글자를 되돌린다.
+ */
+.risk-rowchat .risk-bubble {
+  padding: 10px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+}
+
+.risk-rowchat .risk-bubble.is-me {
+  margin-left: auto;
+  max-width: 85%;
+  border-color: var(--purple-primary);
+  background: #f4f3ff;
+  color: var(--purple-copy);
+}
+
+.risk-rowchat .risk-bubble.is-error {
+  border-color: #f4c7c7;
+  background: #fff6f6;
+  color: #a33;
+}
+
+.risk-rowchat .risk-bubble p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+/* `.risk-bubble p { margin: 0 }` 이 자손 선택자라 제안 카드 안의 문단 여백까지 0 으로
+   덮었다. 제안 카드는 자기 여백을 되찾는다. */
+.risk-rowchat .risk-bubble .risk-proposal p {
+  margin: 3px 0;
+}
+
+.risk-rowchat .risk-bubble .risk-proposal-head {
+  margin: 0;
+}
+
+.risk-rowchat .risk-bubble .risk-proposal-why {
+  margin: 5px 0 7px;
+}
