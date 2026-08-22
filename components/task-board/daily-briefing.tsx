@@ -82,9 +82,15 @@ export function DailyBriefingPanel({
           </span>
         </div>
 
-        <p className="board-brief-lede">
-          <RichLine runs={briefing.lede} />
-        </p>
+        <div className="board-brief-lede">
+          {briefing.lede.map((paragraph, index) => (
+            // 문단 순서는 서버가 정하고 여기서는 바꾸지 않는다. 서로 자리를 바꾸지 않으므로
+            // 차례를 열쇠로 써도 화면이 어긋나지 않는다.
+            <p key={`lede-${index}`}>
+              <RichLine runs={paragraph} />
+            </p>
+          ))}
+        </div>
 
         <div className="board-brief-metrics">
           {briefing.metrics.map((metric) => (

@@ -1,6 +1,6 @@
-// 화면이 소비하는 뷰 모델이다. 서버가 붙으면 lib/board/types.ts 의 서버 타입을 질의 계층에서
-// 이 모양으로 옮겨 담는다 — 접점은 `GET /api/board` 응답을 BoardSnapshot 하나로 좁힌 지점뿐이고,
-// 화면은 스네이크 케이스도 DB 컬럼도 보지 않는다.
+// 화면이 소비하는 뷰 모델이다. lib/board/types.ts 의 서버 타입을 이 모양으로 옮겨 담는 일은
+// components/task-board/view-model.ts 가 하고, 접점은 board-data.ts 가 세 라우트의 응답을
+// BoardSnapshot 하나로 좁힌 지점뿐이다. 화면은 스네이크 케이스도 DB 컬럼도 보지 않는다.
 
 /* ------------------------------------------------------------------ *
  * 공통 어휘
@@ -40,7 +40,7 @@ export type ConditionSlug =
  * 서식 있는 짧은 글
  *
  * 브리핑 dd 안에는 굵은 글씨와 식별자(mono)가 섞여 있다. HTML 문자열을 그대로
- * 밀어 넣지 않으려고 조각 배열로 받는다. 픽스처가 조각을 만들고 화면은 그리기만 한다.
+ * 밀어 넣지 않으려고 조각 배열로 받는다. 어댑터가 조각을 만들고 화면은 그리기만 한다.
  * ------------------------------------------------------------------ */
 
 export type RichRun =
@@ -50,7 +50,7 @@ export type RichRun =
   | { kind: "mono"; text: string }
   /**
    * 근거 표시. 화면에는 `[1]` 같은 번호로만 나가고 내부 식별자는 드러내지 않는다.
-   * 번호는 조건마다 나온 차례대로 화면이 매기므로 픽스처가 적지 않는다.
+   * 번호는 조건마다 나온 차례대로 화면이 매기므로 어댑터가 적지 않는다.
    */
   | { kind: "ref"; refId: string };
 
@@ -96,7 +96,7 @@ export type ContextSource = {
 
 export type BoardCounterKey = "condition" | "due" | "approval";
 
-/** 헤더 카운터 한 칸. 값은 카드 목록에서 파생하므로 픽스처도 카드와 어긋나면 안 된다. */
+/** 헤더 카운터 한 칸. 값은 카드 목록에서 파생하므로 어댑터가 센 값도 카드와 어긋나면 안 된다. */
 export type BoardCounter = {
   key: BoardCounterKey;
   value: number;
@@ -376,7 +376,8 @@ export type DailyBriefing = {
   stampLabel: string;
   /** "감지 켜짐" */
   liveLabel: string;
-  lede: RichText;
+  /** 머리글. 문단 하나가 한 줄이며, 조건 요약도 여기에 한 줄씩 들어온다. */
+  lede: RichText[];
   /** 여섯 개. */
   metrics: BriefingMetric[];
   conditions: BriefingCondition[];

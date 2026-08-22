@@ -1,38 +1,38 @@
 "use client";
 
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import Image from "next/image";
 import { useEffect, useRef, useState, type FormEvent, type JSX } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
-import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
-import type { ToolCall } from "@/components/chat/types";
-import { useLawChat } from "@/components/chat/use-law-chat";
+import type { BoardActionOutput, BoardContext } from "@/lib/board/assistant-tools";
 
-import {
-  COLUMN_LABELS,
-  interpretBoardCommand,
-  type BoardCommand,
-  type BoardView,
-  type CardRef,
-} from "./assistant-commands";
-import type { BoardColumnId } from "./types";
+import { AssistantMessageView } from "./assistant-stream";
+import { ContextWatch } from "./context-watch";
+import type { BoardColumnId, BoardWatch } from "./types";
 
 /**
  * 보드 오른쪽에 서는 AI 사이드바. 기획안(`docs/plan-task-board.md` 1.1)대로 **보드를
  * 덮는다** — 왼쪽 폭이 줄지 않으므로 칸반 열 너비도 그대로다. 기준점은 `.board-shell`
  * 이 아니라 뷰포트인데, 보드가 화면보다 길어서 절대 위치로 두면 스크롤과 함께 밀려난다.
  *
- * 들어온 문장은 **두 갈래**로 나뉜다.
- * - 보드에 관한 말이면 `assistant-commands.ts` 가 규칙으로 읽고 카드를 고친다.
- * - 그 밖의 말은 `/api/chat` 의 법령 에이전트로 넘어간다.
+ * 들어온 문장은 **하나도 화면에서 해석하지 않는다.** 전부 `/api/board/assistant` 로 가고,
+ * 카드를 읽을지 고칠지 법령 원문을 찾을지는 모델이 도구를 부르며 정한다. 이 파일이 하는 일은
+ * 셋이다.
+ * - 보낼 때마다 **지금 화면의 보드 스냅샷**을 요청에 실어 준다. 도구가 볼 수 있는 보드는 그것뿐이다.
+ * - 도구가 낸 지시(`applied: true`)를 받아 컨테이너의 손잡이를 부른다. 카드를 실제로 옮기는
+ *   곳은 낙관적 갱신과 되돌리기를 쥔 컨테이너 한 자리뿐이다.
+ * - 오간 말을 그린다.
  *
  * 여는 상태와 `Ctrl+K` · `Esc` 는 `task-board.tsx` 가 쥐고, 대화는 이 안에서 끝난다.
  */
 
 /** 컨테이너가 넘겨주는 읽기 창구와 고치는 손잡이. */
 export type BoardBridge = {
-  view: Omit<BoardView, "lastListed">;
+  /** 요청에 실어 보낼 화면 스냅샷. 도구는 이 값만 보고 카드를 고른다. */
+  context: BoardContext;
   onMove: (itemId: string, to: BoardColumnId) => void;
   onApprove: (itemId: string) => void;
   onReject: (itemId: string, reason: string) => void;
@@ -40,43 +40,46 @@ export type BoardBridge = {
   onSelectDate: (date: string | null) => void;
 };
 
-type Entry =
-  | {
-      id: number;
-      kind: "board";
-      question: string;
-      lines: string[];
-      cards: CardRef[];
-      /** `done` 은 보드를 실제로 고친 답, `ask` 는 되물음, `read` 는 읽기만 한 답이다. */
-      tone: "read" | "done" | "ask";
-    }
-  | {
-      id: number;
-      kind: "law";
-      question: string;
-      /** 진행 중인 한 건. 참이면 훅의 현재 값을 그리고, 거짓이면 얼려 둔 값을 그린다. */
-      live: boolean;
-      answer: string;
-      error: string;
-      toolCalls: ToolCall[];
-    };
+/** 경로가 고정이라 그릴 때마다 새로 만들 이유가 없다. 보드 스냅샷은 보낼 때마다 따로 싣는다. */
+const transport = new DefaultChatTransport({ api: "/api/board/assistant" });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 도구 출력이 화면에 내리는 지시인지 본다. 실패 판정(`applied: false`)은 여기서 걸러진다. */
+function asBoardAction(output: unknown): Extract<BoardActionOutput, { applied: true }> | null {
+  if (!isRecord(output) || output.applied !== true || typeof output.action !== "string") return null;
+  return output as unknown as Extract<BoardActionOutput, { applied: true }>;
+}
 
 export function AssistantPanel({
   open,
   onClose,
   board,
+  watch,
 }: {
   open: boolean;
   onClose: () => void;
   board: BoardBridge;
+  /** 헤더에서 옮겨 온 "연결된 맥락을 보고 있습니다". 머리 바로 아래에 고정으로 선다. */
+  watch: BoardWatch;
 }): JSX.Element {
-  const chat = useLawChat();
   const panelRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
-  const nextId = useRef(0);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  /** 직전 답에서 번호를 매겨 보여 준 카드. "2번 승인해줘" 를 풀 때 쓴다. */
-  const [lastListed, setLastListed] = useState<CardRef[]>([]);
+  const [input, setInput] = useState("");
+
+  /**
+   * 도구가 낸 지시를 뒤늦게 실행할 때 쓰는 창구. 지시는 효과 안에서 처리하는데, 그 사이
+   * 카드가 움직여 손잡이가 새로 만들어졌을 수 있어 **그때의 최신 손잡이**를 잡아야 한다.
+   */
+  const boardRef = useRef(board);
+  useEffect(() => {
+    boardRef.current = board;
+  });
+
+  const { messages, sendMessage, status, error } = useChat({ transport });
+  const isBusy = status === "submitted" || status === "streaming";
 
   /**
    * 열리면 입력줄로, 닫히면 축소 버튼으로 초점을 옮긴다. **다음 프레임에 옮기는 이유**는
@@ -98,89 +101,62 @@ export function AssistantPanel({
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
-  /** 대화가 길어지면 새 답이 화면 밖에 생긴다. 항목이 늘 때마다 아래로 붙인다. */
+  /**
+   * 도구가 낸 지시를 화면에 옮긴다. 한 번 실행한 호출은 `toolCallId` 로 기억해 두는데,
+   * 답이 흐르는 동안 이 효과가 여러 번 도는 데다 지시는 두 번 실행하면 안 되기 때문이다.
+   */
+  const appliedCallIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const message of messages) {
+      if (message.role !== "assistant") continue;
+      for (const part of message.parts) {
+        if (!part.type.startsWith("tool-")) continue;
+        const tool = part as unknown as { toolCallId?: string; state?: string; output?: unknown };
+        if (tool.state !== "output-available" || tool.toolCallId === undefined) continue;
+        if (appliedCallIds.current.has(tool.toolCallId)) continue;
+
+        const action = asBoardAction(tool.output);
+        if (action === null) continue;
+        appliedCallIds.current.add(tool.toolCallId);
+
+        const bridge = boardRef.current;
+        if (action.action === "move") {
+          bridge.onMove(action.itemId, action.to);
+          bridge.onFocusCard(action.itemId);
+          continue;
+        }
+        if (action.action === "approve") {
+          bridge.onApprove(action.itemId);
+          continue;
+        }
+        if (action.action === "reject") {
+          bridge.onReject(action.itemId, action.reason);
+          continue;
+        }
+        bridge.onSelectDate(action.date);
+      }
+    }
+  }, [messages]);
+
+  /** 글자가 들어올 때마다 값이 바뀌는 표식. 이 값이 바뀌면 대화를 아래로 붙인다. */
+  const revision = messages.map((message) => `${message.id}:${message.parts.length}`).join("|")
+    + JSON.stringify(messages.at(-1)?.parts.at(-1) ?? null).length;
+
   useEffect(() => {
     const body = panelRef.current?.querySelector(".board-assistant-body");
     if (body instanceof HTMLElement) body.scrollTop = body.scrollHeight;
-  }, [entries.length, chat.answer]);
-
-  function pushBoard(question: string, lines: string[], cards: CardRef[], tone: "read" | "done" | "ask"): void {
-    setEntries((current) => [...current, { id: nextId.current++, kind: "board", question, lines, cards, tone }]);
-    if (cards.length > 0) setLastListed(cards);
-  }
-
-  /** 법령 질문 한 건을 새로 연다. 앞서 진행하던 건은 지금 값 그대로 얼린다. */
-  function pushLaw(question: string): void {
-    setEntries((current) => [
-      ...current.map((entry) =>
-        entry.kind === "law" && entry.live
-          ? { ...entry, live: false, answer: chat.answer, error: chat.error, toolCalls: chat.toolCalls }
-          : entry,
-      ),
-      { id: nextId.current++, kind: "law", question, live: true, answer: "", error: "", toolCalls: [] },
-    ]);
-  }
-
-  function runCommand(question: string, command: BoardCommand): void {
-    if (command.kind === "read") {
-      pushBoard(question, command.lines, command.cards, "read");
-      return;
-    }
-    if (command.kind === "ask") {
-      pushBoard(question, command.lines, command.cards, "ask");
-      return;
-    }
-    if (command.kind === "selectDate") {
-      board.onSelectDate(command.date);
-      pushBoard(
-        question,
-        command.date === null
-          ? ["날짜 필터를 풀었습니다. 이번 주 카드를 모두 보여 줍니다."]
-          : [`${command.label} 만 보도록 보드를 맞췄습니다.`],
-        [],
-        "done",
-      );
-      return;
-    }
-    if (command.kind === "approve") {
-      board.onApprove(command.card.itemId);
-      pushBoard(question, [`「${command.card.title}」 초안을 승인하고 완료 열로 옮겼습니다.`], [command.card], "done");
-      return;
-    }
-    if (command.kind === "reject") {
-      board.onReject(command.card.itemId, command.reason);
-      pushBoard(
-        question,
-        [`「${command.card.title}」 초안을 기각했습니다.`, `사유: ${command.reason}`],
-        [command.card],
-        "done",
-      );
-      return;
-    }
-    board.onMove(command.card.itemId, command.to);
-    pushBoard(question, [`「${command.card.title}」 을 ${COLUMN_LABELS[command.to]} 열로 옮겼습니다.`], [command.card], "done");
-  }
+  }, [messages.length, revision]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const question = chat.question.trim();
-    if (question.length === 0 || chat.isSubmitting) return;
-
-    const command = interpretBoardCommand(question, { ...board.view, lastListed });
-    if (command === null) {
-      pushLaw(question);
-      void chat.submit(event);
-      return;
-    }
-
-    chat.setQuestion("");
-    runCommand(question, command);
+    const question = input.trim();
+    if (question.length === 0 || isBusy) return;
+    setInput("");
+    // 지금 화면의 보드를 함께 보낸다. 서버의 보드 도구가 볼 수 있는 보드는 이 스냅샷뿐이다.
+    void sendMessage({ text: question }, { body: { board: board.context } });
   }
 
-  function focusCard(itemId: string): void {
-    board.onFocusCard(itemId);
-    document.querySelector(`[data-item-id="${itemId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }
+  const waitingForFirstChunk = isBusy && messages.at(-1)?.role === "user";
 
   return (
     <aside
@@ -204,88 +180,77 @@ export function AssistantPanel({
         </button>
       </header>
 
-      <div className="board-assistant-body">
-        {entries.length === 0 ? <AssistantIntro onPick={chat.setQuestion} /> : null}
+      <div className="board-assistant-watch">
+        <ContextWatch watch={watch} />
+      </div>
 
-        {entries.map((entry) =>
-          entry.kind === "board" ? (
-            <section className="board-assistant-turn" key={entry.id}>
-              <article className="chat-message chat-message-user">
-                <p className="chat-message-label">내 질문</p>
-                <p>{entry.question}</p>
-              </article>
-              <article className={`chat-message chat-message-assistant board-assistant-reply is-${entry.tone}`}>
-                <p className="chat-message-label">
-                  {entry.tone === "done" ? "보드를 고쳤습니다" : entry.tone === "ask" ? "확인이 필요합니다" : "보드를 읽었습니다"}
-                </p>
-                {entry.lines.map((line, index) => (
-                  <p key={`${entry.id}-${index}`}>{line}</p>
-                ))}
-                {entry.cards.length > 0 ? (
-                  <div className="board-assistant-cardlinks">
-                    {entry.cards.map((card) => (
-                      <button key={card.itemId} onClick={() => focusCard(card.itemId)} type="button">
-                        {COLUMN_LABELS[card.status]} · {card.title}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            </section>
-          ) : (
-            <ChatTranscript
-              answer={entry.live ? chat.answer : entry.answer}
+      <div className="board-assistant-body">
+        {messages.length === 0 ? <AssistantIntro onPick={setInput} /> : null}
+
+        {messages.map((message, index) => {
+          if (message.role === "user") {
+            return (
+              <p className="board-assistant-question" key={message.id}>
+                {messageText(message)}
+              </p>
+            );
+          }
+          return (
+            <AssistantMessageView
               assistantLabel={ASSISTANT_LABEL}
-              error={entry.live ? chat.error : entry.error}
-              isSubmitting={entry.live ? chat.isSubmitting : false}
-              key={entry.id}
-              question={entry.question}
-              toolCalls={entry.live ? chat.toolCalls : entry.toolCalls}
+              isStreaming={index === messages.length - 1 && status === "streaming"}
+              key={message.id}
+              message={message}
             />
-          ),
+          );
+        })}
+
+        {waitingForFirstChunk ? (
+          <p className="board-assistant-step is-running">
+            <span className="board-assistant-shimmer">질문을 살펴보는 중…</span>
+          </p>
+        ) : null}
+
+        {error === undefined ? null : (
+          <p className="chat-error" role="alert">
+            {error.message}
+          </p>
         )}
       </div>
 
       <ChatAskBar
         className="board-assistant-ask"
-        disabled={chat.isSubmitting}
         inputId="board-assistant-question"
-        onChange={chat.setQuestion}
+        onChange={setInput}
         onSubmit={handleSubmit}
         placeholder="보드를 고치거나 법령을 물어보세요."
-        value={chat.question}
+        statusMessage={
+          error !== undefined
+            ? `오류: ${error.message}`
+            : status === "streaming"
+              ? "답변이 도착하는 중입니다."
+              : status === "submitted"
+                ? "질문을 보내고 답변을 기다리는 중입니다."
+                : ""
+        }
+        value={input}
       />
     </aside>
   );
 }
 
+/** 사용자 메시지에서 글만 뽑는다. */
+function messageText(message: UIMessage | undefined): string {
+  if (message === undefined) return "";
+  return message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+}
+
 /** 처음 열었을 때의 안내. 무엇을 시킬 수 있는지 예문으로 보여 준다. */
 function AssistantIntro({ onPick }: { onPick: (value: string) => void }): JSX.Element {
-  const boardSamples = [
-    "지금 보드 요약해줘",
-    "승인 대기 카드 보여줘",
-    "2번 승인해줘",
-    "T-03 카드 완료로 옮겨줘",
-    "1번 기각해줘 사유: 자재 사양 재확인 필요",
-  ];
-
   return (
     <div className="board-assistant-intro">
       <p className="board-assistant-intro-copy">
-        이 화면의 카드를 직접 읽고 고칩니다. 카드는 번호나 조건 코드, 제목의 일부로 가리킵니다.
-      </p>
-
-      <div className="board-assistant-samples">
-        {boardSamples.map((sample) => (
-          <button key={sample} onClick={() => onPick(sample)} type="button">
-            {sample}
-          </button>
-        ))}
-      </div>
-
-      <p className="board-assistant-scope">
-        보드 조작은 화면 안에서 규칙으로 처리합니다. 그 밖의 질문은 공식 법령 원문을 찾아 읽는
-        에이전트가 받고, 읽지 못한 내용은 단정하지 않습니다.
+        이 화면의 보드를 직접 읽고 고칩니다. 카드는 제목이나 조건 코드로 가리키면 됩니다.
       </p>
 
       <div className="board-assistant-prompts">

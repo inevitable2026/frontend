@@ -1,51 +1,230 @@
 // 화면이 보드 데이터를 얻는 유일한 진입점이다.
 //
-// 지금은 `./fixtures` 의 한 장면을 그대로 돌려주고 쓰기 함수는 아무 일도 하지 않는다.
-// 서버가 붙으면 **이 파일만** 고친다 — 아래 네 함수의 본문을 fetch 로 바꾸면 되고,
-// 컴포넌트 쪽에서는 import 한 줄도 달라지지 않는다.
+// 이 파일은 세 개의 GET 과 하나의 PATCH 만 안다. 응답을 화면 뷰모델로 옮겨 담는 일은
+// ./view-model.ts 가 하고, 화면 컴포넌트는 여기서 나온 BoardSnapshot 만 그린다. 그래서
+// 라우트가 바뀌면 고칠 자리가 이 파일 하나이고, 반대로 화면 규약이 바뀌면 view-model.ts
+// 하나만 본다.
+//
+// 실패했을 때 픽스처로 되돌아가는 길은 두지 않았다. 그렇게 하면 존재하지 않는 현장의 카드와
+// 지난 날짜의 브리핑이 오늘의 안전 상황인 것처럼 화면에 남고, 사용자는 진짜와 가짜를 구별할
+// 방법이 없다. 게다가 그 화면 위에서 승인하고 기각하면 화면은 "사유가 기록되었습니다" 라고
+// 말하지만 아무 데도 남지 않는다. 안전관리 콘솔에서 그것은 이행확인 기록의 위조와 같은
+// 자리에 있다. 그래서 실패는 감추지 않고 무엇이 잘못되었는지를 문장으로 올려 보낸다.
 
-import { BOARD_SNAPSHOT } from "./fixtures";
+import type { Briefing, WeekPage, WorkItem } from "@/lib/board/types";
+
+import { SITE_NAME_FALLBACK } from "./presentation";
 import type { ApproveIntent, BoardSnapshot, CardMoveIntent, RejectIntent } from "./types";
+import { toBoardSnapshot, type ContextDocument } from "./view-model";
+
+/* ------------------------------------------------------------------ *
+ * 오류
+ * ------------------------------------------------------------------ */
+
+/**
+ * 화면에 그대로 적을 수 있는 실패다.
+ *
+ * 상태 코드마다 원인이 전혀 다르므로 문구를 갈라 둔다. 503 은 board 스키마가 아직 적용되지
+ * 않은 것이고, 404 는 그 현장으로 적재된 데이터가 없다는 뜻이며, 500 과 네트워크 오류는
+ * 데이터베이스에 닿지 못한 것이다. 셋을 "불러오지 못했습니다" 한 문장으로 뭉뚱그리면
+ * 고칠 자리를 찾는 데 며칠이 걸린다.
+ */
+export class BoardRequestError extends Error {
+  readonly status: number | null;
+  /** 서버가 { error } 로 돌려준 원문. 화면이 자기 진단 문구로 덧붙인다. */
+  readonly detail: string | null;
+
+  constructor(message: string, status: number | null, detail: string | null) {
+    super(message);
+    this.name = "BoardRequestError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+function 읽기실패문구(무엇: string, status: number, detail: string | null): string {
+  const 꼬리 = detail ? ` 서버가 돌려준 문구는 "${detail}" 입니다.` : "";
+  if (status === 503) return `보드 스키마가 아직 적용되지 않았습니다.${꼬리}`;
+  if (status === 404) return `이 현장의 데이터가 아직 적재되지 않았습니다.${꼬리}`;
+  if (status === 400) return `${무엇} 요청이 올바르지 않습니다.${꼬리}`;
+  return `데이터베이스에 연결하지 못했습니다. ${무엇} 요청에 서버가 ${status} 로 답했습니다.${꼬리}`;
+}
+
+async function 본문오류(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { error?: unknown };
+    return typeof body?.error === "string" ? body.error : null;
+  } catch {
+    return null;
+  }
+}
+
+async function 읽기<T>(url: string, 무엇: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+  } catch {
+    throw new BoardRequestError(
+      `서버에 닿지 못했습니다. ${무엇} 요청이 네트워크에서 끊겼습니다.`,
+      null,
+      null,
+    );
+  }
+  if (!res.ok) {
+    const detail = await 본문오류(res);
+    throw new BoardRequestError(읽기실패문구(무엇, res.status, detail), res.status, detail);
+  }
+  return (await res.json()) as T;
+}
+
+/* ------------------------------------------------------------------ *
+ * 읽기
+ * ------------------------------------------------------------------ */
+
+type SitesResponse = { sites: Array<{ id: string; name: string }> };
+type DocumentsResponse = { documents: ContextDocument[] };
+
+/**
+ * 현장 이름과 문서 목록은 보드의 뼈대가 아니라 곁들이다.
+ *
+ * 문서함 라우트가 넘어져도 카드 열한 장과 브리핑은 그대로 읽을 수 있어야 하므로, 이 둘만
+ * 실패를 삼키고 빈 값으로 간다. 대신 지어내지는 않는다 — 현장 이름은 "현장" 으로 남고
+ * 새 문서 수는 0 이 되며, 그 0 은 "세지 못했다" 가 아니라 "창 안에 없다" 와 같은 자리에 선다.
+ */
+async function 곁들이<T>(url: string, 기본값: T): Promise<T> {
+  try {
+    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    if (!res.ok) return 기본값;
+    return (await res.json()) as T;
+  } catch {
+    return 기본값;
+  }
+}
 
 /**
  * 보드 한 장을 읽는다.
  *
- * 픽스처에는 2026-08-19 하루치만 들어 있으므로 두 인자는 아직 결과를 가르지 않는다.
- * 서버가 붙으면 그대로 질의 문자열이 된다.
+ * `date` 는 칸반이 그리는 날이고 `at` 은 브리핑이 거슬러 올라가는 기준 시각이다. 둘을 따로
+ * 받는 이유는 브리핑의 24시간 창이 시각 단위로 움직이기 때문이다.
  *
- * TODO(server): GET /api/board?siteId={siteId}&date={date}
+ * items 질의에는 date 를 붙이지 않는다. 날짜 거르기는 화면의 isOnDate 가 이미 하고 있고,
+ * 기한이 없는 승인 카드가 서버의 date 조건에 걸려 사라지면 칸반의 승인 열이 통째로 빈다.
+ *
+ * 세 요청은 함께 보내고 하나라도 실패하면 보드 전체를 실패로 그린다. 반쪽 보드는 무엇이
+ * 없는지 사용자가 알 수 없어 더 나쁘다.
  */
-export async function loadBoard(siteId: string, date: string): Promise<BoardSnapshot> {
-  void siteId;
-  void date;
-  // 호출한 쪽이 카드를 상태에 넣고 뒤섞어도 모듈 상수가 오염되지 않도록 배열은 새로 만든다.
-  return { ...BOARD_SNAPSHOT, cards: [...BOARD_SNAPSHOT.cards] };
+export async function loadBoard(siteId: string, date: string, at: string): Promise<BoardSnapshot> {
+  const q = encodeURIComponent(siteId);
+
+  const [items, week, briefing, sites, documents] = await Promise.all([
+    읽기<{ items: WorkItem[] }>(`/api/board/items?siteId=${q}`, "카드 목록"),
+    읽기<WeekPage>(`/api/board/week?siteId=${q}&from=${encodeURIComponent(date)}`, "주간 보드"),
+    읽기<{ briefing: Briefing }>(
+      `/api/board/briefing?siteId=${q}&at=${encodeURIComponent(at)}`,
+      "브리핑",
+    ),
+    곁들이<SitesResponse>("/api/context/sites", { sites: [] }),
+    곁들이<DocumentsResponse>(`/api/context/documents?siteId=${q}`, { documents: [] }),
+  ]);
+
+  const 현장 = sites.sites.find((site) => site.id === siteId);
+
+  return toBoardSnapshot({
+    siteId,
+    date,
+    siteName: 현장?.name ?? SITE_NAME_FALLBACK,
+    items: items.items,
+    week,
+    briefing: briefing.briefing,
+    documents: documents.documents,
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 쓰기
+ *
+ * 세 동작이 모두 같은 라우트로 간다. 서버가 무엇을 하는지는 본문이 정한다 —
+ * lib/board/transition.ts 가 status 와 confirmedBy 와 rejectReason 을 보고 이동인지
+ * 확정인지 기각인지를 가른다.
+ * ------------------------------------------------------------------ */
+
+type ItemBody = {
+  status: string;
+  laneOrder?: number;
+  confirmedBy?: string;
+  rejectReason?: string;
+  edits?: { path: string; before: string; after: string }[];
+};
+
+async function 고치기(itemId: string, body: ItemBody): Promise<WorkItem> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/board/items/${encodeURIComponent(itemId)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new BoardRequestError("서버에 닿지 못해 저장하지 못했습니다.", null, null);
+  }
+
+  if (!res.ok) {
+    // 여기의 문구는 그대로 aria-live 영역에 실린다. 409 blocked(선행 카드가 남았다)와
+    // 400 rejectReasonRequired(사유가 필요하다)는 사용자가 할 일이 서로 다르므로,
+    // "저장하지 못했습니다" 로 덮지 않고 서버가 쓴 문장을 그대로 보여 준다.
+    const detail = await 본문오류(res);
+    throw new BoardRequestError(detail ?? `저장하지 못했습니다. 서버가 ${res.status} 로 답했습니다.`, res.status, detail);
+  }
+
+  const body2 = (await res.json()) as { item: WorkItem };
+  return body2.item;
 }
 
 /**
- * 카드를 다른 열이나 다른 순서로 옮긴 것을 남긴다.
- * 화면은 상태를 먼저 바꾼 뒤에 이 함수를 부른다.
+ * 카드를 다른 열이나 다른 자리로 옮긴다.
  *
- * TODO(server): PATCH /api/board/cards/{intent.itemId}
+ * laneOrder 는 화면이 열 전체를 다시 매긴 값이 아니라 **놓일 자리의 앞뒤 카드 사이의
+ * 중간값**이다. PATCH 는 카드 한 장만 고치므로 열 전체를 다시 매겨 보내면 서버의 나머지
+ * 행이 옛 값을 그대로 들고 있어 다시 읽는 순간 순서가 어긋난다.
+ * board.work_items.lane_order 가 double precision 인 이유가 정확히 이것이다.
  */
-export async function moveCard(intent: CardMoveIntent): Promise<void> {
-  void intent;
+export async function moveCard(intent: CardMoveIntent, laneOrder: number | null): Promise<WorkItem> {
+  const body: ItemBody = { status: intent.to };
+  // 같은 열 안의 순서 변경도 status 를 실어 보낸다. planTransition 이 status 를 늘 요구하고,
+  // from 과 to 가 같고 확정자가 없으면 그쪽에서 reorder 로 읽는다.
+  if (laneOrder !== null) body.laneOrder = laneOrder;
+  return 고치기(intent.itemId, body);
 }
 
 /**
- * 초안을 승인한다. 초안 대비 수정분이 `intent.edits` 로 함께 올라간다.
+ * 초안을 승인한다.
  *
- * TODO(server): POST /api/board/cards/{intent.itemId}/approve
+ * confirmedBy 는 화면이 낙관적으로 적어 둔 확정자와 같은 값이어야 한다. 다른 값을 보내면
+ * 새로 고침한 뒤에 확정자 이름이 바뀐다. 초안 대비 수정분은 edits 로 함께 올라가고
+ * 서버가 board.work_item_events 에 'edited' 한 줄로 남긴다.
  */
-export async function approveCard(intent: ApproveIntent): Promise<void> {
-  void intent;
+export async function approveCard(
+  intent: ApproveIntent,
+  confirmedBy: string,
+  laneOrder: number | null,
+): Promise<WorkItem> {
+  const body: ItemBody = { status: "done", confirmedBy };
+  if (laneOrder !== null) body.laneOrder = laneOrder;
+  if (intent.edits.length > 0) body.edits = intent.edits;
+  return 고치기(intent.itemId, body);
 }
 
 /**
- * 초안을 기각한다. 사유가 비어 있는 요청은 화면에서 이미 막혀 여기까지 오지 않는다.
+ * 초안을 기각한다.
  *
- * TODO(server): POST /api/board/cards/{intent.itemId}/reject
+ * 서버는 기각을 카드 삭제로 처리하지 않는다. status 를 todo 로, origin 을 human 으로 바꾸고
+ * 초안을 남긴 뒤 사유를 이력에 적는다. 무엇을 기각했는지가 나중에 방어 근거가 되기 때문이다.
+ * 화면도 같은 자리로 카드를 옮겨야 새로 고침 전후의 그림이 같다.
+ *
+ * 사유가 빈 문자열이면 서버가 400 을 돌려주지만 RejectDialog 가 앞에서 막고 있다.
  */
-export async function rejectCard(intent: RejectIntent): Promise<void> {
-  void intent;
+export async function rejectCard(intent: RejectIntent, laneOrder: number | null): Promise<WorkItem> {
+  const body: ItemBody = { status: "todo", rejectReason: intent.reason };
+  if (laneOrder !== null) body.laneOrder = laneOrder;
+  return 고치기(intent.itemId, body);
 }
