@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DocumentViewer } from "@/components/document-viewer";
+import { MailAttachmentViewer } from "@/components/mail-attachment-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import { formatExtractedField, hasExtractedDisplayValue } from "@/lib/context/extracted-display";
-import type { MailThread } from "@/lib/context/mail-threads";
+import type { MailAttachment, MailThread } from "@/lib/context/mail-threads";
 import { consumeIngestStream, createIngestJob } from "@/lib/context/stream-terminal";
 import {
   DOCUMENT_KINDS,
@@ -117,6 +118,11 @@ export function SiteContextPanel() {
   const [mailThreads, setMailThreads] = useState<MailThread[]>([]);
   const [openedThread, setOpenedThread] = useState<string | null>(null);
   const [demoRetryFile, setDemoRetryFile] = useState<File | null>(null);
+  // 첨부를 누르면 띄울 미리보기. 어느 현장의 메일이었는지를 창 머리에 적어야 해서
+  // 첨부와 현장명을 함께 들고 있는다.
+  const [openedAttachment, setOpenedAttachment] = useState<
+    { attachment: MailAttachment; siteName: string } | null
+  >(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -544,7 +550,24 @@ export function SiteContextPanel() {
                                 <ul className="mail-attachments">
                                   {m.첨부.map((a) => (
                                     <li key={a.id}>
-                                      <span className="mail-file">{a.이름}</span>
+                                      {/* 문서함에 적재된 첨부는 원본이 있으므로 문서 뷰어로,
+                                          아직 없는 첨부는 목업 미리보기로 연다. */}
+                                      <button
+                                        type="button"
+                                        className="mail-file"
+                                        onClick={() => {
+                                          if (a.documentId) {
+                                            setOpenedDocument(a.documentId);
+                                            return;
+                                          }
+                                          setOpenedAttachment({
+                                            attachment: a,
+                                            siteName: thread.siteName,
+                                          });
+                                        }}
+                                      >
+                                        {a.이름}
+                                      </button>
                                       <span className="mail-file-meta">
                                         {a.쪽수}쪽 · {a.종류}
                                       </span>
@@ -662,6 +685,15 @@ export function SiteContextPanel() {
           key={openedDocument}
           documentId={openedDocument}
           onClose={() => setOpenedDocument(null)}
+        />
+      ) : null}
+
+      {openedAttachment ? (
+        <MailAttachmentViewer
+          key={openedAttachment.attachment.id}
+          attachment={openedAttachment.attachment}
+          siteName={openedAttachment.siteName}
+          onClose={() => setOpenedAttachment(null)}
         />
       ) : null}
     </div>
