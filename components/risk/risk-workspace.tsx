@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { 카드로 } from "@/components/task-board/adapt";
 import type { RiskRowDraft, WorkItem } from "@/lib/board/types";
 
 /**
@@ -10,6 +11,11 @@ import type { RiskRowDraft, WorkItem } from "@/lib/board/types";
  * 보드는 입구, 여기는 작업장이다. 감지·카드 생성은 보드가 하고, 여기서는 **읽고·고치고·
  * 승인**한다. 승인은 카드 전체가 아니라 **행 단위**여야 "3행만 재검토" 가 가능하다.
  *
+ * 시각 언어는 보드 것을 쓴다(`board-card`·`board-draft-*`·`board-button-*`). 다만
+ * 구조는 여기가 더 깊다 — 보드의 `DraftPreview` 는 `{label, value}` 평면인데 엔진의
+ * `RiskRowDraft` 는 위험도·대책·조문·근거를 따로 들고 있다. 그 깊이를 평면으로 눌러
+ * 담으면 정보가 사라지므로, 클래스만 빌리고 구조는 유지한다.
+ *
  * 위험도는 초안이 들고 온 값을 그대로 보인다. 화면에서 빈도 x 강도를 곱하지 않는 이유는
  * 매트릭스마다 "높음" 기준이 달라(4x3 은 9 이상, 5x4 는 15 이상) 곱셈만으로는 등급이
  * 어긋나기 때문이다.
@@ -17,7 +23,8 @@ import type { RiskRowDraft, WorkItem } from "@/lib/board/types";
 
 function 등급클래스(level: string): string {
   if (level.includes("높") || level.toLowerCase().includes("high")) return "is-high";
-  if (level.includes("중") || level.includes("보통") || level.toLowerCase().includes("mid")) return "is-mid";
+  if (level.includes("중") || level.includes("보통") || level.toLowerCase().includes("mid"))
+    return "is-mid";
   return "is-low";
 }
 
@@ -33,6 +40,15 @@ function 위험도(r: RiskRowDraft["risk"]) {
   );
 }
 
+/** 행의 색띠. 보드 카드가 급한 것을 색으로 말하는 것과 같은 규칙이다. */
+function 행색띠(row: RiskRowDraft, 잠김: boolean): string {
+  if (잠김) return "is-ok";
+  const 등급 = 등급클래스(row.risk.level);
+  if (등급 === "is-high") return "is-alert";
+  if (등급 === "is-mid") return "is-due";
+  return "is-routine";
+}
+
 export default function RiskWorkspace({
   item,
   현장이름,
@@ -46,14 +62,17 @@ export default function RiskWorkspace({
   승인: (rowId: string) => void;
 }) {
   const [승인된행, set승인된행] = useState<Set<string>>(new Set());
+  const [보류행, set보류행] = useState<Set<string>>(new Set());
 
+  const card = 카드로(item);
   const draft = item.draft;
   const rows: RiskRowDraft[] = draft?.form === "회의록" ? draft.rows : [];
 
   function 행승인(rowId: string) {
-    set승인된행((prev) => {
+    set승인된행((prev) => new Set(prev).add(rowId));
+    set보류행((prev) => {
       const next = new Set(prev);
-      next.add(rowId);
+      next.delete(rowId);
       return next;
     });
     승인(rowId);
@@ -75,20 +94,20 @@ export default function RiskWorkspace({
       </header>
 
       {/* 왜 이 평가가 열렸는지. 규칙이 만든 문구를 그대로 보인다. */}
-      {item.trigger ? (
-        <p className="risk-ws-why">
-          <strong>{item.trigger.ruleId}</strong> {item.trigger.condition}
-          {item.trigger.requiresHumanConfirmation ? (
+      {card.rationale === null ? null : (
+        <p className="board-card-why risk-ws-why">
+          <b>{card.rationale.label}</b> · {card.rationale.text}
+          {item.trigger?.requiresHumanConfirmation ? (
             <em> · 기계 판단만으로 확정할 수 없어 사람 확인이 필요합니다.</em>
           ) : null}
         </p>
-      ) : null}
+      )}
 
-      {item.invalidates.length > 0 ? (
+      {card.invalidates.length > 0 ? (
         <ul className="risk-ws-invalidates">
-          {item.invalidates.map((inv) => (
-            <li key={`${inv.docId}-${inv.scope}`}>
-              <b>{inv.docId}</b> {inv.scope} — {inv.reason}
+          {card.invalidates.map((inv) => (
+            <li key={`${inv.docId}-${inv.scope ?? "all"}`}>
+              <b>{inv.docId}</b> {inv.scope ?? "전체"} — {inv.reason}
             </li>
           ))}
         </ul>
@@ -100,22 +119,28 @@ export default function RiskWorkspace({
         </p>
       ) : (
         <ol className="risk-rows">
-          {rows.map((row) => {
+          {rows.map((row, i) => {
             const 잠김 = 승인된행.has(row.itemId);
+            const 보류 = 보류행.has(row.itemId);
+
             return (
-              <li className={`risk-row${잠김 ? " is-done" : ""}`} key={row.itemId}>
-                <div className="risk-row-main">
-                  <span className="risk-row-no">{row.itemId.slice(-2)}</span>
-                  <div className="risk-row-text">
-                    <p className="risk-row-step">
-                      {row.process}
-                      {row.hazardClass ? <em> · {row.hazardClass}</em> : null}
-                    </p>
-                    <p className="risk-row-hazard">{row.hazard}</p>
-                    {row.currentControl ? (
-                      <p className="risk-row-current">현재 대책: {row.currentControl}</p>
-                    ) : null}
-                  </div>
+              <li
+                className={`board-card risk-row ${행색띠(row, 잠김)}${보류 ? " is-held" : ""}`}
+                key={row.itemId}
+              >
+                <div className="board-card-top">
+                  <span className="board-card-kind is-doc">{row.hazardClass || "위험요인"}</span>
+                  <span className="risk-row-no">{String(i + 1).padStart(2, "0")}</span>
+                </div>
+
+                <div className="board-card-title">{row.hazard}</div>
+                <div className="board-card-note">{row.process}</div>
+
+                <div className="board-draft-row">
+                  <span className="board-draft-label">현재 대책</span>
+                  <span className="board-draft-value">
+                    {row.currentControl || "없음 — 이번에 새로 정합니다."}
+                  </span>
                 </div>
 
                 <div className="risk-row-scores">
@@ -123,69 +148,94 @@ export default function RiskWorkspace({
                     <span>개선 전</span>
                     {위험도(row.risk)}
                   </label>
+                  <span className="risk-row-arrow" aria-hidden="true">
+                    →
+                  </span>
                   <label>
                     <span>개선 후</span>
                     {위험도(row.residualRisk)}
                   </label>
                 </div>
 
-                <ul className="risk-controls">
-                  {row.measures.map((m) => (
-                    <li key={m.measureId}>
+                {row.measures.map((m) => (
+                  <div className="board-draft-row" key={m.measureId}>
+                    <span className="board-draft-label">대책</span>
+                    <span className="board-draft-value">
                       {m.text}
                       <small>
                         {m.owner} · {m.dueDate} · {m.status}
                       </small>
-                    </li>
+                    </span>
+                  </div>
+                ))}
+
+                <div className="board-card-meta">
+                  {row.legalReferences.map((ref) => (
+                    // `citable` 이 false 면 원문을 확인하지 못한 후보다. 인용할 수 없다는
+                    // 것을 화면이 말해야 한다 — 확인 안 된 조문을 근거처럼 보이면 안 된다.
+                    <span
+                      key={ref.ref}
+                      className={`board-tag${ref.citable ? " is-doc" : ""}${ref.citable ? "" : " risk-uncited"}`}
+                      title={ref.note || (ref.citable ? "원문 확인됨" : "원문 미확인 — 인용 불가")}
+                    >
+                      {ref.ref}
+                      {ref.citable ? null : " · 미확인"}
+                    </span>
                   ))}
-                </ul>
+                  {row.derivedFrom.contextDocRefs.map((docRef) => (
+                    <span className="board-tag" key={docRef}>
+                      {docRef}
+                    </span>
+                  ))}
+                </div>
 
-                {row.legalReferences.length > 0 ? (
-                  <ul className="risk-clauses">
-                    {row.legalReferences.map((ref) => (
-                      // `citable` 이 false 면 원문을 확인하지 못한 후보다. 인용할 수 없다는
-                      // 것을 화면이 말해야 한다 — 확인 안 된 조문을 근거처럼 보이면 안 된다.
-                      <li
-                        key={ref.ref}
-                        className={ref.citable ? "" : "is-uncited"}
-                        title={ref.note || (ref.citable ? "원문 확인됨" : "원문 미확인 — 인용 불가")}
-                      >
-                        {ref.ref}
-                        {ref.citable ? null : <span aria-label="인용 불가"> · 미확인</span>}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {/* 근거. 지금은 문서 id 까지. 좌표 하이라이트는 파싱 좌표를 저장한 뒤에 붙는다. */}
-                {row.derivedFrom.contextDocRefs.length > 0 ? (
-                  <ul className="risk-evidence">
-                    {row.derivedFrom.contextDocRefs.map((docRef) => (
-                      <li key={docRef}>{docRef}</li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                <div className="risk-row-check">
+                <div className="board-card-actions">
                   <button
                     type="button"
-                    className="risk-approve"
+                    className="board-button-approve"
                     disabled={잠김}
                     onClick={() => 행승인(row.itemId)}
                   >
                     {잠김 ? "승인됨 · 잠김" : "이 행 승인"}
                   </button>
-                  {잠김 && item.produces.length > 0 ? (
-                    <span className="risk-derives">
-                      파생: {item.produces.map((p) => p.form).join(" · ")}
-                    </span>
-                  ) : null}
+                  {잠김 ? null : (
+                    <button
+                      type="button"
+                      className="board-button-reject"
+                      onClick={() =>
+                        set보류행((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(row.itemId)) next.delete(row.itemId);
+                          else next.add(row.itemId);
+                          return next;
+                        })
+                      }
+                    >
+                      {보류 ? "보류 해제" : "보류"}
+                    </button>
+                  )}
                 </div>
+
+                {잠김 && item.produces.length > 0 ? (
+                  <div className="board-card-foot">
+                    <span className="board-tag is-ok">
+                      파생 {item.produces.map((p) => p.form).join(" · ")}
+                    </span>
+                  </div>
+                ) : null}
               </li>
             );
           })}
         </ol>
       )}
+
+      {/* 아직 서버에 안 남는다는 것을 숨기지 않는다. 새로고침하면 사라진다. */}
+      {승인된행.size > 0 ? (
+        <p className="risk-ws-notice">
+          승인이 아직 <b>이 화면에만</b> 남습니다. 새로고침하면 사라집니다 — 행 단위 승인을
+          저장할 자리가 아직 없습니다.
+        </p>
+      ) : null}
     </div>
   );
 }
