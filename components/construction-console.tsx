@@ -4,6 +4,8 @@ import Image from "next/image";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
+import { useLatestPin } from "./chat/use-latest-pin";
+import { askBarStatus } from "@/components/chat/status";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
 import { useLawChat } from "@/components/chat/use-law-chat";
@@ -24,6 +26,7 @@ const navigation: readonly { label: string; icon: string; badge?: number }[] = [
 ];
 
 const NAV_BOARD = 0;
+const NAV_CHAT = 1;
 const NAV_SITE_CONTEXT = 2;
 
 const appAssets = [
@@ -66,6 +69,13 @@ export function ConstructionConsole() {
   const uploadInput = useRef<HTMLInputElement>(null);
   // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
   const chat = useLawChat();
+  // 답이 길어질 때 화면을 따라 내리는 규칙. 사용자가 위로 올라가 있으면 끌어내리지 않는다.
+  const pin = useLatestPin({
+    enabled: activeNav === NAV_CHAT && chat.lastQuestion.length > 0,
+    hasResponseContent:
+      chat.toolCalls.length > 0 || chat.answer.length > 0 || chat.error.length > 0,
+    revision: `${chat.toolCalls.length}:${chat.answer.length}:${chat.error.length}`,
+  });
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -288,9 +298,38 @@ export function ConstructionConsole() {
             isSubmitting={chat.isSubmitting}
             question={chat.lastQuestion}
             toolCalls={chat.toolCalls}
+            anchorRef={pin.anchorRef}
           />}
 
-          <ChatAskBar chat={chat} inputId="question" />
+          <div className="composer-dock">
+            <div className="new-content-live">
+              {pin.isAwayFromLatest ? (
+                <button
+                  className={`new-content-pill${pin.hasUnseenContent ? " is-new" : ""}`}
+                  onClick={pin.scrollToLatest}
+                  type="button"
+                >
+                  <span className="new-content-touch-target" aria-hidden="true" />
+                  {pin.hasUnseenContent ? <span className="new-content-dot" aria-hidden="true" /> : null}
+                  <span>{pin.hasUnseenContent ? "새 내용이 도착했어요" : "맨 아래로 이동"}</span>
+                  <span className="new-content-arrow" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            <span className="sr-only" aria-live="polite" aria-atomic="true">
+              {pin.hasUnseenContent ? "새 내용이 도착했습니다. 새 내용으로 이동 버튼을 이용할 수 있습니다." : ""}
+            </span>
+
+            <ChatAskBar
+              disabled={chat.isSubmitting}
+              formRef={pin.composerRef}
+              inputId="question"
+              onChange={chat.setQuestion}
+              onSubmit={chat.submit}
+              statusMessage={askBarStatus(chat)}
+              value={chat.question}
+            />
+          </div>
         </div>
         )}
       </section>

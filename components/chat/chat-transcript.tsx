@@ -1,6 +1,6 @@
 "use client";
 
-import type { JSX } from "react";
+import type { JSX, RefObject } from "react";
 
 import { JsonViewer } from "@/components/json-viewer";
 import { MarkdownContent } from "@/components/markdown-content";
@@ -22,6 +22,7 @@ export function ChatTranscript({
   error,
   isSubmitting,
   assistantLabel,
+  anchorRef,
 }: {
   question: string;
   toolCalls: ToolCall[];
@@ -29,6 +30,8 @@ export function ChatTranscript({
   error: string;
   isSubmitting: boolean;
   assistantLabel: string;
+  /** 대화의 맨 끝 표식. 이것이 보이는지로 화면이 최신을 따라갈지 정한다. */
+  anchorRef?: RefObject<HTMLDivElement | null>;
 }): JSX.Element {
   return (
     <section className="chat-area" aria-label="대화 결과">
@@ -70,6 +73,9 @@ export function ChatTranscript({
         {answer ? <MarkdownContent content={answer} sources={citationSources(toolCalls)} /> : isSubmitting ? <p className="assistant-pending">답변을 준비하고 있습니다…</p> : null}
         {error ? <p className="chat-error" role="alert">{error}</p> : null}
       </article>
+      {anchorRef === undefined ? null : (
+        <div className="chat-latest-anchor" ref={anchorRef} aria-hidden="true" />
+      )}
     </section>
   );
 }

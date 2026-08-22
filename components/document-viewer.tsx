@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 
 import type { DocumentKind, ExtractedFields } from "@/lib/context/types";
 
@@ -113,7 +114,11 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
       )
     : [];
 
-  return (
+  // .workspace 가 z-index 로 쌓임 맥락을 만들기 때문에, 그 안에 두면 아무리 높은
+  // z-index 를 줘도 사이드바 아래에 깔린다. body 에 직접 붙여 그 맥락을 벗어난다.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="docview-backdrop" onMouseDown={handleBackdropClick}>
       <div
         ref={dialogRef}
@@ -208,6 +213,7 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
