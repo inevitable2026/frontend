@@ -6883,14 +6883,50 @@ button {
 
 .risk-chip button:hover { background: var(--border-soft); }
 
-/* `.risk-chips` 가 grid 라 목록이 그 트랙 안에서 눌린다. 목록 항목은 한 줄이어야 한다 —
-   실제로 "무한궤도식 크레인" 이 글자마다 줄바꿈돼 세로로 깨졌다. */
-.risk-picker-list li { display: block; }
+/*
+ * 자동완성 목록은 `.risk-chips` 안에 있지만 **칩이 아니다.**
+ *
+ * main 이 선택된 칩을 `.risk-chips li` · `.risk-chips li button` 으로 꾸미는데, 그건
+ * 자손 선택자라 이 드롭다운의 `li`·`button` 에도 그대로 걸린다. 그 결과 목록 항목이
+ * 지름 22px 짜리 **원**이 되어 "가스"·"갈탄" 이 첫 글자만 남고 잘렸다 — 목록이
+ * 한글 자모만 늘어선 것처럼 보였다.
+ *
+ * 그래서 `.risk-chips` 를 앞에 붙여 특정도를 올린다(0,1,2 대 0,2,2). main 의 칩
+ * 모양은 건드리지 않으면서 목록만 되찾는 가장 좁은 수정이다.
+ *
+ * `white-space: nowrap` 은 그 전부터 필요했다. `.risk-chips` 가 grid 라 목록이 트랙
+ * 안에서 눌리면서 "무한궤도식 크레인" 이 글자마다 줄바꿈돼 세로로 깨졌었다.
+ */
+.risk-chips .risk-picker-list {
+  display: block;
+  width: auto;
+}
 
-.risk-picker-list button {
+.risk-chips .risk-picker-list li {
+  display: block;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.risk-chips .risk-picker-list li button {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.risk-chips .risk-picker-list li button:hover {
+  background: var(--sidebar-surface);
 }
 
 .risk-picker-list {

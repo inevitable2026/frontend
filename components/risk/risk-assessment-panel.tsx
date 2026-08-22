@@ -11,6 +11,7 @@ import VocabPicker from "@/components/risk/vocab-picker";
 import RiskTable from "@/components/risk/risk-table";
 import RiskDocPanel from "@/components/risk/risk-doc-panel";
 import { BOARD_SITE_ID, BOARD_SITE_NAME } from "@/lib/board/site";
+import { 합치기 } from "@/lib/risk/vocab";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
 import type { 평가일자 } from "@/lib/risk/safegrid";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
@@ -225,6 +226,33 @@ export function RiskAssessmentPanel() {
     };
   }, []);
 
+  /**
+   * 빈 종이에서 시작한다.
+   *
+   * 예전에는 「새 평가 만들기」가 화면만 바꿨다. 그래서 앞 평가에서 올린 문서로 쌓인
+   * 공종·장비·자재가 그대로 남았고, 문서를 올릴수록 합집합이 계속 불어나
+   * 장비 14·자재 16 처럼 **아무도 고르지 않은 것들이 골라진 채로** 생성이 돌았다.
+   *
+   * 열어 둔 미리보기 URL 도 여기서 회수한다. 안 그러면 새 평가를 시작할 때마다 샌다.
+   */
+  function 새평가시작() {
+    미리보기들.current.forEach((u) => URL.revokeObjectURL(u));
+    미리보기들.current = [];
+
+    set공종([]);
+    set장비([]);
+    set자재([]);
+    set사진단서([]);
+    set패널들([]);
+    set대화([]);
+    set문서근거([]);
+    set현장("");
+    setAssessment(null);
+    마지막저장본.current = null;
+    set오류(null);
+    set화면("새평가");
+  }
+
   /** 저장된 평가서를 연다. 새로 만드는 것이 아니라 SAFEGRID 에서 읽어 온다. */
   async function 기록열기(id: string) {
     set오류(null);
@@ -301,9 +329,9 @@ export function RiskAssessmentPanel() {
             ),
           );
           // 뽑아낸 값을 입력에 합친다. 사용자가 지운 것을 되살리지 않도록 합집합만 만든다.
-          set공종((v) => Array.from(new Set([...v, ...((r.work_types as string[]) ?? [])])));
-          set장비((v) => Array.from(new Set([...v, ...((r.equipment as string[]) ?? [])])));
-          set자재((v) => Array.from(new Set([...v, ...((r.materials as string[]) ?? [])])));
+          set공종((v) => 합치기(v, (r.work_types as string[]) ?? []));
+          set장비((v) => 합치기(v, (r.equipment as string[]) ?? []));
+          set자재((v) => 합치기(v, (r.materials as string[]) ?? []));
           if (r.site) set현장((v) => v || String(r.site));
           // 근거를 버리지 않는다 — 나중에 "이 표가 어느 문서에서 나왔나" 에 답할 유일한 수단이다.
           set문서근거((v) => [
@@ -397,8 +425,8 @@ export function RiskAssessmentPanel() {
           ].filter((f) => f.값),
         },
       ]);
-      set공종((v) => Array.from(new Set([...v, ...((r.work_types as string[]) ?? [])])));
-      set장비((v) => Array.from(new Set([...v, ...((r.equipment as string[]) ?? [])])));
+      set공종((v) => 합치기(v, (r.work_types as string[]) ?? []));
+      set장비((v) => 합치기(v, (r.equipment as string[]) ?? []));
     } catch (err) {
       const 소요 = performance.now() - 시작;
       set패널들((p) =>
@@ -570,7 +598,7 @@ export function RiskAssessmentPanel() {
               행 단위로 승인하면 TBM 자료와 공문이 파생됩니다.
             </p>
           </div>
-          <button type="button" className="risk-generate" onClick={() => set화면("새평가")}>
+          <button type="button" className="risk-generate" onClick={새평가시작}>
             새 평가 만들기
           </button>
         </header>
