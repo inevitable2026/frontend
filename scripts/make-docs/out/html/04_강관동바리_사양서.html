@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>강관동바리 사양서 (첨부)</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">서진-사양-2026-0818-03-A2</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)서진건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사 &nbsp;|&nbsp; 자재코드 MAT_PIPE_SHORE</div>
+<h1>강관동바리 사양서 (첨부)</h1>
+
+<table class="doc-meta"><tr><th>문서번호</th><td>서진-사양-2026-0818-03-A2</td><th>작성일자</th><td>2026-08-18</td></tr>
+<tr><th>현    장</th><td>김포 고촌 물류센터 신축공사</td><th>대상 공정</th><td>4층 슬래브 거푸집 및 동바리 (task_4f_slab)</td></tr>
+<tr><th>적용 범위</th><td>4F A~C열 약 1,850㎡ · 최대 층고 8.2m</td><th>자재 코드</th><td>MAT_PIPE_SHORE</td></tr>
+<tr><th>작 성 자</th><td>(주)서진건설 권상열</td><th>반입 목표일</th><td>2026-08-24</td></tr></table>
+
+<h2>1. 적용 자재 내역</h2>
+<table class="grid "><colgroup><col style="width:6%"><col style="width:24%"><col style="width:26%"><col style="width:8%"><col style="width:12%"><col style="width:24%"></colgroup><thead><tr><th>연번</th><th>품명</th><th>규격</th><th>단위</th><th>수량</th><th>비고</th></tr></thead><tbody><tr><td class="c">1</td><td class="">강관동바리 수직재</td><td class="">φ48.6 × 3.2t × L=3,600</td><td class="c">본</td><td class="r">1,240</td><td class="">4단 조립용</td></tr>
+<tr><td class="c">2</td><td class="">강관동바리 수직재</td><td class="">φ48.6 × 3.2t × L=2,400</td><td class="c">본</td><td class="r">620</td><td class="">높이 조절 구간</td></tr>
+<tr><td class="c">3</td><td class="">조절형 받침(U-Head)</td><td class="">조절범위 200mm</td><td class="c">EA</td><td class="r">1,860</td><td class="">상·하부</td></tr>
+<tr><td class="c">4</td><td class="">베이스 플레이트</td><td class="">150 × 150 × 6t</td><td class="c">EA</td><td class="r">1,860</td><td class=""></td></tr>
+<tr><td class="c">5</td><td class="">수평연결재</td><td class="">φ48.6 × 2.4t × L=1,800</td><td class="c">본</td><td class="r">2,480</td><td class="">2단마다 설치</td></tr>
+<tr><td class="c">6</td><td class="">가새(대각재)</td><td class="">φ48.6 × 2.4t × L=2,540</td><td class="c">본</td><td class="r">930</td><td class="">외곽 및 경계부</td></tr>
+<tr><td class="c">7</td><td class="">클램프(직각)</td><td class="">φ48.6용</td><td class="c">EA</td><td class="r">4,960</td><td class=""></td></tr>
+<tr><td class="c">8</td><td class="">클램프(자재)</td><td class="">φ48.6용</td><td class="c">EA</td><td class="r">1,860</td><td class=""></td></tr>
+<tr><td class="c">9</td><td class="">멍에재 (각재)</td><td class="">90 × 90 × 3,600</td><td class="c">본</td><td class="r">780</td><td class=""></td></tr>
+<tr><td class="c">10</td><td class="">장선재 (각재)</td><td class="">60 × 60 × 3,600</td><td class="c">본</td><td class="r">1,560</td><td class=""></td></tr>
+<tr><td class="c">11</td><td class="">합판 거푸집</td><td class="">1,200 × 2,400 × 12t</td><td class="c">매</td><td class="r">660</td><td class="">유로폼 대체</td></tr></tbody></table>
+<div class="legend">수량은 A~C열 1,850㎡ 기준 산출값이며 반입 시 실측으로 조정한다. 단가와 금액은 별첨 견적서에 따른다.</div>
+
+<h2>2. 공법 대비</h2>
+<table class="grid "><colgroup><col style="width:22%"><col style="width:39%"><col style="width:39%"></colgroup><thead><tr><th>구분</th><th>변경 구간 (강관동바리)</th><th>기존 구간 (시스템동바리)</th></tr></thead><tbody><tr><td class="c">적용 구간</td><td class="">4F A~C열 약 1,850㎡ (층고 8.2m)</td><td class="">4F D열 이후 (층고 6.0m 이하)</td></tr>
+<tr><td class="c">공법</td><td class="">강관동바리 (본 사양서)</td><td class="">시스템동바리 (기존 유지)</td></tr>
+<tr><td class="c">수직재 규격</td><td class="">φ48.6 × 3.2t</td><td class="">φ60.5 × 2.3t</td></tr>
+<tr><td class="c">조립 단수</td><td class="">4단</td><td class="">3단</td></tr>
+<tr><td class="c">수평연결재 간격</td><td class="">2단마다 (1.8m)</td><td class="">1.8m 등간격</td></tr>
+<tr><td class="c">수직도 관리 기준</td><td class="">1/200 이내</td><td class="">1/200 이내</td></tr>
+<tr><td class="c">경계부 처리</td><td class=""><b>미정.</b> 별도 검토 필요</td><td class="">해당 없음</td></tr>
+<tr><td class="c">구조 검토서</td><td class=""><b>미제출</b></td><td class="">임대사 제공분 보유</td></tr></tbody></table>
+
+<h2>3. 조립 기준</h2>
+<table class="grid "><colgroup><col style="width:26%"><col style="width:24%"><col style="width:34%"><col style="width:16%"></colgroup><thead><tr><th>항목</th><th>기준값</th><th>확인 방법</th><th>확인</th></tr></thead><tbody><tr><td class="c">수직재 이음</td><td class="c">동일 규격 · 4개 이상 볼트 체결</td><td class="">육안 및 조립도 대조</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">수직도</td><td class="c">1/200 이내</td><td class="">다림추 측정</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">수평연결재</td><td class="c">2단마다 양방향 설치</td><td class="">육안 전수</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">가새</td><td class="c">외곽 및 5m 이내 간격</td><td class="">육안 전수</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">받침 편심</td><td class="c">±10mm 이내</td><td class="">실측</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">지반 지지력</td><td class="c">설계 하중 이상</td><td class="">하부 슬래브 강도 확인서</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">경계부(시스템↔강관)</td><td class="c"><b>기준 미정</b></td><td class="">구조 검토서 수령 후 확정</td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+
+<div class="note">
+<b>미확정 항목</b> — 시스템동바리와 강관동바리가 만나는 경계 구간의 하중 전달 기준은 본 사양서에
+포함되어 있지 않다. 구조 검토서 수령 후 별도 확정한다.
+</div>
+
+<h2>4. 반입 및 검수 일정</h2>
+<table class="grid "><colgroup><col style="width:22%"><col style="width:16%"><col style="width:22%"><col style="width:40%"></colgroup><thead><tr><th>단계</th><th>예정일</th><th>담당</th><th>확인 서명</th></tr></thead><tbody><tr><td class="c">구조 검토서 제출</td><td class="c"><span class="blank"></span></td><td class="c">(주)서진건설</td><td class="c"><span class="blank" style="min-width:40mm"></span></td></tr>
+<tr><td class="c">자재 반입</td><td class="c">2026-08-24</td><td class="c">(주)서진건설</td><td class="c"><span class="blank" style="min-width:40mm"></span></td></tr>
+<tr><td class="c">반입 검수</td><td class="c">2026-08-24</td><td class="c">(주)한신종합건설 공무</td><td class="c"><span class="blank" style="min-width:40mm"></span></td></tr>
+<tr><td class="c">조립 착수</td><td class="c">2026-08-25</td><td class="c">(주)서진건설</td><td class="c"><span class="blank" style="min-width:40mm"></span></td></tr>
+<tr><td class="c">조립 완료 합동점검</td><td class="c">2026-08-28</td><td class="c">(주)한신종합건설 안전</td><td class="c"><span class="blank" style="min-width:40mm"></span></td></tr></tbody></table>
+
+<h3>검토 · 확인</h3><table class="sign-table"><tr><th>(주)서진건설 작성</th><th>(주)서진건설 작업반장</th><th>(주)한신종합건설 공무팀장</th><th>(주)한신종합건설 안전관리자</th></tr><tr><td class="sign-cell"><span class="who">권상열</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">이재훈</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">정태식</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 서진-사양-2026-0818-03-A2
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

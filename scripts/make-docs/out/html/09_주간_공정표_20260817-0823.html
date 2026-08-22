@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>주간 공정표</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-SCH-2026W34</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)한신종합건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사 &nbsp;|&nbsp; 2026년 34주차</div>
+<h1>주간 공정표</h1>
+
+<table class="doc-meta"><tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>문서번호</th><td>GGC-01-SCH-2026W34</td></tr>
+<tr><th>대상 주간</th><td>2026-08-17(월) ~ 2026-08-23(일)</td><th>작성일</th><td>2026-08-16</td></tr>
+<tr><th>현재 공정</th><td>골조공사 (지상 3층 ~ 4층)</td><th>공정 지연</th><td><b>4일</b></td></tr>
+<tr><th>작 성 자</th><td colspan="3">(주)한신종합건설 공무팀 정태식</td></tr></table>
+
+<h2>1. 주간 공정 막대표</h2>
+<table class="grid "><colgroup><col style="width:12%"><col style="width:19%"><col style="width:7%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:4.6%"><col style="width:4.6%"><col style="width:4.6%"><col style="width:4.6%"><col style="width:4.6%"><col style="width:4.6%"><col style="width:4.6%"><col style="width:9.8%"></colgroup><thead><tr><th>작업 코드</th><th>작업명</th><th>공종</th><th>업체</th><th>시작</th><th>종료</th><th>17월</th><th>18화</th><th>19수</th><th>20목</th><th>21금</th><th>22토</th><th>23일</th><th>비고</th></tr></thead><tbody><tr class="hi"><td class="c">task_backfill_e</td><td class="">지하 외벽 되메움작업 (E구역)</td><td class="c">토공사</td><td class="c">원청 직영</td><td class="c">08-17</td><td class="c">08-18</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="">강우 민감 · 함수비 확인 후 착수</td></tr>
+<tr class="hi"><td class="c">task_slope_n</td><td class="">북측 법면 정리 및 배수로 설치</td><td class="c">토공사</td><td class="c">원청 직영</td><td class="c">08-17</td><td class="c">08-19</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="">강우 민감 · 법면 상부 통행 금지</td></tr>
+<tr><td class="c">task_3f_wall</td><td class="">3층 벽체 콘크리트 타설 (B~D열)</td><td class="c">골조공사</td><td class="c">서진건설</td><td class="c">08-19</td><td class="c">08-22</td><td class="c">·</td><td class="c">·</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class="">8/17 연장 타설 1회 선행</td></tr>
+<tr><td class="c">task_3f_form_out</td><td class="">3층 벽체 거푸집 해체 및 반출</td><td class="c">골조공사</td><td class="c">서진건설</td><td class="c">08-18</td><td class="c">08-21</td><td class="c">·</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class="c">·</td><td class=""></td></tr>
+<tr class="hi"><td class="c">task_4f_slab</td><td class="">4층 슬래브 거푸집 및 동바리</td><td class="c">골조공사</td><td class="c">서진건설</td><td class="c">08-24</td><td class="c">09-06</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">○</td><td class=""><b>착수 예정.</b> 자재 반입 8/24 · 동바리 자재 미확정</td></tr>
+<tr><td class="c">task_scaffold_4f</td><td class="">4층 외부 시스템비계 설치</td><td class="c">가설공사</td><td class="c">한빛가설</td><td class="c">08-20</td><td class="c">08-29</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class=""></td></tr>
+<tr><td class="c">task_lifting</td><td class="">타워크레인 자재 양중 (상시)</td><td class="c">양중작업</td><td class="c">중앙양중</td><td class="c">03-09</td><td class="c">27-06-30</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class="">순간풍속 10m/s 초과 시 중지</td></tr>
+<tr><td class="c">task_temp_power</td><td class="">가설전기 배선 이설 (3~4층)</td><td class="c">전기공사</td><td class="c">경인전기</td><td class="c">08-21</td><td class="c">08-25</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">·</td><td class="c">●</td><td class="c">●</td><td class="c">·</td><td class=""></td></tr></tbody></table>
+<div class="legend">● 작업 · ○ 착수 예정 · · 미해당. 시작·종료 일자는 2026년 기준 MM-DD 이며 연도가 다르면 YY-MM-DD 로 적는다.
+음영 행은 기상 조건 또는 자재 변경에 직접 영향을 받는 공정이다.</div>
+
+<h2>2. 강우 민감 공종</h2>
+<p>아래 공종은 선행 강우량에 따라 착수 여부를 당일 아침에 판단한다.</p>
+<table class="grid "><colgroup><col style="width:16%"><col style="width:28%"><col style="width:34%"><col style="width:12%"><col style="width:10%"></colgroup><thead><tr><th>작업 코드</th><th>작업명</th><th>판단 기준</th><th>판단 시각</th><th>판단</th></tr></thead><tbody><tr><td class="c">task_backfill_e</td><td class="">지하 외벽 되메움작업 (E구역)</td><td class="">직전 48시간 누적 강우량 30mm 초과 시 다짐 중지 · 함수비 확인</td><td class="c">작업 착수 전</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">task_slope_n</td><td class="">북측 법면 정리 및 배수로 설치</td><td class="">직전 48시간 누적 강우량 30mm 초과 시 법면 상부 진입 금지</td><td class="c">작업 착수 전</td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+
+<h2>3. 자재 반입 예정</h2>
+<table class="grid "><colgroup><col style="width:14%"><col style="width:24%"><col style="width:16%"><col style="width:18%"><col style="width:14%"><col style="width:14%"></colgroup><thead><tr><th>반입 예정일</th><th>자재</th><th>자재 코드</th><th>적용 작업</th><th>공급</th><th>확정 여부</th></tr></thead><tbody><tr><td class="c">2026-08-24</td><td class="">슬래브 동바리 자재</td><td class="c">MAT_SYS_SHORE</td><td class="c">task_4f_slab</td><td class="c">대일가설</td><td class="c"><b>협의 중</b></td></tr>
+<tr><td class="c">2026-08-20</td><td class="">시스템비계 부재</td><td class="c">MAT_SYS_SCAF</td><td class="c">task_scaffold_4f</td><td class="c">한빛가설</td><td class="c">확정</td></tr>
+<tr><td class="c">2026-08-21</td><td class="">가설전선 및 분전반</td><td class="c">MAT_TEMP_ELEC</td><td class="c">task_temp_power</td><td class="c">경인전기</td><td class="c">확정</td></tr></tbody></table>
+<div class="legend">task_4f_slab 의 동바리 자재는 8월 18일자 협의 공문(서진-공무-2026-0818-03)에 따라 변경이 검토 중이다. 반입 목표일은 8월 24일로 동일하다.</div>
+
+<h2>4. 익주 예정</h2>
+<ul class="tight">
+  <li>2026-08-24 : 4층 슬래브 동바리 자재 반입 및 검수</li>
+  <li>2026-08-25 : 4층 슬래브 동바리 조립 착수</li>
+  <li>2026-08-28 : 동바리 조립 완료 합동 점검</li>
+  <li>2026-09-01 : 4층 슬래브 콘크리트 타설 (예정)</li>
+</ul>
+
+<h3>작성 · 확인</h3><table class="sign-table"><tr><th>(주)한신종합건설 작성</th><th>(주)한신종합건설 안전관리자</th><th>(주)한신종합건설 현장소장</th></tr><tr><td class="sign-cell"><span class="who">정태식</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-SCH-2026W34
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>현장 기상 관측 기록부</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-WX-202608-3</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)한신종합건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사</div>
+<h1>현장 기상 관측 기록부</h1>
+
+<table class="doc-meta"><tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>문서번호</th><td>GGC-01-WX-202608-3</td></tr>
+<tr><th>관측 지점</th><td>현장 사무동 옥상 간이 기상대 (지상 12m)</td><th>관측 주기</th><td>일 3회 (08:10 · 13:00 · 17:00)</td></tr>
+<tr><th>기록 기간</th><td>2026-08-13 ~ 2026-08-19</td><th>작 성 자</th><td>(주)한신종합건설 최민서</td></tr></table>
+
+<h2>1. 일별 관측 기록</h2>
+<table class="grid "><colgroup><col style="width:12%"><col style="width:6%"><col style="width:12%"><col style="width:13%"><col style="width:14%"><col style="width:13%"><col style="width:14%"><col style="width:16%"></colgroup><thead><tr><th>일자</th><th>요일</th><th>날씨</th><th>일 강우량(mm)</th><th>최고/최저(℃)</th><th>평균 풍속(m/s)</th><th>작업 판단</th><th>비고</th></tr></thead><tbody><tr><td class="c">2026-08-13</td><td class="c">목</td><td class="c">맑음</td><td class="c">0.0</td><td class="c">31.4 / 24.1</td><td class="c">2.1</td><td class="c">정상</td><td class=""></td></tr>
+<tr><td class="c">2026-08-14</td><td class="c">금</td><td class="c">구름많음</td><td class="c">0.0</td><td class="c">30.8 / 23.6</td><td class="c">2.8</td><td class="c">정상</td><td class=""></td></tr>
+<tr class="hi"><td class="c">2026-08-15</td><td class="c">토</td><td class="c">비</td><td class="c">18.5</td><td class="c">26.2 / 22.4</td><td class="c">4.6</td><td class="c"><b>토공 중지</b></td><td class="">오후 강우 집중</td></tr>
+<tr class="hi"><td class="c">2026-08-16</td><td class="c">일</td><td class="c">비</td><td class="c">22.5</td><td class="c">25.1 / 22.0</td><td class="c">5.2</td><td class="c">휴무</td><td class="">야간 강우 지속</td></tr>
+<tr class="hi"><td class="c">2026-08-17</td><td class="c">월</td><td class="c">흐림</td><td class="c">0.0</td><td class="c">28.4 / 23.2</td><td class="c">3.1</td><td class="c">판단 필요</td><td class="">08:10 관측 · 강우 종료</td></tr>
+<tr><td class="c">2026-08-18</td><td class="c">화</td><td class="c">구름많음</td><td class="c">0.0</td><td class="c">29.6 / 23.8</td><td class="c">2.4</td><td class="c">정상</td><td class=""></td></tr>
+<tr><td class="c">2026-08-19</td><td class="c">수</td><td class="c">맑음</td><td class="c">0.0</td><td class="c">31.0 / 24.0</td><td class="c">2.0</td><td class="c">정상</td><td class=""></td></tr></tbody></table>
+
+<h2>2. 누적 강우량 산출</h2>
+<table class="grid "><colgroup><col style="width:34%"><col style="width:18%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup><thead><tr><th>산출 구간</th><th>누적 강우량</th><th>임계치</th><th>초과 여부</th><th>적용 공종</th></tr></thead><tbody><tr><td class="">2026-08-15 00:00 ~ 2026-08-17 08:10 (주말 누적)</td><td class="c"><b>41.0 mm</b></td><td class="c">30.0 mm</td><td class="c"><b>초과</b></td><td class="c">토공사</td></tr>
+<tr><td class="">2026-08-17 08:10 이전 24시간</td><td class="c">22.5 mm</td><td class="c">30.0 mm</td><td class="c">미초과</td><td class="c">토공사</td></tr>
+<tr><td class="">2026-08-01 ~ 2026-08-19 (월 누적)</td><td class="c">78.5 mm</td><td class="c">-</td><td class="c">-</td><td class="c">-</td></tr></tbody></table>
+
+<h2>3. 강우 민감 공종 착수 판단 (2026-08-17 08:10)</h2>
+<table class="grid "><colgroup><col style="width:16%"><col style="width:26%"><col style="width:10%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup><thead><tr><th>작업 코드</th><th>작업명</th><th>당일 예정</th><th>누적 강우 초과</th><th>판단</th><th>확인자</th><th>판단 시각</th></tr></thead><tbody><tr><td class="c">task_backfill_e</td><td class="">지하 외벽 되메움작업 (E구역)</td><td class="c">예정</td><td class="c"><b>초과</b></td><td class="c"><span class="blank sm"></span></td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td></tr>
+<tr><td class="c">task_slope_n</td><td class="">북측 법면 정리 및 배수로 설치</td><td class="c">예정</td><td class="c"><b>초과</b></td><td class="c"><span class="blank sm"></span></td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td></tr></tbody></table>
+<div class="note">
+판단란이 비어 있다. 주말 누적 41mm 가 임계치를 넘었고 두 공종 모두 당일 예정공정에 올라 있으므로,
+8월 회의록에 등재된 두 행(연번 1 되메움작업 · 연번 2 법면 정리)의 대책이 강우 이후에도 유효한지를
+작업 착수 전에 확인해야 한다.
+</div>
+
+<h3>관측 · 확인</h3><table class="sign-table"><tr><th>(주)한신종합건설 관측</th><th>(주)한신종합건설 안전관리자</th><th>(주)대양토공 반장</th></tr><tr><td class="sign-cell"><span class="who">최민서</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">배주형</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-WX-202608-3
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

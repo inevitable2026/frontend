@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>아 차 사 고 보 고 서</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-NM-2026-0819-01 · doc_9_r4m1sbke</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)한신종합건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사</div>
+<h1>아 차 사 고 보 고 서</h1>
+
+<table class="doc-meta"><tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>보고번호</th><td>GGC-01-NM-2026-0819-01</td></tr>
+<tr><th>발생 일시</th><td>2026-08-19(수) 10:35</td><th>보고 일시</th><td>2026-08-19(수) 11:20</td></tr>
+<tr><th>발생 장소</th><td>3층 슬래브 상부 C열 8~10 구간 (압송관 배관 경로)</td><th>사고 분류</th><td>부딪힘 · 맞음</td></tr>
+<tr><th>단위작업</th><td>콘크리트 압송</td><th>관련 업체</th><td>(주)서진건설</td></tr>
+<tr><th>보 고 자</th><td>(주)서진건설 형틀목공 최우진</td><th>접 수 자</th><td>(주)한신종합건설 안전관리자 박정우</td></tr>
+<tr><th>인적 피해</th><td>없음 (아차사고)</td><th>물적 피해</th><td>없음</td></tr></table>
+
+<h2>1. 발생 경위</h2>
+<p>3층 슬래브 상부에서 콘크리트 압송 작업 중 압송관이 폐색되어 배관 해체 후 폐색을 해소하였다.
+해소 직후 잔압으로 압송관 끝단이 약 1.5m 요동하였고, 이때 인접 구간으로 자재를 옮기던
+근로자 1명이 압송관 경로를 그대로 통과하던 중 약 40cm 거리에서 비껴갔다. 신체 접촉은 없었다.</p>
+<p>압송관 인근 통행 금지 구획(안전방책 및 표지)은 <b>설치되어 있지 않았다.</b>
+해당 구간은 3층 자재 야적장과 계단실을 잇는 최단 경로여서 상시 통행이 있었다.</p>
+
+<h2>2. 원인 분석</h2>
+<table class="grid "><colgroup><col style="width:18%"><col style="width:56%"><col style="width:26%"></colgroup><thead><tr><th>구분</th><th>내용</th><th>관련 등재 행</th></tr></thead><tbody><tr><td class="c">직접 원인</td><td class="">폐색 해소 시 관 내 잔압이 남은 상태에서 배관을 분리하였다.</td><td class="">8월 회의록 연번 8</td></tr>
+<tr><td class="c">간접 원인</td><td class="">압송관 인근 통행 금지 구획이 설치되지 않아 통행이 계속되었다.</td><td class="">8월 회의록 연번 8</td></tr>
+<tr><td class="c">관리적 원인</td><td class="">감소대책의 이행확인란에 확인 표시가 되어 있었으나 실제로는 실행되지 않았다.</td><td class="">8월 회의록 연번 8</td></tr></tbody></table>
+
+<h2>3. 등재 행 대조</h2>
+<table class="grid "><colgroup><col style="width:22%"><col style="width:39%"><col style="width:39%"></colgroup><thead><tr><th>구분</th><th>회의록 등재 내용</th><th>현장 실제</th></tr></thead><tbody><tr class="hi"><td class="c">위험요인</td><td class="">압송관 폐색 해소 중 압송관 요동으로 인근 통행자 충돌</td><td class="">동일한 상황이 실제로 발생하였다.</td></tr>
+<tr class="hi"><td class="c">감소대책</td><td class=""><ul class="tight" style="font-size:7.6pt"><li>압송관 인근 통행 금지 구획 설치</li><li>폐색 해소 시 관 내 압력 해제 확인</li><li>신호 체계 사전 합의</li></ul></td><td class="">통행 금지 구획 <b>미설치</b> · 잔압 해제 확인 <b>미실시</b> · 신호 체계는 합의되어 있었음</td></tr>
+<tr class="hi"><td class="c">이행확인란</td><td class=""><b>확인 표시(✔) 되어 있음</b></td><td class=""><b>실제 미실행.</b> 표시와 실제가 어긋난다.</td></tr>
+<tr><td class="c">개선 전 위험도</td><td class="">3×4=<b>12</b></td><td class=""><span class="blank" style="min-width:30mm"></span></td></tr></tbody></table>
+<div class="note">
+<b>심각도 상향 사유</b> — 감소대책이 이행된 것으로 표시되어 있었으나 실제로는 실행되지 않았다.
+이행확인란의 표시 자체를 신뢰할 수 없으므로 같은 관리기간의 다른 행도 함께 확인해야 한다.
+</div>
+
+<h2>4. 재발방지 대책 (안)</h2>
+<table class="grid "><colgroup><col style="width:6%"><col style="width:40%"><col style="width:12%"><col style="width:14%"><col style="width:14%"><col style="width:14%"></colgroup><thead><tr><th>연번</th><th>대책</th><th>유형</th><th>담당</th><th>기한</th><th>확인</th></tr></thead><tbody><tr><td class="c">1</td><td class="">압송관 경로 전 구간에 통행 금지 방책과 표지를 설치하고 우회 통로를 지정한다.</td><td class="c">공학적</td><td class="c">(주)서진건설</td><td class="c">2026-08-20</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">2</td><td class="">압송 작업 시 신호수 1명을 전담 배치한다.</td><td class="c">관리적</td><td class="c">(주)서진건설</td><td class="c">2026-08-20</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">3</td><td class="">폐색 해소 전 잔압 해제 확인 절차를 작업 절차서에 명시한다.</td><td class="c">관리적</td><td class="c">(주)서진건설</td><td class="c">2026-08-21</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">4</td><td class="">본 아차사고를 전 공종 TBM 에 전파한다.</td><td class="c">교육</td><td class="c">(주)한신종합건설</td><td class="c">2026-08-20 TBM</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">5</td><td class="">8월 회의록의 이행확인 표시 행 전체를 현장에서 재확인한다.</td><td class="c">관리적</td><td class="c">(주)한신종합건설</td><td class="c">2026-08-21</td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+
+<h2>5. 전파 계획</h2>
+<table class="grid "><colgroup><col style="width:26%"><col style="width:34%"><col style="width:20%"><col style="width:20%"></colgroup><thead><tr><th>대상</th><th>전파 방법</th><th>일시</th><th>전파 확인</th></tr></thead><tbody><tr><td class="c">골조 A · B조</td><td class="">TBM 구두 전파 및 자료 배포</td><td class="c">2026-08-20 06:40</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">가설 · 비계</td><td class="">TBM 구두 전파 및 자료 배포</td><td class="c">2026-08-20 06:40</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">양중</td><td class="">TBM 구두 전파 및 자료 배포</td><td class="c">2026-08-20 06:40</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">통역 필요 인원 4명</td><td class="">번역 자료 및 통역 전달</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+
+<h3>보고 · 확인</h3><table class="sign-table"><tr><th>(주)서진건설 보고자</th><th>(주)서진건설 작업반장</th><th>(주)한신종합건설 안전관리자</th><th>(주)한신종합건설 현장소장</th></tr><tr><td class="sign-cell"><span class="who">최우진</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">이재훈</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-NM-2026-0819-01 · doc_9_r4m1sbke
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

@@ -1,6 +1,7 @@
 import { chunkElements } from "@/lib/context/chunk";
 import { db } from "@/lib/context/db";
 import { recommendSite } from "@/lib/context/site-match";
+import { runStudioParse } from "@/lib/context/studio";
 import type {
   DocumentKind,
   ExtractedFields,
@@ -10,7 +11,7 @@ import type {
   StageName,
 } from "@/lib/context/types";
 import { STAGE_ORDER } from "@/lib/context/types";
-import { embedPassages, extractFields, parseDocument, upstageCallCount } from "@/lib/context/upstage-doc";
+import { embedPassages, extractFields, upstageCallCount } from "@/lib/context/upstage-doc";
 
 export const TOTAL_BUDGET_MS = 55_000;
 
@@ -82,11 +83,14 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
 
     const parsed = yield* stage(
       "레이아웃분석",
-      () => parseDocument(input.bytes, input.filename, input.mime, { limitMs: STAGE_LIMITS.레이아웃분석, deadline }),
+      () => runStudioParse(input.kind, input.bytes, input.filename, input.mime, deadline),
       (result) => ({
+        agent: result.agent.name,
+        agentId: result.agent.id,
+        역할: result.agent.role,
         요소수: result.elements.length,
         페이지수: result.pageCount,
-        model: result.model,
+        model: "upstage-studio/document-parse",
         요소: result.elements.map((e) => ({ id: e.id, page: e.page, category: e.category, coordinates: e.coordinates })),
       }),
     );
@@ -95,6 +99,7 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
       "표·서명인식",
       async () => parsed.elements.filter((e) => (e.category || "").toLowerCase() === "table"),
       (tables) => ({
+        agent: parsed.agent.name,
         표수: tables.length,
         미리보기: tables.slice(0, 2).map((t) => t.content.html?.slice(0, 800) ?? ""),
       }),

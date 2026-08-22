@@ -1,0 +1,2116 @@
+{
+  "설명": "김포 고촌 물류센터 현장 스냅샷 사실입니다. 회사·인물·문서는 모두 허구이며 docs/scenario-gimpo-logistics.md 의 이름과 수치를 그대로 씁니다. 감지 규칙 여덟 개가 모두 발화할 수 있도록 각 트리거의 이전 값과 새 값을 쌍으로 담았습니다.",
+  "siteId": "site_gimpo_gochon_01",
+  "키규칙": "같은 (factType, key) 의 앞뒤 두 항목이 곧 델타의 before · after 다. 회의록 행은 '문서id#행id', TBM 항목은 '회의록군#항목id', 자재는 'taskId.자재역할' 로 적는다.",
+  "쌍": {
+    "T-01": "weatherObservation gimpo_gochon#누적강우량 (0mm → 41mm) + scheduleActiveTasks task_backfill_b1 (예정 → 진행)",
+    "T-02": "tbmMinutesFeedback tbm_pour#fb_1 (접수 → 미조치) + tbmMinutesPreWorkCheck tbm_pour#pre_3 (done:false → done:false)",
+    "T-03": "snapshotMaterials task_4f_slab.shoring (MAT_SYS_SHORE → MAT_PIPE_SHORE) + documentExtraction doc_2_k3f9x1qm (citable:false → true)",
+    "T-04": "externalReviewComment rev_gamri#ra_regular (지적 0행 → 19행, replyDueBy 생김)",
+    "T-05": "nearMissReport nm_20260818_01 (접수 → 회의록 대조 완료) + riskAssessmentRow #RI-04 (이행확인 true → 불일치)",
+    "T-06": "officialNotice notice_20260818_molab (접수 → 추출완료, visitDate 생김) + documentApprovalState ra_2026_08_regular (작성중 → 결재대기)",
+    "T-07": "riskRecommendation ra_2026_08_regular#전체 (OK → DEGRADED, 플래그 0행 → 21행)",
+    "T-08": "attendanceRoster 신규30일 (7명 → 11명) + tbmMinutesAttendees tbm_frame#참석자 (누락 없음 → 2명 누락)"
+  },
+  "total": 86,
+  "facts": [
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "ra_2026_06_regular",
+      "value": {
+        "문서": "6월 정기 위험성평가 회의록",
+        "상태": "결재완료",
+        "완료일": "2026-06-04",
+        "제출가능": true
+      },
+      "observedAt": "2026-06-04T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "ra_2026_07_regular",
+      "value": {
+        "문서": "7월 정기 위험성평가 회의록",
+        "상태": "결재완료",
+        "완료일": "2026-07-03",
+        "제출가능": true
+      },
+      "observedAt": "2026-07-03T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "nearMissReport",
+      "key": "nm_20260731_02",
+      "value": {
+        "보고자": "sub_hanbit_kim",
+        "발생일시": "2026-07-31T10:05:00+09:00",
+        "장소": "2F 단부",
+        "위험요인": "안전난간 미설치 구간 접근",
+        "사고분류": "떨어짐",
+        "단위작업": "안전난간 설치",
+        "상태": "조치완료",
+        "매칭행": "ra_2026_07_regular#RI-08"
+      },
+      "observedAt": "2026-07-31T14:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "externalReviewComment",
+      "key": "rev_gamri#ra_regular",
+      "value": {
+        "검토주체": "감리단",
+        "회차": "2026-08-05",
+        "대상문서": "ra_2026_07_regular",
+        "지적유형": [],
+        "지적대상행": [],
+        "replyDueBy": null,
+        "결과": "이상 없음"
+      },
+      "observedAt": "2026-08-05T15:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "edu_20260805_new",
+      "value": {
+        "문서": "신규 입장자 안전보건교육일지",
+        "상태": "결재완료",
+        "제출가능": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-01",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-01",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "4층 슬래브 동바리 설치",
+        "위험요인": "층고 8.2m 구간에서 동바리 좌굴에 의한 붕괴",
+        "사고분류": "붕괴·도괴",
+        "대책": [
+          "설치 상세도에 따라 조립하고 설치 후 원청이 검측합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-02",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-02",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "철근 배근",
+        "위험요인": "배근된 철근 단부에 찔리거나 걸려 넘어짐",
+        "사고분류": "부딪힘",
+        "대책": [
+          "단부 캡을 씌우고 통행 동선을 별도로 확보합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 2,
+          "위험도": 6
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 2,
+          "위험도": 4
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-03",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-03",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "콘크리트 펌프카 설치",
+        "위험요인": "아웃트리거 하부 지반 침하로 장비가 전도",
+        "사고분류": "무너짐",
+        "대책": [
+          "아웃트리거 하부에 받침판을 깔고 설치 후 수평을 확인합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-04",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-04",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "압송관 인근 통행",
+        "위험요인": "압송관 진동과 이음부 탈락으로 인한 맞음",
+        "사고분류": "맞음",
+        "대책": [
+          "타설 중 압송관 하부 통행을 금지하고 우회 통로를 지정합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 3,
+          "위험도": 9
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-05",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-05",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "슬래브 개구부 주변 작업",
+        "위험요인": "개구부 덮개 미고정 상태에서 떨어짐",
+        "사고분류": "떨어짐",
+        "대책": [
+          "덮개를 구조체에 고정하고 개구부 표기를 부착합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "sub_seojin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-06",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-06",
+        "공종분류": "가설·비계",
+        "단위작업": "비계 설치 및 해체",
+        "위험요인": "안전대 미체결 상태로 이동 중 떨어짐",
+        "사고분류": "떨어짐",
+        "대책": [
+          "수직 구명줄을 선행 설치하고 이동 구간에서 체결을 유지합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "담당사": "sub_hanbit",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-07",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-07",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "콘크리트 타설 및 다짐",
+        "위험요인": "타설 하중이 집중되어 거푸집 동바리가 붕괴",
+        "사고분류": "무너짐",
+        "대책": [
+          "타설 순서를 분할하고 타설 중 동바리 상태를 감시합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 4,
+          "강도": 3,
+          "위험도": 12
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-08",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-08",
+        "공종분류": "가설·비계",
+        "단위작업": "안전난간 설치",
+        "위험요인": "슬래브 단부 안전난간 미설치 구간에서 떨어짐",
+        "사고분류": "떨어짐",
+        "대책": [
+          "단부 발생 즉시 안전난간을 설치하고 해체는 작업 종료 후에 합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "담당사": "sub_hanbit",
+        "이행확인담당": "sub_hanbit",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-09",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-09",
+        "공종분류": "양중",
+        "단위작업": "타워크레인 자재 인양",
+        "위험요인": "인양물 결속 불량으로 낙하하여 맞음",
+        "사고분류": "맞음",
+        "대책": [
+          "인양 전 결속 상태를 확인하고 인양 구간 하부 출입을 통제합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "개선후": {
+          "빈도": 1,
+          "강도": 4,
+          "위험도": 4
+        },
+        "담당사": "sub_jungang",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-10",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-10",
+        "공종분류": "양중",
+        "단위작업": "인양 구간 신호수 배치",
+        "위험요인": "신호 불일치로 인양물과 구조물 사이에 끼임",
+        "사고분류": "끼임",
+        "대책": [
+          "전담 신호수를 배치하고 무전 채널을 단일화합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 3,
+          "위험도": 9
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "담당사": "sub_jungang",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-11",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-11",
+        "공종분류": "토공",
+        "단위작업": "되메움작업",
+        "위험요인": "강우 후 지반이 연약해져 법면이 무너지고 다짐 장비가 전도",
+        "사고분류": "무너짐",
+        "대책": [
+          "층별 다짐 두께를 지키고 법면 상부 하중 적재를 금지합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "개선후": {
+          "빈도": 1,
+          "강도": 3,
+          "위험도": 3
+        },
+        "담당사": "sub_daeyang",
+        "이행확인담당": "co_hanshin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-12",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-12",
+        "공종분류": "토공",
+        "단위작업": "법면 정리",
+        "위험요인": "법면 상부 통행 중 미끄러져 떨어짐",
+        "사고분류": "떨어짐",
+        "대책": [
+          "법면 상부에 통행 금지 표시를 하고 우회로를 지정합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "개선후": {
+          "빈도": 1,
+          "강도": 3,
+          "위험도": 3
+        },
+        "담당사": "sub_daeyang",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-13",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-13",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "야간 콘크리트 타설",
+        "위험요인": "조도 부족으로 자재에 걸려 넘어짐",
+        "사고분류": "넘어짐",
+        "대책": [
+          "작업 구간에 이동식 조명을 배치하고 작업 전 조도를 확인합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 작업면 조도"
+        ],
+        "개선전": {
+          "빈도": 3,
+          "강도": 2,
+          "위험도": 6
+        },
+        "개선후": null,
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-14",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-14",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "거푸집 해체",
+        "위험요인": "해체재가 하부로 낙하하여 맞음",
+        "사고분류": "맞음",
+        "대책": [
+          "해체 구간 하부를 통제하고 해체재를 즉시 결속하여 반출합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 거푸집 해체 시 준수사항"
+        ],
+        "개선전": {
+          "빈도": 3,
+          "강도": 3,
+          "위험도": 9
+        },
+        "개선후": null,
+        "담당사": "sub_seojin",
+        "이행확인담당": "sub_seojin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-15",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-15",
+        "공종분류": "가설·비계",
+        "단위작업": "자재 인양구 개구부 관리",
+        "위험요인": "인양구 덮개 미설치 구간에서 떨어짐",
+        "사고분류": "떨어짐",
+        "대책": [
+          "인양 종료 즉시 덮개를 복구하고 관리자가 확인합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 개구부 등의 방호조치"
+        ],
+        "개선전": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "개선후": null,
+        "담당사": "sub_hanbit",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-16",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-16",
+        "공종분류": "가설·비계",
+        "단위작업": "가설 통로 설치",
+        "위험요인": "통로 폭 부족과 자재 적치로 넘어짐",
+        "사고분류": "넘어짐",
+        "대책": [
+          "통로 유효폭을 확보하고 통로상 자재 적치를 금지합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 가설통로의 구조"
+        ],
+        "개선전": {
+          "빈도": 2,
+          "강도": 2,
+          "위험도": 4
+        },
+        "개선후": null,
+        "담당사": "sub_hanbit",
+        "이행확인담당": "sub_hanbit",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-17",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-17",
+        "공종분류": "전기",
+        "단위작업": "가설 분전반 관리",
+        "위험요인": "누전차단기 미작동 상태에서 감전",
+        "사고분류": "감전",
+        "대책": [
+          "분전반별 누전차단기 작동을 매일 점검하고 기록합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 누전차단기에 의한 감전방지"
+        ],
+        "개선전": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "개선후": null,
+        "담당사": "sub_kyungin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-18",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-18",
+        "공종분류": "전기",
+        "단위작업": "용접·용단 작업",
+        "위험요인": "용접 불티가 가연물에 착화하여 화재",
+        "사고분류": "화재·폭발",
+        "대책": [
+          "불티 비산 방지포를 설치하고 화기감시자를 배치합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 화기작업 시 준수사항"
+        ],
+        "개선전": {
+          "빈도": 2,
+          "강도": 4,
+          "위험도": 8
+        },
+        "개선후": null,
+        "담당사": "sub_kyungin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-19",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-19",
+        "공종분류": "설비",
+        "단위작업": "배관 자재 운반",
+        "위험요인": "중량물 인력 취급으로 인한 근골격계 부담",
+        "사고분류": "근골격계질환",
+        "대책": [
+          "2인 1조 운반을 원칙으로 하고 운반 보조구를 지급합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 중량물 취급 시 조치"
+        ],
+        "개선전": {
+          "빈도": 3,
+          "강도": 2,
+          "위험도": 6
+        },
+        "개선후": null,
+        "담당사": "sub_woori",
+        "이행확인담당": "co_hanshin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-20",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-20",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "사다리 이용 고소작업",
+        "위험요인": "사다리 전도로 떨어짐",
+        "사고분류": "떨어짐",
+        "대책": [
+          "사다리 대신 작업발판을 우선 사용하고 부득이한 경우 보조자를 배치합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 이동식 사다리"
+        ],
+        "개선전": {
+          "빈도": 3,
+          "강도": 3,
+          "위험도": 9
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": true
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-21",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-21",
+        "공종분류": "공통",
+        "단위작업": "혹서기 옥외작업",
+        "위험요인": "고온 환경 장시간 작업으로 온열질환",
+        "사고분류": "질병",
+        "대책": [
+          "휴게 시설을 운영하고 폭염 특보 시 옥외작업을 중지합니다."
+        ],
+        "법적근거": [
+          "산업안전보건기준에 관한 규칙 — 온도·습도에 의한 건강장해 예방"
+        ],
+        "개선전": {
+          "빈도": 3,
+          "강도": 3,
+          "위험도": 9
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "담당사": "co_hanshin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": null
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#RI-01",
+      "value": {
+        "단위작업": "4층 슬래브 동바리 설치",
+        "현재": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "추천": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "위험성점수": 12,
+        "이격": 0,
+        "reviewRequired": false,
+        "originState": "OK",
+        "confidence": "medium"
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#RI-07",
+      "value": {
+        "단위작업": "콘크리트 타설 및 다짐",
+        "현재": {
+          "빈도": 4,
+          "강도": 3,
+          "위험도": 12
+        },
+        "추천": {
+          "빈도": 4,
+          "강도": 3,
+          "위험도": 12
+        },
+        "위험성점수": 12,
+        "이격": 0,
+        "reviewRequired": false,
+        "originState": "OK",
+        "confidence": "medium"
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#RI-11",
+      "value": {
+        "단위작업": "되메움작업",
+        "현재": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "추천": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "위험성점수": 6,
+        "이격": 0,
+        "reviewRequired": false,
+        "originState": "OK",
+        "confidence": "medium"
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#전체",
+      "value": {
+        "대상행수": 21,
+        "플래그행수": 0,
+        "reviewRequired": false,
+        "originState": "OK",
+        "confidence": "medium",
+        "임계치": 4,
+        "자동반영": false
+      },
+      "observedAt": "2026-08-05T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "attendanceRoster",
+      "key": "2026-08-14",
+      "value": {
+        "일자": "2026-08-14",
+        "총원": 120,
+        "신규": [
+          {
+            "personId": "w_0814_a",
+            "팀": "골조",
+            "소속": "sub_seojin",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0814_b",
+            "팀": "가설",
+            "소속": "sub_hanbit",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          }
+        ],
+        "신규수": 2,
+        "통역필요수": 0
+      },
+      "observedAt": "2026-08-14T07:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "attendanceRoster",
+      "key": "신규30일",
+      "value": {
+        "기준일": "2026-08-14",
+        "직전30일무출역": 7,
+        "통역필요": 2,
+        "팀별": {
+          "골조": 4,
+          "가설": 2,
+          "양중": 1
+        }
+      },
+      "observedAt": "2026-08-14T07:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "nearmiss_ledger_2026q3",
+      "value": {
+        "문서": "아차사고 대장 (2026년 3분기)",
+        "상태": "작성중",
+        "제출가능": false,
+        "미결건수": 1
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "ra_2026_08_regular",
+      "value": {
+        "문서": "8월 정기 위험성평가 회의록",
+        "상태": "작성중",
+        "상신예정": "2026-09-02",
+        "결재선": [
+          "user_choi",
+          "user_park",
+          "현장소장"
+        ]
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_07_regular#전제",
+      "value": {
+        "회의록": "ra_2026_07_regular",
+        "type": "정기",
+        "completedAt": "2026-07-03",
+        "coveredTasks": [
+          "task_3f_wall",
+          "task_4f_slab"
+        ],
+        "shoringAssumption": "MAT_SYS_SHORE",
+        "유효": true,
+        "4층슬래브행": [
+          "RI-02",
+          "RI-06",
+          "RI-09"
+        ]
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "scheduleActiveTasks",
+      "key": "task_3f_wall",
+      "value": {
+        "taskId": "task_3f_wall",
+        "label": "3층 벽체 콘크리트 타설",
+        "start": "2026-08-19",
+        "end": "2026-08-22",
+        "상태": "예정",
+        "강우민감": false
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "scheduleActiveTasks",
+      "key": "task_4f_slab",
+      "value": {
+        "taskId": "task_4f_slab",
+        "label": "4층 슬래브 거푸집 및 동바리",
+        "start": "2026-08-20",
+        "end": "2026-09-02",
+        "상태": "예정",
+        "강우민감": false
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "scheduleActiveTasks",
+      "key": "task_backfill_b1",
+      "value": {
+        "taskId": "task_backfill_b1",
+        "label": "지하 1층 외벽 되메움 및 법면 정리",
+        "start": "2026-08-17",
+        "end": "2026-08-21",
+        "상태": "예정",
+        "강우민감": true
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "weatherObservation",
+      "key": "gimpo_gochon#누적강우량",
+      "value": {
+        "관측소": "김포 고촌",
+        "기간": "2026-08-14",
+        "누적강우량mm": 0,
+        "임계치mm": 30,
+        "초과": false
+      },
+      "observedAt": "2026-08-14T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "scheduleActiveTasks",
+      "key": "task_backfill_b1",
+      "value": {
+        "taskId": "task_backfill_b1",
+        "label": "지하 1층 외벽 되메움 및 법면 정리",
+        "start": "2026-08-17",
+        "end": "2026-08-21",
+        "상태": "진행",
+        "강우민감": true,
+        "착수예정시각": "2026-08-17T08:30:00+09:00"
+      },
+      "observedAt": "2026-08-17T06:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "weatherObservation",
+      "key": "gimpo_gochon#누적강우량",
+      "value": {
+        "관측소": "김포 고촌",
+        "기간": "2026-08-15 ~ 2026-08-16 (주말)",
+        "누적강우량mm": 41,
+        "임계치mm": 30,
+        "초과": true,
+        "강우민감공종": [
+          "되메움작업",
+          "법면 정리"
+        ]
+      },
+      "observedAt": "2026-08-17T06:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.97
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "attendanceRoster",
+      "key": "2026-08-17",
+      "value": {
+        "일자": "2026-08-17",
+        "총원": 121,
+        "신규": [
+          {
+            "personId": "w_0817_a",
+            "팀": "골조",
+            "소속": "sub_seojin",
+            "모국어": "베트남어",
+            "통역필요": true,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0817_b",
+            "팀": "골조",
+            "소속": "sub_seojin",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0817_c",
+            "팀": "양중",
+            "소속": "sub_jungang",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          }
+        ],
+        "신규수": 3,
+        "통역필요수": 1
+      },
+      "observedAt": "2026-08-17T07:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-11",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-11",
+        "공종분류": "토공",
+        "단위작업": "되메움작업",
+        "위험요인": "강우 후 지반이 연약해져 법면이 무너지고 다짐 장비가 전도",
+        "사고분류": "무너짐",
+        "대책": [
+          "층별 다짐 두께를 지키고 법면 상부 하중 적재를 금지합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "개선후": {
+          "빈도": 1,
+          "강도": 3,
+          "위험도": 3
+        },
+        "담당사": "sub_daeyang",
+        "이행확인담당": "co_hanshin",
+        "이행확인": null,
+        "대책유효성": "미확정",
+        "사유": "주말 누적 강우 41mm 이후 등재된 대책이 그대로 유효한지 확인되지 않았습니다.",
+        "추가검토": "법면 추락방지 휀스 설치 여부"
+      },
+      "observedAt": "2026-08-17T08:10:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.9
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesAttendees",
+      "key": "tbm_frame#참석자",
+      "value": {
+        "회의록": "tbm_20260818_frame",
+        "팀": "골조",
+        "참석자수": 60,
+        "명부대조": true,
+        "누락": []
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesAttendees",
+      "key": "tbm_lift#참석자",
+      "value": {
+        "회의록": "tbm_20260818_lift",
+        "팀": "양중",
+        "참석자수": 5,
+        "명부대조": true,
+        "누락": []
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesAttendees",
+      "key": "tbm_scaffold#참석자",
+      "value": {
+        "회의록": "tbm_20260818_scaffold",
+        "팀": "가설",
+        "참석자수": 20,
+        "명부대조": true,
+        "누락": []
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesFeedback",
+      "key": "tbm_frame#fb_2",
+      "value": {
+        "회의록": "tbm_20260818_frame",
+        "팀": "골조",
+        "회차": "2026-08-18",
+        "구분": "제안",
+        "내용": "인양 구간 신호수 위치를 통로 반대편으로 옮겨 주십시오.",
+        "제기자": "w_frame_11",
+        "status": "접수"
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesFeedback",
+      "key": "tbm_pour#fb_1",
+      "value": {
+        "회의록": "tbm_20260818_pour",
+        "팀": "골조(야간 타설)",
+        "회차": "2026-08-18",
+        "구분": "불만",
+        "내용": "야간 타설 구간 조도가 부족해 발밑이 보이지 않습니다.",
+        "제기자": "w_pour_03",
+        "status": "접수"
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesPreWorkCheck",
+      "key": "tbm_pour#pre_1",
+      "value": {
+        "회의록": "tbm_20260818_pour",
+        "팀": "골조(야간 타설)",
+        "항목": "안전대 착용 확인",
+        "done": true
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesPreWorkCheck",
+      "key": "tbm_pour#pre_3",
+      "value": {
+        "회의록": "tbm_20260818_pour",
+        "팀": "골조(야간 타설)",
+        "항목": "야간 작업 구간 조도 확보",
+        "done": false
+      },
+      "observedAt": "2026-08-18T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "attendanceRoster",
+      "key": "2026-08-18",
+      "value": {
+        "일자": "2026-08-18",
+        "총원": 121,
+        "신규": [
+          {
+            "personId": "w_0818_a",
+            "팀": "가설",
+            "소속": "sub_hanbit",
+            "모국어": "우즈베크어",
+            "통역필요": true,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0818_b",
+            "팀": "골조",
+            "소속": "sub_seojin",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          }
+        ],
+        "신규수": 2,
+        "통역필요수": 1
+      },
+      "observedAt": "2026-08-18T07:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "snapshotMaterials",
+      "key": "task_4f_slab.shoring",
+      "value": {
+        "code": "MAT_SYS_SHORE",
+        "label": "시스템동바리",
+        "적용범위": "4F 전 구간",
+        "혼용": false,
+        "supplier": "대일가설",
+        "appliedTo": [
+          "task_4f_slab"
+        ]
+      },
+      "observedAt": "2026-08-18T13:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentExtraction",
+      "key": "doc_2_k3f9x1qm",
+      "value": {
+        "docRef": "doc_2_k3f9x1qm",
+        "kind": "email",
+        "citable": false,
+        "title": "[서진건설] 4층 슬래브 동바리 자재 변경 협의의 건",
+        "siteId": "site_gimpo_gochon_01",
+        "author": "권O열 (서진건설 공무)",
+        "occurredAt": "2026-08-18T14:22:00+09:00",
+        "confidentiality": "internal",
+        "canonicalUrl": "hanshin://mail/20260818/01",
+        "extracted": null
+      },
+      "observedAt": "2026-08-18T14:23:00+09:00",
+      "sourceDocId": "doc_2_k3f9x1qm",
+      "confidence": 0.5
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentExtraction",
+      "key": "doc_5_p8w2zzt1",
+      "value": {
+        "docRef": "doc_5_p8w2zzt1",
+        "kind": "attachment",
+        "citable": false,
+        "title": "강관동바리_사양서.pdf",
+        "pages": 8,
+        "extracted": null
+      },
+      "observedAt": "2026-08-18T14:24:00+09:00",
+      "sourceDocId": "doc_5_p8w2zzt1",
+      "confidence": 0.5
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentExtraction",
+      "key": "doc_2_k3f9x1qm",
+      "value": {
+        "docRef": "doc_2_k3f9x1qm",
+        "kind": "email",
+        "citable": true,
+        "title": "[서진건설] 4층 슬래브 동바리 자재 변경 협의의 건",
+        "excerpt": "층고 8.2m 구간(A~C열, 약 1,850㎡)에 한해 강관동바리 혼용 시공을 검토하고 있습니다. ... 8월 24일 반입을 목표로 하며",
+        "extracted": {
+          "changeType": "materialSubstitution",
+          "fromMaterial": {
+            "code": "MAT_SYS_SHORE",
+            "label": "시스템동바리"
+          },
+          "toMaterial": {
+            "code": "MAT_PIPE_SHORE",
+            "label": "강관동바리",
+            "spec": "φ48.6×3.2t, 4단 조립"
+          },
+          "scope": {
+            "floor": "4F",
+            "grid": "A~C",
+            "areaSqm": 1850,
+            "maxHeightM": 8.2
+          },
+          "reason": [
+            "임대 물량 부족",
+            "단가 12% 인상"
+          ],
+          "targetDate": "2026-08-24"
+        },
+        "source": {
+          "system": "메일 서버",
+          "reference": "hanshin://mail/20260818/01",
+          "retrievedAt": "2026-08-18T14:31:12+09:00"
+        },
+        "requiresHumanConfirmation": true
+      },
+      "observedAt": "2026-08-18T14:33:40+09:00",
+      "sourceDocId": "doc_2_k3f9x1qm",
+      "confidence": 0.91
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentExtraction",
+      "key": "doc_5_p8w2zzt1",
+      "value": {
+        "docRef": "doc_5_p8w2zzt1",
+        "kind": "attachment",
+        "citable": true,
+        "title": "강관동바리_사양서.pdf",
+        "pages": 8,
+        "extracted": {
+          "규격": "φ48.6×3.2t",
+          "조립단수": 4,
+          "수평연결재간격": "2단마다",
+          "수량": "1,850㎡ 분",
+          "표복원": true,
+          "복원쪽수": 11
+        },
+        "source": {
+          "system": "메일 첨부",
+          "reference": "hanshin://mail/20260818/01#file_spec_0818",
+          "retrievedAt": "2026-08-18T14:33:02+09:00"
+        }
+      },
+      "observedAt": "2026-08-18T14:33:40+09:00",
+      "sourceDocId": "doc_5_p8w2zzt1",
+      "confidence": 0.88
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_07_regular#전제",
+      "value": {
+        "회의록": "ra_2026_07_regular",
+        "type": "정기",
+        "completedAt": "2026-07-03",
+        "coveredTasks": [
+          "task_3f_wall",
+          "task_4f_slab"
+        ],
+        "shoringAssumption": "MAT_SYS_SHORE",
+        "유효": false,
+        "4층슬래브행": [
+          "RI-02",
+          "RI-06",
+          "RI-09"
+        ],
+        "사유": "동바리가 강관동바리 혼용으로 바뀔 예정이라 시스템동바리 전제가 성립하지 않습니다."
+      },
+      "observedAt": "2026-08-18T14:33:40+09:00",
+      "sourceDocId": "doc_2_k3f9x1qm",
+      "confidence": 0.91
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "snapshotMaterials",
+      "key": "MAT_PIPE_SHORE",
+      "value": {
+        "code": "MAT_PIPE_SHORE",
+        "label": "강관동바리",
+        "spec": "φ48.6×3.2t, 4단 조립",
+        "supplier": "미정",
+        "appliedTo": [
+          "task_4f_slab"
+        ],
+        "상태": "검토중"
+      },
+      "observedAt": "2026-08-18T14:33:40+09:00",
+      "sourceDocId": "doc_2_k3f9x1qm",
+      "confidence": 0.91
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "snapshotMaterials",
+      "key": "task_4f_slab.shoring",
+      "value": {
+        "code": "MAT_PIPE_SHORE",
+        "label": "강관동바리 혼용",
+        "spec": "φ48.6×3.2t, 4단 조립",
+        "적용범위": "4F A~C열 1,850㎡",
+        "혼용": true,
+        "최대층고m": 8.2,
+        "반입목표": "2026-08-24",
+        "supplier": "미정",
+        "appliedTo": [
+          "task_4f_slab"
+        ],
+        "상태": "검토중"
+      },
+      "observedAt": "2026-08-18T14:33:40+09:00",
+      "sourceDocId": "doc_2_k3f9x1qm",
+      "confidence": 0.91
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentExtraction",
+      "key": "doc_9_r4m6yq",
+      "value": {
+        "docRef": "doc_9_r4m6yq",
+        "kind": "reviewComment",
+        "citable": true,
+        "title": "8월 위험성평가 회의록 검토 의견",
+        "author": "감리단",
+        "extracted": {
+          "replyDueBy": "2026-08-21T18:00:00+09:00",
+          "지적건수": 19
+        }
+      },
+      "observedAt": "2026-08-18T16:05:00+09:00",
+      "sourceDocId": "doc_9_r4m6yq",
+      "confidence": 0.94
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "externalReviewComment",
+      "key": "rev_gamri#ra_regular",
+      "value": {
+        "검토주체": "감리단",
+        "회차": "2026-08-18",
+        "대상문서": "ra_2026_08_regular",
+        "지적유형": [
+          {
+            "유형": "법적 근거란 공란",
+            "행수": 12
+          },
+          {
+            "유형": "개선 후 위험도 미기재",
+            "행수": 7
+          }
+        ],
+        "지적대상행": [
+          "RI-01",
+          "RI-02",
+          "RI-03",
+          "RI-04",
+          "RI-05",
+          "RI-06",
+          "RI-07",
+          "RI-08",
+          "RI-09",
+          "RI-10",
+          "RI-11",
+          "RI-12",
+          "RI-13",
+          "RI-14",
+          "RI-15",
+          "RI-16",
+          "RI-17",
+          "RI-18",
+          "RI-19"
+        ],
+        "replyDueBy": "2026-08-21T18:00:00+09:00",
+        "예상소요분": 180,
+        "결과": "보완 요구 — 형식 결함이 확정되어 그대로는 결재 상신할 수 없습니다."
+      },
+      "observedAt": "2026-08-18T16:05:00+09:00",
+      "sourceDocId": "doc_9_r4m6yq",
+      "confidence": 0.94
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "officialNotice",
+      "key": "notice_20260818_molab",
+      "value": {
+        "발신": "지방고용노동청",
+        "제목": "산업안전보건 감독 실시 예고",
+        "접수시각": "2026-08-18T17:18:00+09:00",
+        "상태": "접수",
+        "추출": null
+      },
+      "observedAt": "2026-08-18T17:20:00+09:00",
+      "sourceDocId": "doc_11_v2n8ha",
+      "confidence": 0.5
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentExtraction",
+      "key": "doc_11_v2n8ha",
+      "value": {
+        "docRef": "doc_11_v2n8ha",
+        "kind": "officialNotice",
+        "citable": true,
+        "title": "산업안전보건 감독 실시 예고",
+        "author": "지방고용노동청",
+        "extracted": {
+          "visitDate": "2026-08-25",
+          "submitDueBy": "2026-08-22T18:00:00+09:00"
+        }
+      },
+      "observedAt": "2026-08-18T17:26:00+09:00",
+      "sourceDocId": "doc_11_v2n8ha",
+      "confidence": 0.95
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "officialNotice",
+      "key": "notice_20260818_molab",
+      "value": {
+        "발신": "지방고용노동청",
+        "제목": "산업안전보건 감독 실시 예고",
+        "상태": "추출완료",
+        "visitDate": "2026-08-25",
+        "방문시간대": "오전",
+        "submitDueBy": "2026-08-22T18:00:00+09:00",
+        "대상기간": "2026-05-19 ~ 2026-08-18",
+        "요구자료": [
+          "최근 3개월 위험성평가 회의록",
+          "TBM 기록",
+          "안전보건교육일지",
+          "아차사고 대장"
+        ],
+        "예상소요분": 90
+      },
+      "observedAt": "2026-08-18T17:26:00+09:00",
+      "sourceDocId": "doc_11_v2n8ha",
+      "confidence": 0.95
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "nearMissReport",
+      "key": "nm_20260818_01",
+      "value": {
+        "보고자": "sub_seojin_lee",
+        "발생일시": "2026-08-18T16:20:00+09:00",
+        "장소": "3F B열 압송관 하부 통행로",
+        "위험요인": "압송관 진동과 이음부 탈락",
+        "사고분류": "맞음",
+        "단위작업": "압송관 인근 통행",
+        "내용": "타설 중 압송관 인근을 통행하던 작업자가 이음부 흔들림에 근접했습니다. 통행 금지 조치가 실행되어 있지 않았습니다.",
+        "상태": "접수"
+      },
+      "observedAt": "2026-08-18T17:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "scheduleActiveTasks",
+      "key": "task_4f_slab",
+      "value": {
+        "taskId": "task_4f_slab",
+        "label": "4층 슬래브 거푸집 및 동바리",
+        "start": "2026-08-24",
+        "end": "2026-09-06",
+        "상태": "예정",
+        "강우민감": false,
+        "지연일": 4
+      },
+      "observedAt": "2026-08-18T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "snapshotMaterials",
+      "key": "MAT_SYS_SHORE",
+      "value": {
+        "code": "MAT_SYS_SHORE",
+        "label": "시스템동바리",
+        "supplier": "대일가설",
+        "appliedTo": [
+          "task_4f_slab"
+        ]
+      },
+      "observedAt": "2026-08-18T18:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "tbm_20260818_pour",
+      "value": {
+        "문서": "8월 18일 TBM 회의록(야간 타설)",
+        "상태": "결재완료",
+        "제출가능": true
+      },
+      "observedAt": "2026-08-18T20:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "ra_2026_08_regular",
+      "value": {
+        "문서": "8월 정기 위험성평가 회의록",
+        "상태": "결재대기",
+        "상신예정": "2026-09-02",
+        "미비": [
+          "이행확인 9행",
+          "법적 근거란 공란 12행",
+          "개선 후 위험도 미기재 7행"
+        ],
+        "제출가능": false
+      },
+      "observedAt": "2026-08-19T05:30:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#RI-01",
+      "value": {
+        "단위작업": "4층 슬래브 동바리 설치",
+        "현재": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "추천": {
+          "빈도": 4,
+          "강도": 4,
+          "위험도": 16
+        },
+        "위험성점수": 16,
+        "이격": 4,
+        "통계": {
+          "표본수": 212,
+          "관측기간": "2021-01 ~ 2025-12",
+          "사망사고건수": 19,
+          "사망률": 0.09,
+          "신뢰도": "low",
+          "점수출처": "DEGRADED"
+        },
+        "reviewRequired": true,
+        "originState": "DEGRADED",
+        "confidence": "low",
+        "자동반영": false
+      },
+      "observedAt": "2026-08-19T05:30:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.4
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#RI-07",
+      "value": {
+        "단위작업": "콘크리트 타설 및 다짐",
+        "현재": {
+          "빈도": 4,
+          "강도": 3,
+          "위험도": 12
+        },
+        "추천": {
+          "빈도": 5,
+          "강도": 4,
+          "위험도": 20
+        },
+        "위험성점수": 20,
+        "이격": 8,
+        "통계": {
+          "표본수": 568,
+          "관측기간": "2021-01 ~ 2025-12",
+          "사망사고건수": 36,
+          "사망률": 0.063,
+          "신뢰도": "low",
+          "점수출처": "DEGRADED"
+        },
+        "reviewRequired": true,
+        "originState": "DEGRADED",
+        "confidence": "low",
+        "자동반영": false
+      },
+      "observedAt": "2026-08-19T05:30:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.4
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#RI-11",
+      "value": {
+        "단위작업": "되메움작업",
+        "현재": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "추천": {
+          "빈도": 3,
+          "강도": 4,
+          "위험도": 12
+        },
+        "위험성점수": 12,
+        "이격": 6,
+        "통계": {
+          "표본수": 141,
+          "관측기간": "2021-01 ~ 2025-12",
+          "사망사고건수": 8,
+          "사망률": 0.057,
+          "신뢰도": "low",
+          "점수출처": "DEGRADED"
+        },
+        "reviewRequired": true,
+        "originState": "DEGRADED",
+        "confidence": "low",
+        "자동반영": false
+      },
+      "observedAt": "2026-08-19T05:30:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.4
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskRecommendation",
+      "key": "ra_2026_08_regular#전체",
+      "value": {
+        "대상행수": 21,
+        "플래그행수": 21,
+        "reviewRequired": true,
+        "originState": "DEGRADED",
+        "confidence": "low",
+        "임계치": 4,
+        "자동반영": false,
+        "예상소요분": 120,
+        "안내": "점수 출처가 DEGRADED 이고 신뢰도가 low 이므로 자동 반영하지 않습니다."
+      },
+      "observedAt": "2026-08-19T05:30:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.4
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "scheduleActiveTasks",
+      "key": "task_3f_wall",
+      "value": {
+        "taskId": "task_3f_wall",
+        "label": "3층 벽체 콘크리트 타설",
+        "start": "2026-08-19",
+        "end": "2026-08-22",
+        "상태": "진행",
+        "강우민감": false,
+        "야간타설": true
+      },
+      "observedAt": "2026-08-19T06:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesAttendees",
+      "key": "tbm_frame#참석자",
+      "value": {
+        "회의록": "tbm_20260819_frame",
+        "팀": "골조",
+        "참석자수": 60,
+        "명부대조": false,
+        "누락": [
+          "w_0819_a",
+          "w_0819_b"
+        ],
+        "사유": "당일 신규 입장자가 참석자란에 들어가 있지 않습니다."
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesAttendees",
+      "key": "tbm_lift#참석자",
+      "value": {
+        "회의록": "tbm_20260819_lift",
+        "팀": "양중",
+        "참석자수": 5,
+        "명부대조": false,
+        "누락": [
+          "w_0819_d"
+        ],
+        "사유": "당일 신규 입장자가 참석자란에 들어가 있지 않습니다."
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesAttendees",
+      "key": "tbm_scaffold#참석자",
+      "value": {
+        "회의록": "tbm_20260819_scaffold",
+        "팀": "가설",
+        "참석자수": 20,
+        "명부대조": false,
+        "누락": [
+          "w_0819_c"
+        ],
+        "사유": "당일 신규 입장자가 참석자란에 들어가 있지 않습니다."
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesFeedback",
+      "key": "tbm_frame#fb_2",
+      "value": {
+        "회의록": "tbm_20260819_frame",
+        "팀": "골조",
+        "회차": "2026-08-19",
+        "구분": "제안",
+        "내용": "인양 구간 신호수 위치를 통로 반대편으로 옮겨 주십시오.",
+        "제기자": "w_frame_11",
+        "status": "조치완료",
+        "직전회차": "tbm_20260818_frame",
+        "조치": "8월 18일 오후 신호수 위치를 변경하고 제기자에게 결과를 알렸습니다."
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesFeedback",
+      "key": "tbm_pour#fb_1",
+      "value": {
+        "회의록": "tbm_20260819_pour",
+        "팀": "골조(야간 타설)",
+        "회차": "2026-08-19",
+        "구분": "불만",
+        "내용": "이동식 후광등이 아직 추가되지 않았습니다. (8월 18일 제기 사항 재제기)",
+        "제기자": "w_pour_03",
+        "status": "미조치",
+        "직전회차": "tbm_20260818_pour"
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesPreWorkCheck",
+      "key": "tbm_pour#pre_1",
+      "value": {
+        "회의록": "tbm_20260819_pour",
+        "팀": "골조(야간 타설)",
+        "항목": "안전대 착용 확인",
+        "done": true
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "tbmMinutesPreWorkCheck",
+      "key": "tbm_pour#pre_3",
+      "value": {
+        "회의록": "tbm_20260819_pour",
+        "팀": "골조(야간 타설)",
+        "항목": "야간 작업 구간 조도 확보",
+        "done": false
+      },
+      "observedAt": "2026-08-19T06:40:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "attendanceRoster",
+      "key": "2026-08-19",
+      "value": {
+        "일자": "2026-08-19",
+        "총원": 122,
+        "신규": [
+          {
+            "personId": "w_0819_a",
+            "팀": "골조",
+            "소속": "sub_seojin",
+            "모국어": "베트남어",
+            "통역필요": true,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0819_b",
+            "팀": "골조",
+            "소속": "sub_seojin",
+            "모국어": "네팔어",
+            "통역필요": true,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0819_c",
+            "팀": "가설",
+            "소속": "sub_hanbit",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          },
+          {
+            "personId": "w_0819_d",
+            "팀": "양중",
+            "소속": "sub_jungang",
+            "모국어": "한국어",
+            "통역필요": false,
+            "직전30일출역": 0
+          }
+        ],
+        "신규수": 4,
+        "통역필요수": 2
+      },
+      "observedAt": "2026-08-19T07:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "attendanceRoster",
+      "key": "신규30일",
+      "value": {
+        "기준일": "2026-08-19",
+        "직전30일무출역": 11,
+        "통역필요": 4,
+        "팀별": {
+          "골조": 6,
+          "가설": 3,
+          "양중": 2
+        },
+        "관측일수": 4,
+        "일일소요분": 15
+      },
+      "observedAt": "2026-08-19T07:00:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "documentApprovalState",
+      "key": "nearmiss_ledger_2026q3",
+      "value": {
+        "문서": "아차사고 대장 (2026년 3분기)",
+        "상태": "결재대기",
+        "제출가능": false,
+        "미결건수": 2,
+        "사유": "8월 18일 접수 건이 아직 등재되지 않았습니다."
+      },
+      "observedAt": "2026-08-19T07:05:00+09:00",
+      "sourceDocId": null,
+      "confidence": 1.0
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "nearMissReport",
+      "key": "nm_20260818_01",
+      "value": {
+        "보고자": "sub_seojin_lee",
+        "발생일시": "2026-08-18T16:20:00+09:00",
+        "장소": "3F B열 압송관 하부 통행로",
+        "위험요인": "압송관 진동과 이음부 탈락",
+        "사고분류": "맞음",
+        "단위작업": "압송관 인근 통행",
+        "상태": "회의록 대조 완료",
+        "매칭행": "ra_2026_08_regular#RI-04",
+        "이행확인표시": true,
+        "실제실행": false,
+        "심각도": "상향",
+        "예상소요분": 210,
+        "판단": "이행확인란에 표시되어 있었으나 통행 금지 조치는 실행되지 않았습니다."
+      },
+      "observedAt": "2026-08-19T07:05:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.93
+    },
+    {
+      "siteId": "site_gimpo_gochon_01",
+      "factType": "riskAssessmentRow",
+      "key": "ra_2026_08_regular#RI-04",
+      "value": {
+        "회의록": "ra_2026_08_regular",
+        "관리기간": "2026-08-01 ~ 2026-08-31",
+        "행id": "RI-04",
+        "공종분류": "골조(철근콘크리트)",
+        "단위작업": "압송관 인근 통행",
+        "위험요인": "압송관 진동과 이음부 탈락으로 인한 맞음",
+        "사고분류": "맞음",
+        "대책": [
+          "타설 중 압송관 하부 통행을 금지하고 우회 통로를 지정합니다."
+        ],
+        "법적근거": [],
+        "개선전": {
+          "빈도": 3,
+          "강도": 3,
+          "위험도": 9
+        },
+        "개선후": {
+          "빈도": 2,
+          "강도": 3,
+          "위험도": 6
+        },
+        "담당사": "sub_seojin",
+        "이행확인담당": "co_hanshin",
+        "이행확인": "불일치",
+        "표시값": true,
+        "실제실행": false,
+        "근거": "nm_20260818_01"
+      },
+      "observedAt": "2026-08-19T07:05:00+09:00",
+      "sourceDocId": null,
+      "confidence": 0.93
+    }
+  ]
+}
