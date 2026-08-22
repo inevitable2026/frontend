@@ -33,6 +33,8 @@
     "../lib/context/extracted-display.ts",
     "../lib/context/stream-terminal.ts",
     "../lib/context/demo.ts",
-    "../lib/context/upstage-doc.ts"
+    "../lib/context/upstage-doc.ts",
+    "../lib/risk/row-review-access.ts",
+    "../lib/risk/row-review-types.ts"
   ]
 }

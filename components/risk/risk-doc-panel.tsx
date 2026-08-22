@@ -5,6 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RiskRowChat from "@/components/risk/risk-row-chat";
 import type { WorkItem } from "@/lib/board/types";
 import {
+  loadRiskRowReviewStates,
+  RiskRowReviewRequestError,
+  saveRiskRowReview,
+} from "@/lib/risk/row-review-client";
+import {
+  reviewAsState,
+  type RiskRowReviewCommand,
+  type RiskRowReviewDecision,
+  type RiskRowReviewState,
+} from "@/lib/risk/row-review-types";
+import {
   미확인행,
   불일치행,
   위험도표시,
@@ -48,6 +59,14 @@ export default function RiskDocPanel({
   const [갈래, set갈래] = useState<갈래>("직접");
   const [미확인만, set미확인만] = useState(true);
   const [저장중, set저장중] = useState<Set<string>>(new Set());
+  const [검토, set검토] = useState<Map<string, RiskRowReviewState>>(new Map());
+  const [검토불러오는중, set검토불러오는중] = useState(false);
+  const [검토동기화됨, set검토동기화됨] = useState(false);
+  const [검토저장중, set검토저장중] = useState<Set<string>>(new Set());
+  const [검토오류, set검토오류] = useState<string | null>(null);
+  const [검토충돌, set검토충돌] = useState<string | null>(null);
+  const 재시도명령 = useRef<Map<string, RiskRowReviewCommand>>(new Map());
+  const 현재카드키 = useRef(`${siteId}\u001f${item.itemId}`);
   const 서랍 = useRef<HTMLDivElement>(null);
 
   /**
@@ -131,13 +150,93 @@ export default function RiskDocPanel({
     });
   }, [미확인만, 미확인, 행들]);
 
-  /**
-   * 이 카드가 **새로 제안한** 행. 기존 문서의 행과 섞지 않는다.
-   *
-   * 열한 장 가운데 초안 행을 든 카드는 `card_ra_draft_3rows` 하나뿐이지만, 그 하나를
-   * 안 보여 주면 그 카드는 열어도 아무것도 없는 카드가 된다.
-   */
-  const 초안행 = item.draft?.form === "회의록" ? item.draft.rows : [];
+  const 카드키 = `${siteId}\u001f${item.itemId}`;
+  const 검토할초안있음 = item.draft?.form === "회의록";
+  const 초안행 = useMemo(() => [...검토.values()].map((state) => state.row), [검토]);
+  const 승인된행수 = useMemo(
+    () => 초안행.reduce((count, row) => count + (검토.get(row.itemId)?.decision === "approved" ? 1 : 0), 0),
+    [검토, 초안행],
+  );
+  const 보류행수 = useMemo(
+    () => 초안행.reduce((count, row) => count + (검토.get(row.itemId)?.decision === "held" ? 1 : 0), 0),
+    [검토, 초안행],
+  );
+  const 대기행수 = Math.max(0, 초안행.length - 승인된행수 - 보류행수);
+  const 모두승인됨 = 검토동기화됨 && 초안행.length > 0 && 승인된행수 === 초안행.length;
+
+  const 검토불러오기 = useCallback(async (announce = false) => {
+    const requestKey = `${siteId}\u001f${item.itemId}`;
+    set검토동기화됨(false);
+    set검토(new Map());
+    set검토저장중(new Set());
+    set검토오류(null);
+    set검토충돌(null);
+    set검토불러오는중(true);
+    try {
+      const states = await loadRiskRowReviewStates(siteId, item.itemId);
+      if (현재카드키.current !== requestKey) return;
+      set검토(new Map(states.map((state) => [state.rowId, state])));
+      set검토동기화됨(true);
+      if (announce) set검토충돌("다른 화면에서 먼저 저장했습니다. 서버의 현재 상태를 다시 불러왔습니다.");
+    } catch (error) {
+      if (현재카드키.current !== requestKey) return;
+      set검토오류(error instanceof Error ? error.message : "행 검토 상태를 불러오지 못했습니다.");
+    } finally {
+      if (현재카드키.current === requestKey) set검토불러오는중(false);
+    }
+  }, [item.itemId, siteId]);
+
+  useEffect(() => {
+    현재카드키.current = 카드키;
+    재시도명령.current.clear();
+    if (!검토할초안있음) return;
+    void Promise.resolve().then(() => 검토불러오기());
+  }, [카드키, 검토불러오기, 검토할초안있음]);
+
+  async function 검토저장(rowId: string, decision: RiskRowReviewDecision) {
+    const requestKey = 카드키;
+    const state = 검토.get(rowId);
+    if (!state || 검토저장중.has(rowId) || state.decision === "approved") return;
+
+    const retained = 재시도명령.current.get(rowId);
+    const command = retained && retained.decision === decision
+      ? retained
+      : {
+          commandId: crypto.randomUUID(),
+          siteId,
+          workItemId: item.itemId,
+          rowId,
+          expectedRowFingerprint: state.rowFingerprint,
+          decision,
+          expectedVersion: state.version,
+        };
+    재시도명령.current.set(rowId, command);
+    set검토저장중((previous) => new Set(previous).add(rowId));
+    set검토오류(null);
+    set검토충돌(null);
+    try {
+      const result = await saveRiskRowReview(command);
+      if (현재카드키.current !== requestKey) return;
+      set검토((previous) => new Map(previous).set(rowId, reviewAsState(result.review, state.row)));
+      재시도명령.current.delete(rowId);
+    } catch (error) {
+      if (현재카드키.current !== requestKey) return;
+      if (error instanceof RiskRowReviewRequestError && error.status === 409) {
+        재시도명령.current.delete(rowId);
+        await 검토불러오기(true);
+      } else {
+        set검토오류(`${error instanceof Error ? error.message : "행 검토를 저장하지 못했습니다."} 같은 버튼을 다시 누르면 같은 명령으로 재시도합니다.`);
+      }
+    } finally {
+      if (현재카드키.current === requestKey) {
+        set검토저장중((previous) => {
+          const next = new Set(previous);
+          next.delete(rowId);
+          return next;
+        });
+      }
+    }
+  }
 
   /**
    * 행 하나를 저장한다. 같은 key 로 팩트를 **덧붙이면** 마지막 것이 이긴다 —
@@ -191,7 +290,7 @@ export default function RiskDocPanel({
   const [반영중, set반영중] = useState(false);
 
   async function 초안반영() {
-    if (!docId || 초안행.length === 0 || 반영중) return;
+    if (!docId || 초안행.length === 0 || 반영중 || !모두승인됨) return;
     set반영중(true);
     try {
       for (const [i, r] of 초안행.entries()) {
@@ -320,7 +419,7 @@ export default function RiskDocPanel({
               </p>
             ) : null}
 
-            {갈래 === "직접" && 초안행.length > 0 ? (
+            {갈래 === "직접" && 검토할초안있음 ? (
               <section className="risk-drawer-draft">
                 <h3>
                   이번에 제안된 신규 행 <b>{초안행.length}</b>
@@ -335,29 +434,83 @@ export default function RiskDocPanel({
                     </>
                   ) : null}
                 </p>
+
+                {검토불러오는중 ? (
+                  <p className="risk-drawer-review-notice" aria-live="polite">
+                    저장된 행 검토를 불러오는 중입니다…
+                  </p>
+                ) : null}
+                {검토오류 ? (
+                  <p className="risk-drawer-review-notice is-error" role="alert">{검토오류}</p>
+                ) : null}
+                {검토충돌 ? (
+                  <p className="risk-drawer-review-notice is-conflict" role="status">{검토충돌}</p>
+                ) : null}
                 <ol>
-                  {초안행.map((r) => (
-                    <li key={r.itemId}>
-                      <p className="risk-drawer-work">{r.hazard}</p>
-                      <p className="risk-drawer-hazard">{r.process}</p>
-                      {/* 초안은 등급(level)을 스스로 들고 온다. 그건 그대로 보인다 —
-                          지어낸 값이 아니라 만든 쪽이 정한 값이다. */}
-                      <span className="risk-drawer-score">
-                        빈도 {r.risk.likelihood} × 강도 {r.risk.severity} = <b>{r.risk.score}</b>{" "}
-                        {r.risk.level}
-                      </span>
-                    </li>
-                  ))}
+                  {초안행.map((r) => {
+                    const state = 검토.get(r.itemId);
+                    const approved = state?.decision === "approved";
+                    const held = state?.decision === "held";
+                    const saving = 검토저장중.has(r.itemId);
+                    const disabled = !검토동기화됨 || !state || saving;
+                    return (
+                      <li
+                        key={r.itemId}
+                        data-row-id={r.itemId}
+                        data-review-state={state?.decision ?? "loading"}
+                        className={approved ? "is-approved" : held ? "is-held" : "is-pending"}
+                      >
+                        <div className="risk-drawer-review-head">
+                          <b>{r.itemId}</b>
+                          <span>{approved ? "승인됨 · 잠김" : held ? "보류됨" : "검토 대기"}</span>
+                        </div>
+                        <p className="risk-drawer-work">{r.hazard}</p>
+                        <p className="risk-drawer-hazard">{r.process}</p>
+                        <span className="risk-drawer-score">
+                          빈도 {r.risk.likelihood} × 강도 {r.risk.severity} = <b>{r.risk.score}</b>{" "}
+                          {r.risk.level}
+                        </span>
+                        <div className="risk-drawer-review-actions">
+                          <button
+                            type="button"
+                            className="is-hold"
+                            disabled={disabled || approved || held}
+                            onClick={() => void 검토저장(r.itemId, "held")}
+                          >
+                            {saving ? "저장 중…" : held ? "보류됨" : "보류"}
+                          </button>
+                          <button
+                            type="button"
+                            className="is-approve"
+                            disabled={disabled || approved}
+                            onClick={() => void 검토저장(r.itemId, "approved")}
+                          >
+                            {saving ? "저장 중…" : approved ? "승인됨 · 잠김" : "이 행 승인"}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ol>
 
                 {/* 카드를 끝낼 수 있는 유일한 자리. 이게 없으면 열어 봐도 대기열에서
                     안 없어진다. */}
                 <div className="risk-drawer-draft-acts">
-                  <button type="button" onClick={() => void 초안반영()} disabled={반영중 || !docId}>
+                  <button
+                    type="button"
+                    onClick={() => void 초안반영()}
+                    disabled={반영중 || !docId || !모두승인됨}
+                  >
                     {반영중 ? "반영 중…" : `${초안행.length}행을 ${docId} 에 넣고 카드 끝내기`}
                   </button>
                   <span>
-                    새 행의 이행확인은 비워 둡니다 — 방금 만든 행이 현장에서 실행됐을 리 없습니다.
+                    {!검토동기화됨
+                      ? "저장된 검토 상태를 확인한 뒤 반영할 수 있습니다."
+                      : 보류행수 > 0
+                        ? `보류된 ${보류행수}행이 있어 반영할 수 없습니다.`
+                        : 대기행수 > 0
+                          ? `아직 승인하지 않은 ${대기행수}행이 있습니다.`
+                          : "모든 행이 승인됐습니다. 반영해도 새 행의 이행확인은 비워 둡니다."}
                   </span>
                 </div>
               </section>
