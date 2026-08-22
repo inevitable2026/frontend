@@ -71,7 +71,10 @@ export async function GET(req: Request) {
    * `원본` 은 재평가 전, 즉 문서의 가장 오래된 팩트 시점의 상태다. 둘을 나란히 받아야
    * 무엇이 바뀌었는지 눈으로 견줄 수 있다.
    */
-  const 판본요청 = params.get("판본")?.trim() === "원본" ? "원본" : "최신";
+  // 이름을 ASCII 로 받는다. 한글 파라미터도 브라우저는 알아서 인코딩하지만,
+  // HTTP 경계를 넘는 이름은 도구·시험·로그마다 인코딩이 갈려 사람이 손으로 부를 때
+  // 조용히 어긋난다. 실제로 헤더 쪽에서 한 번 500 을 냈다.
+  const 판본요청 = params.get("version")?.trim() === "before" ? "원본" : "최신";
 
   try {
     const all = await boardStore().listFacts(siteId, "riskAssessmentRow");
@@ -119,8 +122,16 @@ export async function GET(req: Request) {
       ),
     ].join("\r\n");
 
-    // 파일 이름으로 두 판본을 가른다. 같은 이름이면 내려받은 폴더에서 뒤섞인다.
-    const 파일명 = `${docId}-${판본요청}-${new Date().toISOString().slice(0, 10)}.csv`;
+    /*
+     * 파일 이름으로 두 판본을 가른다. 같은 이름이면 내려받은 폴더에서 뒤섞인다.
+     *
+     * **이름을 ASCII 로 짓는다.** `원본`·`최신` 을 그대로 넣었다가 500 이 났다 —
+     * `Content-Disposition` 은 HTTP 헤더라 바이트 하나가 한 글자이고, 한글이 들어가면
+     * `Cannot convert argument to a ByteString` 로 응답 자체가 못 나간다.
+     * (바로 이 자리에 "파일명에 한글이 없으므로" 라고 적어 두고 한글을 넣었다.)
+     */
+    const 판본표기 = 판본요청 === "원본" ? "before" : "current";
+    const 파일명 = `${docId}-${판본표기}-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new Response(`﻿${줄}`, {
       headers: {

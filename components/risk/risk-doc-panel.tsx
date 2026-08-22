@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import RiskRowChat from "@/components/risk/risk-row-chat";
 import type { 문서차이 } from "@/lib/risk/diff";
 import type { WorkItem } from "@/lib/board/types";
-import { 문서이름, 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
+import { 문서이름, 문서이름확정, 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
 import {
   미확인행,
   불일치행,
@@ -353,7 +353,14 @@ export default function RiskDocPanel({
       const 다음: 결재상태 = {
         // `문서` 칸에는 **사람 이름**이 들어간다(`data/board/seed-facts.json:22`).
         // 저장소 키를 넣으면 이 칸을 읽는 모든 화면이 키를 문서 이름으로 보이게 된다.
-        ...(결재 ?? { 문서: 문서이름(docId), 상태: "작성중" as const, 제출가능: false }),
+        // 이름을 확실히 못 만들면 **키를 그대로 둔다.** 총칭("문서")을 적으면 지어낸
+        // 이름이 팩트로 굳어 다음에 읽는 사람에게 사실로 보인다. 키가 남아 있으면
+        // `문서이름()` 이 그걸 이름으로 치지 않고 종류를 다시 판정한다.
+        ...(결재 ?? {
+          문서: 문서이름확정(docId) ?? docId,
+          상태: "작성중" as const,
+          제출가능: false,
+        }),
         상태: "결재대기",
         // 남은 미비가 있으면 아직 올릴 수 없다. 이행확인만 끝났다고 제출가능을 켜면
         // 화면이 또 없는 사실을 말하게 된다.
@@ -530,7 +537,7 @@ export default function RiskDocPanel({
                         달라졌는지 문서를 통째로 다시 읽어야 안다. */}
                     <a
                       className="risk-drawer-download"
-                      href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}&판본=원본`}
+                      href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}&version=before`}
                     >
                       기존 평가서 내려받기
                     </a>

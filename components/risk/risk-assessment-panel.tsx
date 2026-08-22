@@ -754,7 +754,8 @@ export function RiskAssessmentPanel() {
       {모드 === "데모" ? (
         <p className="risk-demo-note">
           미리보기입니다. 올린 문서와 사진은 <b>실제로 읽어</b> 공종·장비·자재를 채웁니다.
-          평가표는 예시로 바로 나오며, <b>이 결과는 저장되지 않습니다.</b>
+          평가표는 준비된 예시로 바로 나옵니다. <b>이렇게 만든 평가표도 「만든 평가서」에
+          남으니</b> 실제 기록과 섞이지 않게 확인해 주세요.
         </p>
       ) : (
         <p className="risk-demo-note is-live">
