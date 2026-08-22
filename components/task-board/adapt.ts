@@ -52,8 +52,9 @@ function 슬러그(ruleId: RuleId): ConditionSlug {
 function 색띠(item: WorkItem, 기준시각: number): CardTone {
   if (item.invalidates.length > 0) return "alert";
   if (item.dueBy) {
-    const 남은시간 = new Date(item.dueBy).getTime() - 기준시각;
-    if (남은시간 <= 24 * 60 * 60 * 1000) return "due";
+    // ISO 가 아닌 기한(사람이 읽는 문장)은 시각을 알 수 없으므로 급함 판정에서 뺀다.
+    const ms = ISO밀리초(item.dueBy);
+    if (ms !== null && ms - 기준시각 <= 24 * 60 * 60 * 1000) return "due";
   }
   if (item.status === "approval") return "review";
   if (item.status === "done") return "ok";
@@ -135,11 +136,34 @@ export function 무효화옮기기(item: WorkItem): InvalidatedDoc[] {
   }));
 }
 
+/**
+ * **`dueBy` 가 항상 ISO 는 아니다.**
+ *
+ * `docs/board-contract.md:394-397` — 시각이 확정되지 않은 카드는
+ * `"2026-08-19 오전 중 (시각 미상)"` 처럼 **사람이 읽는 문장**으로 들어온다.
+ * `new Date()` 를 무조건 부르면 `Invalid Date` 가 난다. 계약이 시킨 대로
+ * `/^\d{4}-\d{2}-\d{2}T/` 로 먼저 가른다.
+ *
+ * 실제로 이 검사를 빼고 짰다가 계약 문서를 읽고 고쳤다.
+ */
+const ISO시각 = /^\d{4}-\d{2}-\d{2}T/;
+
+function ISO밀리초(dueBy: string): number | null {
+  if (!ISO시각.test(dueBy)) return null;
+  const ms = new Date(dueBy).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
 /** 기한 문구. 화면 오른쪽 아래에 짧게 적는다. */
 function 기한표시(dueBy: string | null, 기준시각: number): { label: string | null; hot: boolean } {
   if (!dueBy) return { label: null, hot: false };
-  const 남은 = new Date(dueBy).getTime() - 기준시각;
-  const 시각 = new Date(dueBy).toLocaleTimeString("ko-KR", {
+
+  const ms = ISO밀리초(dueBy);
+  // ISO 가 아니면 문장 그대로 적는다. 파싱하려 들지 않는다.
+  if (ms === null) return { label: dueBy, hot: false };
+
+  const 남은 = ms - 기준시각;
+  const 시각 = new Date(ms).toLocaleTimeString("ko-KR", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -147,7 +171,7 @@ function 기한표시(dueBy: string | null, 기준시각: number): { label: stri
   });
   if (남은 < 0) return { label: `${시각} 지남`, hot: true };
   if (남은 <= 24 * 60 * 60 * 1000) return { label: 시각, hot: true };
-  const 날짜 = new Date(dueBy).toLocaleDateString("ko-KR", {
+  const 날짜 = new Date(ms).toLocaleDateString("ko-KR", {
     month: "numeric",
     day: "numeric",
     timeZone: "Asia/Seoul",
