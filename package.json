@@ -10,10 +10,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.35",
+    "@ai-sdk/react": "^4.0.80",
+    "ai": "^7.0.77",
     "next": "16.3.2",
     "postgres": "^3.4.9",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

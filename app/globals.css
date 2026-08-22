@@ -1849,6 +1849,9 @@ button {
   inset: 0;
   z-index: 70;
   display: grid;
+  /* 행을 1fr 로 고정해야 화면 높이가 기준이 된다. 행을 auto 로 두면 청크 목록의
+     전체 높이만큼 자라고, 가운데 정렬이 상자를 화면 아래로 밀어낸다. */
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   padding: 32px;
   background: rgba(20, 22, 28, 0.42);
