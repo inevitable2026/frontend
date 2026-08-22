@@ -70,6 +70,17 @@ async function 시간제한초안(
   }
 }
 
+/**
+ * 초안 유무에 따라 열을 바로잡는다.
+ *
+ * done 은 건드리지 않는다. 사람의 판단이 아예 필요 없는 카드라 초안이 붙을 일이 없고,
+ * 혹시 붙었더라도 그것을 승인 열로 되돌리면 이미 끝난 일을 다시 시키는 셈이 된다.
+ */
+function 열배정(status: CardBlueprint["status"], 초안있음: boolean): CardBlueprint["status"] {
+  if (status === "done") return "done";
+  return 초안있음 ? "approval" : status;
+}
+
 export type CreateGeneratorOptions = {
   /** 카드를 만드는 기준 날. 감지 시각이 아니라 사람이 그 카드를 보는 날이다 */
   now: string;
@@ -109,7 +120,11 @@ export function createDetectionGenerator(options: CreateGeneratorOptions): Detec
     const cards: CardBlueprint[] = plan.map((card, index) => ({
       key: card.key,
       title: card.title,
-      status: card.status as CardBlueprint["status"],
+      // 초안이 붙은 카드는 반드시 승인 열이다. 화면의 세 열은 진행 단계가 아니라 "지금 이
+      // 카드를 움직일 수 있는 주체" 로 나뉘고, 승인 열의 뜻이 "AI 가 쓴 초안" 이기 때문이다.
+      // 모델은 "회의록은 사람이 확정한다" 는 지시를 읽고 초안이 붙은 회의록 카드를 todo 로
+      // 보내기도 하는데, 그러면 담당자는 초안이 있는 줄 모르고 빈 화면에서 직접 쓰기 시작한다.
+      status: 열배정(card.status as CardBlueprint["status"], drafts[index] !== null),
       summary: card.summary,
       produces: 산출물정리(card.produces),
       // 무효화는 감지 한 건의 성질이라 대표 카드 한 장이 들고 간다. 카드마다 붙이면

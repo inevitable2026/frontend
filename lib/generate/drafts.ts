@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 
 import type { Detection, Draft, DraftForm } from "@/lib/board/types";
-import { GENERATION_RETRIES, generationModel } from "./model";
+import { GENERATION_PROVIDER_OPTIONS, GENERATION_RETRIES, DRAFT_MAX_TOKENS, generationModel } from "./model";
 import { DRAFT_SCHEMA_BY_FORM, type CardPlan } from "./schemas";
 
 // 승인 열에 올라갈 문서 초안의 본문을 쓴다.
@@ -115,6 +115,8 @@ export async function writeDraft(input: WriteDraftInput): Promise<Draft> {
     system: 공통규칙,
     prompt,
     maxRetries: GENERATION_RETRIES,
+    maxOutputTokens: DRAFT_MAX_TOKENS,
+    providerOptions: GENERATION_PROVIDER_OPTIONS,
   });
 
   // 스키마에는 form 이 없다. 판별 유니온의 태그는 우리가 이미 알고 있는 값이라

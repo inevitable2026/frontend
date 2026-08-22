@@ -2,7 +2,7 @@ import { generateObject } from "ai";
 
 import type { Detection } from "@/lib/board/types";
 import { dayKey, shiftDay } from "@/lib/detect/engine";
-import { GENERATION_RETRIES, generationModel } from "./model";
+import { GENERATION_PROVIDER_OPTIONS, GENERATION_RETRIES, GENERATION_MAX_TOKENS, generationModel } from "./model";
 import { cardPlanListSchema, type CardPlan } from "./schemas";
 
 // 감지 한 건을 받아 "그래서 누가 무엇을 해야 하는가" 를 정한다.
@@ -100,6 +100,8 @@ export async function planCardsWithModel(input: PlanCardsInput): Promise<CardPla
     system: SYSTEM,
     prompt,
     maxRetries: GENERATION_RETRIES,
+    maxOutputTokens: GENERATION_MAX_TOKENS,
+    providerOptions: GENERATION_PROVIDER_OPTIONS,
   });
 
   return 정리(object.cards);
