@@ -330,6 +330,18 @@ async function main() {
   const check = process.argv.includes("--check");
   const dumpJson = process.argv.includes("--json");
 
+  // --refresh-item <itemId> (반복 가능). 시드에서 내용이 바뀐 카드를 지우고 새 버전으로
+  // 다시 꽂는다. 카드적재의 do nothing 정책은 그대로 두는 대신(§왜 이렇게 하는가) 갱신을
+  // 명시적으로 지정한 카드에만 허용한다 — 전면 upsert 로 바꾸면 두 번째 실행에서 시드의
+  // 타임스탬프가 오늘로 밀리는 바로 그 문제로 되돌아간다.
+  const refreshItems = [];
+  for (let i = 2; i < process.argv.length; i += 1) {
+    if (process.argv[i] === "--refresh-item" && process.argv[i + 1]) {
+      refreshItems.push(process.argv[i + 1]);
+      i += 1;
+    }
+  }
+
   const factsRaw = readSeed("seed-facts.json");
   const itemsRaw = readSeed("seed-items.json");
   const facts = 현장덮기(Array.isArray(factsRaw) ? factsRaw : (factsRaw.facts ?? []));
@@ -352,6 +364,20 @@ async function main() {
 
     const site = await 현장보장(sql);
     console.log(`현장: ${site.id} · ${site.code} · ${site.name}`);
+
+    // 갱신을 지정한 카드는 먼저 지운다. 색인(invalidations)도 함께 지워야 옛 사유가
+    // 새 카드 옆에 남지 않는다. 이력(work_item_events)은 지우지 않는다 — 있었던 일이다.
+    for (const itemId of refreshItems) {
+      const 지운 = await sql`
+        delete from board.work_items where item_id = ${itemId} and site_id = ${SITE_ID}::uuid returning item_id
+      `;
+      await sql`delete from board.invalidations where item_id = ${itemId}`;
+      console.log(
+        지운.length > 0
+          ? `--refresh-item: ${itemId} 를 지웠습니다. 아래 적재에서 새 버전이 꽂힙니다.`
+          : `--refresh-item: ${itemId} 는 DB 에 없습니다. 새로 꽂기만 합니다.`,
+      );
+    }
 
     await 사실적재(sql, facts);
     const 새카드 = await 카드적재(sql, items);

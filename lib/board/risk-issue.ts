@@ -2,7 +2,7 @@ import { MAIL_THREADS, type MailAttachment, type MailMessage } from "@/lib/conte
 import { 최신만, type 평가행 } from "@/lib/risk/rows";
 
 import { BOARD_SITE_ID, BOARD_SITE_SEED_ID } from "./site";
-import { boardStore } from "./store";
+import { boardStore, boardStoreDriver } from "./store";
 import type { RiskRowDraft, WorkItem } from "./types";
 
 /**
@@ -246,12 +246,18 @@ function 메일근거만들기(
 /**
  * 이슈 한 건을 조립한다. 이슈로 읽을 카드가 없으면 null — 화면은 섹션을 그리지 않는다.
  *
- * uuid 로 못 찾으면 시드 식별자로 한 번 더 본다. JSON 저장소는 시드를 치환 없이 들고
+ * 시드 식별자 폴백은 **JSON 저장소일 때만** 쓴다. JSON 저장소는 시드를 치환 없이 들고
  * 있어서(lib/board/site.ts 의 주석) 화면의 uuid 와 저장소의 식별자가 갈라져 있다.
+ * Postgres 는 site_id 가 uuid 컬럼이라 시드 식별자를 그대로 물으면 저장소가 invalid 로
+ * 거절하고, 그 오류가 그대로 응답이 되어 "이슈 없음"이어야 할 화면이 오류로 바뀐다 —
+ * 실제로 프로덕션에서 그렇게 400 이 났다.
  */
 export async function loadRiskIssue(siteId: string): Promise<RiskIssue | null> {
   const store = boardStore();
-  const 후보 = siteId === BOARD_SITE_ID ? [siteId, BOARD_SITE_SEED_ID] : [siteId];
+  const 후보 =
+    siteId === BOARD_SITE_ID && boardStoreDriver() === "json"
+      ? [siteId, BOARD_SITE_SEED_ID]
+      : [siteId];
 
   for (const sid of 후보) {
     const page = await store.listItems({ siteId: sid, status: "approval" });
