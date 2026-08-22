@@ -6,13 +6,23 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { MarkdownContent } from "@/components/markdown-content";
 import { SiteContextPanel } from "@/components/site-context-panel";
+import { TaskBoard } from "@/components/task-board/task-board";
 
-const navigation = [
+/**
+ * 사이드바 차례. **첫 항목이 태스크 보드**이므로 아래 인덱스가 곧 화면이다.
+ * 0 태스크 보드 · 1 우리 회사 챗봇 · 2 현장 맥락 관리 · 3 TBM 기록 · 4 위험성평가 기록.
+ * 순서를 바꾸면 `NAV_BOARD` · `NAV_SITE_CONTEXT` 두 상수도 같이 옮겨야 한다.
+ */
+const navigation: readonly { label: string; icon: string; badge?: number }[] = [
+  { label: "태스크 보드", icon: "/assets/file-check.svg", badge: 11 },
   { label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
   { label: "현장 맥락 관리", icon: "/assets/database.svg" },
   { label: "TBM 기록 목록", icon: "/assets/file-user.svg" },
   { label: "위험성평가 기록 목록", icon: "/assets/file-exclamation.svg" },
-] as const;
+];
+
+const NAV_BOARD = 0;
+const NAV_SITE_CONTEXT = 2;
 
 const promptCards = [
   {
@@ -180,7 +190,7 @@ function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
 }
 
 export function ConstructionConsole() {
-  const [activeNav, setActiveNav] = useState(0);
+  const [activeNav, setActiveNav] = useState(NAV_BOARD);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [lastQuestion, setLastQuestion] = useState("");
@@ -384,6 +394,9 @@ export function ConstructionConsole() {
             >
               <Image src={item.icon} alt="" width={18} height={18} />
               <span>{item.label}</span>
+              {item.badge === undefined ? null : (
+                <span className="nav-badge">{item.badge}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -429,8 +442,10 @@ export function ConstructionConsole() {
         </div>
       </aside>
 
-      <section className="workspace">
-        {activeNav === 1 ? (
+      <section className={`workspace${activeNav === NAV_BOARD ? " is-board" : ""}`}>
+        {activeNav === NAV_BOARD ? (
+          <TaskBoard />
+        ) : activeNav === NAV_SITE_CONTEXT ? (
           <SiteContextPanel />
         ) : (
         <div className={`content-stack${lastQuestion ? " is-chatting" : ""}`}>

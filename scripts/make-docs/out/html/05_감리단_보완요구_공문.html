@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>보 완 요 구 공 문</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">정우감리-2026-0819-11 · doc_7_v2n8qlxa</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)정우엔지니어링 건축사사무소 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사 건설사업관리단</div>
+<h1>보 완 요 구 공 문</h1>
+
+<div class="stamp-recv"><div class="hd">접 수</div><div class="bd">(주)한신종합건설 현장사무소</div></div>
+<table class="doc-meta"><tr><th>문서번호</th><td>정우감리-2026-0819-11</td><th>발신일자</th><td>2026-08-19</td></tr>
+<tr><th>수    신</th><td>(주)한신종합건설 현장소장</td><th>참    조</th><td>(주)한신종합건설 안전관리자 박정우</td></tr>
+<tr><th>발    신</th><td>(주)정우엔지니어링 건축사사무소 책임감리원 신동현</td><th>연 락 처</th><td>shin@jungwoo-eng.co.kr</td></tr>
+<tr><th>현    장</th><td>김포 고촌 물류센터 신축공사</td><th>대상 문서</th><td>GGC-01-RA-2026-08-M (관리기간 2026-08-01 ~ 2026-08-31)</td></tr>
+<tr><th>제    목</th><td colspan="3">월간 위험성평가 회의록 형식 요건 보완 요구의 건</td></tr>
+<tr><th>회신 기한</th><td colspan="3"><b>2026-08-21(금) 18:00</b> 까지</td></tr></table>
+<div class="clear"></div>
+
+<h2>1. 검토 결과</h2>
+<p>귀 현장이 제출한 위 대상 문서를 검토한 결과, 형식 요건을 갖추지 못한 행
+<b>19건</b>이 확인되었습니다. 해당 사항이 보완되기 전에는 결재 상신 및
+발주처 제출이 어려우니 회신 기한 내에 보완하여 회신하여 주시기 바랍니다.</p>
+
+<table class="grid "><colgroup><col style="width:34%"><col style="width:12%"><col style="width:54%"></colgroup><thead><tr><th>지적 유형</th><th>건수</th><th>해당 연번</th></tr></thead><tbody><tr><td class="c">법적 근거란 공란</td><td class="c"><b>12</b>행</td><td class="">3, 4, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21</td></tr>
+<tr><td class="c">개선 후 위험도 미기재</td><td class="c"><b>7</b>행</td><td class="">1, 2, 5, 6, 7, 8, 9</td></tr>
+<tr><td class="c"><b>합 계</b></td><td class="c"><b>19</b>행</td><td class="">중복 없음</td></tr></tbody></table>
+
+<h2>2. 지적 대상 행 상세 (19건)</h2>
+<table class="grid "><colgroup><col style="width:6%"><col style="width:10%"><col style="width:22%"><col style="width:20%"><col style="width:30%"><col style="width:12%"></colgroup><thead><tr><th>연번</th><th>공종분류</th><th>단위작업</th><th>지적 유형</th><th>보완 요구 내용</th><th>보완 완료</th></tr></thead><tbody><tr><td class="c">1</td><td class="c">토공사</td><td class="">되메움작업</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">2</td><td class="c">토공사</td><td class="">법면 정리</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">3</td><td class="c">골조공사</td><td class="">철근 가공 및 운반</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">4</td><td class="c">골조공사</td><td class="">철근 배근</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">5</td><td class="c">골조공사</td><td class="">거푸집 조립</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">6</td><td class="c">골조공사</td><td class="">동바리 설치</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">7</td><td class="c">골조공사</td><td class="">콘크리트 타설 및 다짐</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">8</td><td class="c">골조공사</td><td class="">콘크리트 압송</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">9</td><td class="c">골조공사</td><td class="">콘크리트 양생</td><td class="">개선 후 위험도 미기재</td><td class="">감소대책 적용 후의 빈도·강도·위험도를 산정하여 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">10</td><td class="c">골조공사</td><td class="">거푸집 해체</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">12</td><td class="c">가설공사</td><td class="">시스템비계 해체</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">13</td><td class="c">가설공사</td><td class="">안전난간 설치</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">14</td><td class="c">가설공사</td><td class="">개구부 덮개 설치</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">15</td><td class="c">가설공사</td><td class="">가설통로 및 계단</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">17</td><td class="c">양중작업</td><td class="">신호수 배치</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">18</td><td class="c">양중작업</td><td class="">이동식 크레인 작업</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">19</td><td class="c">전기공사</td><td class="">가설전기 배선</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">20</td><td class="c">공통</td><td class="">밀폐공간 출입(집수정·피트)</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">21</td><td class="c">공통</td><td class="">야간작업(연장 타설)</td><td class="">법적 근거란 공란</td><td class="">해당 위험요인에 대응하는 조문 번호와 제목을 기재할 것</td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+<div class="legend">
+보완 시 법적 근거는 조문 번호와 제목까지만 기재한다. 조문 본문을 옮겨 적을 필요는 없으며,
+필요 시 공식 원문 조회 결과를 별첨한다.
+</div>
+
+<h2>3. 회신 요령</h2>
+<ul class="tight">
+  <li>보완된 회의록 사본 1부를 회신 공문에 첨부한다.</li>
+  <li>보완이 불가능한 행이 있으면 그 사유를 행별로 기재한다.</li>
+  <li>회신 기한: <b>2026-08-21(금) 18:00</b></li>
+</ul>
+
+<h2>4. 발신 명의</h2>
+<p style="text-align:center;font-size:12pt;margin-top:8mm;letter-spacing:0.3em">(주)정우엔지니어링 건축사사무소</p>
+<div style="text-align:center;margin-top:3mm">
+  <span style="display:inline-block;width:22mm;height:22mm;border:1px dashed #c00;border-radius:50%;color:#c88;font-size:7pt;line-height:22mm">(직인)</span>
+</div>
+
+<h3>발신 검토</h3><table class="sign-table"><tr><th>(주)정우엔지니어링 건축사사무소 검토</th><th>(주)정우엔지니어링 건축사사무소 책임감리원</th><th>(주)케이엘자산운용 사업관리</th></tr><tr><td class="sign-cell"><span class="who">임세영</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">신동현</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">노경민</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<h2>수신처 회신란</h2>
+<table class="grid "><colgroup><col style="width:22%"><col style="width:16%"><col style="width:16%"><col style="width:46%"></colgroup><thead><tr><th>구분</th><th>담당</th><th>처리일</th><th>회신 내용</th></tr></thead><tbody><tr><td class="c">접수</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td><td class=""><span class="blank" style="min-width:58mm"></span></td></tr>
+<tr><td class="c">보완 작성</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td><td class=""><span class="blank" style="min-width:58mm"></span></td></tr>
+<tr><td class="c">회신 발송</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td><td class=""><span class="blank" style="min-width:58mm"></span></td></tr></tbody></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 정우감리-2026-0819-11 · doc_7_v2n8qlxa
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

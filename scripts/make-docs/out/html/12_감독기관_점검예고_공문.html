@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>감 독 실 시 예 고</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">○○노동청-산재예방-2026-4412 · doc_11_h6t3wpzy</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">○○지방고용노동청 ○○지청 &nbsp;|&nbsp; 산재예방지도과</div>
+<h1>감 독 실 시 예 고</h1>
+
+<div class="stamp-recv"><div class="hd">접 수</div><div class="bd">(주)한신종합건설 현장사무소</div></div>
+<table class="doc-meta"><tr><th>문서번호</th><td>○○노동청-산재예방-2026-4412</td><th>발신일자</th><td>2026-08-18</td></tr>
+<tr><th>수    신</th><td>(주)한신종합건설 김포 고촌 물류센터 신축공사 현장소장</td><th>접 수 일</th><td>2026-08-19</td></tr>
+<tr><th>발    신</th><td>○○지방고용노동청 ○○지청</td><th>담    당</th><td>산재예방지도과</td></tr>
+<tr><th>제    목</th><td colspan="3">산업안전보건 감독 실시 예고 및 관계 자료 제출 요구</td></tr>
+<tr><th>방 문 일</th><td><b>2026-08-25(화) 오전</b></td><th>자료 제출 기한</th><td><b>2026-08-24(월) 18:00</b></td></tr></table>
+<div class="clear"></div>
+
+<h2>1. 감독 개요</h2>
+<table class="grid "><colgroup><col style="width:20%"><col style="width:80%"></colgroup><thead><tr><th>구분</th><th>내용</th></tr></thead><tbody><tr><td class="c">감독 종류</td><td class="">건설현장 산업안전보건 정기 감독</td></tr>
+<tr><td class="c">방문 일시</td><td class=""><b>2026-08-25(화) 오전</b> (구체 시각은 방문 전일 유선 통보)</td></tr>
+<tr><td class="c">감독 대상</td><td class="">김포 고촌 물류센터 신축공사 (GGC-01)</td></tr>
+<tr><td class="c">감독 범위</td><td class="">위험성평가 실시 및 기록 관리 · 안전보건교육 · 협의체 운영 · 재해 예방 조치</td></tr>
+<tr><td class="c">자료 제출 기한</td><td class=""><b>2026-08-24(월) 18:00</b> 까지 전자 또는 방문 제출</td></tr>
+<tr><td class="c">자료 대상 기간</td><td class=""><b>2026-05-25 ~ 2026-08-24 (최근 3개월)</b></td></tr></tbody></table>
+
+<h2>2. 제출 요구 자료</h2>
+<table class="grid "><colgroup><col style="width:7%"><col style="width:43%"><col style="width:16%"><col style="width:18%"><col style="width:16%"></colgroup><thead><tr><th>연번</th><th>자료명</th><th>대상 기간</th><th>제출 형태</th><th>준비 완료</th></tr></thead><tbody><tr><td class="c">1</td><td class="">위험성평가 실시 결과 (정기 · 수시)</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">2</td><td class="">작업 전 안전점검회의(TBM) 회의록</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">3</td><td class="">안전보건교육 일지 (정기 · 신규 입장자 · 특별)</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">4</td><td class="">아차사고 및 산업재해 발생 대장</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">5</td><td class="">협력업체 안전보건협의체 회의록</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">6</td><td class="">순회점검일지 및 지적사항 조치 결과</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">7</td><td class="">작업허가서 발급 대장 (고소 · 화기 · 밀폐)</td><td class="c">최근 3개월</td><td class="c">결재 완료본</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">8</td><td class="">안전보건관리책임자 등 선임 서류</td><td class="c">현행</td><td class="c">사본</td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+<div class="note">
+제출 자료는 <b>결재가 완료된 문서</b>여야 한다. 결재 진행 중이거나 미상신 상태의 문서는
+제출 자료로 인정되지 않으므로, 제출 기한 전에 결재 상태를 먼저 확인해야 한다.
+</div>
+
+<h2>3. 협조 요청</h2>
+<ul class="tight">
+  <li>감독 당일 안전보건관리책임자와 안전관리자가 현장에 있어야 한다.</li>
+  <li>제출 자료의 목록과 각 문서의 결재 완료 여부를 정리한 표를 함께 제출한다.</li>
+  <li>자료 제출이 어려운 항목이 있으면 사유를 기재하여 회신한다.</li>
+</ul>
+
+<h2>4. 발신 명의</h2>
+<p style="text-align:center;font-size:12pt;margin-top:8mm;letter-spacing:0.3em">○○지방고용노동청 ○○지청장</p>
+<div style="text-align:center;margin-top:3mm">
+  <span style="display:inline-block;width:22mm;height:22mm;border:1px dashed #c00;border-radius:50%;color:#c88;font-size:7pt;line-height:22mm">(관인)</span>
+</div>
+
+<h2>수신처 처리란</h2>
+<table class="grid "><colgroup><col style="width:22%"><col style="width:16%"><col style="width:16%"><col style="width:46%"></colgroup><thead><tr><th>구분</th><th>담당</th><th>처리일</th><th>처리 결과</th></tr></thead><tbody><tr><td class="c">접수</td><td class="c">최민서</td><td class="c">2026-08-19</td><td class="">안전관리자 보고 완료</td></tr>
+<tr><td class="c">자료 목록 작성</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td><td class=""><span class="blank" style="min-width:58mm"></span></td></tr>
+<tr><td class="c">결재 상태 확인</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td><td class=""><span class="blank" style="min-width:58mm"></span></td></tr>
+<tr><td class="c">자료 제출</td><td class="c"><span class="blank"></span></td><td class="c"><span class="blank"></span></td><td class=""><span class="blank" style="min-width:58mm"></span></td></tr></tbody></table>
+
+<h3>접수 · 보고</h3><table class="sign-table"><tr><th>(주)한신종합건설 접수</th><th>(주)한신종합건설 안전관리자</th><th>(주)한신종합건설 현장소장</th></tr><tr><td class="sign-cell"><span class="who">최민서</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 ○○노동청-산재예방-2026-4412 · doc_11_h6t3wpzy
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

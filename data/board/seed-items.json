@@ -1,0 +1,633 @@
+{
+  "설명": "2026년 8월 19일 김포 고촌 물류센터 보드의 시드 카드 11건입니다. 회사·인물·문서는 모두 허구이며 docs/scenario-gimpo-logistics.md 의 이름과 수치를 그대로 씁니다.",
+  "siteId": "site_gimpo_gochon_01",
+  "기준시각": "2026-08-19T08:10:00+09:00",
+  "total": 11,
+  "items": [
+    {
+      "itemId": "card_photo_3f",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "3층 동일 구간 동바리 사진 촬영과 근거 등록",
+      "summary": "회의록 초안의 위험도를 매기려면 현재 조립 상태를 찍은 사진이 필요합니다. 4층은 아직 착수 전이므로 같은 방식으로 시공된 3F B열 12~14 구간이 판단 근거가 됩니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "동바리 자재가 MAT_SYS_SHORE 에서 MAT_PIPE_SHORE 로 바뀌고, 그 자재가 붙은 task_4f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm",
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.91,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_07_regular",
+          "scope": "4층 슬래브를 다루는 행 전체",
+          "reason": "shoringAssumption 이 시스템동바리로 적혀 있어 전제를 잃었습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "기록",
+          "into": "ra_draft_20260819",
+          "for": "RI-01 · RI-03 위험도 산정 근거"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-19 오전 중 (시각 미상)",
+      "estimatedMinutes": null,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 1000,
+      "createdAt": "2026-08-18T18:12:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_light_feedback",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "야간 타설 구간 조도 조치 확인과 작업자 피드백",
+      "summary": "전일 회의록의 제기 사항이 오늘 회의까지도 조치완료로 바뀌지 않았습니다. 이동식 후광등 추가 설치 여부를 확인하고 결과를 제기한 작업자에게 되돌려 줍니다.",
+      "trigger": {
+        "ruleId": "T-02",
+        "condition": "8월 18일 TBM 회의록의 조도 제기 사항이 8월 19일 회의록에서도 조치완료로 바뀌지 않았고, 같은 회의록의 preWorkCheck 조도 항목이 done: false 입니다.",
+        "sourceDocRefs": [
+          "tbm_20260818_pour",
+          "tbm_20260819_pour"
+        ],
+        "confidence": 0.86,
+        "requiresHumanConfirmation": false
+      },
+      "invalidates": [
+        {
+          "docId": "tbm_20260818_pour",
+          "scope": "작업 전 안전조치 확인란(조도)",
+          "reason": "제기된 조도 건이 미조치로 남아 있어 확인 표시를 붙일 수 없습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "기록",
+          "into": "tbm_20260820_pour",
+          "for": "조치 결과와 작업자 피드백"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-20 작업 전 (익일 TBM 06:40 이전)",
+      "estimatedMinutes": 40,
+      "assignee": "user_choi",
+      "delegable": true,
+      "blockedBy": [],
+      "laneOrder": 2000,
+      "createdAt": "2026-08-19T06:40:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_verify_9rows",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "schedule",
+      "status": "todo",
+      "origin": "machine",
+      "title": "8월 회의록 이행확인 미표시 9행 판정",
+      "summary": "관리기간 중간 점검 주기가 오늘 도래했고, 9월 2일 결재 상신 전에 비워 둘 수 없습니다. 표시만 채우지 않고 실제 실행 여부를 확인합니다 — 하도급사 담당 4행(서진건설 2·한빛가설 2)은 협의체에서 함께 묻습니다.",
+      "trigger": {
+        "ruleId": "S-02",
+        "condition": "관리기간 중간 점검 주기가 도래했고 8월 회의록에 이행확인이 비어 있는 행이 9건 남아 있습니다.",
+        "sourceDocRefs": [
+          "ra_2026_08_regular"
+        ],
+        "confidence": 0.99,
+        "requiresHumanConfirmation": false
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_08_regular",
+          "scope": "이행확인이 비어 있는 9개 행",
+          "reason": "이행확인란이 빈 상태로는 결재 상신을 올릴 수 없습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 9,
+          "into": "ra_2026_08_regular"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-19T16:30:00+09:00",
+      "estimatedMinutes": 90,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T05:30:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_council_1400",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "schedule",
+      "status": "todo",
+      "origin": "machine",
+      "title": "협력사 안전보건협의체 회의 진행",
+      "summary": "협력 6사 소장이 참석합니다. 동바리 변경 건과 이행확인 미표시 4행을 안건에 올립니다. 안건 자료는 승인 열에서 대기 중입니다.",
+      "trigger": null,
+      "invalidates": [],
+      "produces": [
+        {
+          "form": "회의록",
+          "into": "council_20260819"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-19T14:00:00+09:00",
+      "estimatedMinutes": 130,
+      "assignee": "user_park",
+      "delegable": true,
+      "blockedBy": [],
+      "laneOrder": 4000,
+      "createdAt": "2026-08-19T05:30:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_ra_draft_3rows",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "approval",
+      "origin": "machine",
+      "title": "수시 위험성평가 회의록 신규 3행",
+      "summary": "위험도 점수는 제품이 확정하지 않습니다. 숫자를 고쳐 승인하면 그 차이가 이력으로 남습니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "동바리 자재가 MAT_SYS_SHORE 에서 MAT_PIPE_SHORE 로 바뀌고, 그 자재가 붙은 task_4f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm",
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.91,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_07_regular",
+          "scope": "4층 슬래브를 다루는 행 전체",
+          "reason": "shoringAssumption 이 시스템동바리로 적혀 있어 전제를 잃었습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 3,
+          "into": "ra_draft_20260819"
+        }
+      ],
+      "draft": {
+        "form": "회의록",
+        "제목": "수시 위험성평가 회의록 (초안)",
+        "supersedes": "ra_2026_07_regular",
+        "rows": [
+          {
+            "itemId": "RI-01",
+            "process": "4층 슬래브 동바리 설치",
+            "hazard": "층고 8.2m 구간에서 강관동바리 4단 조립 시 좌굴에 의한 붕괴",
+            "hazardClass": "붕괴·도괴",
+            "currentControl": "시스템동바리 기준의 기존 설치 지침만 존재합니다.",
+            "risk": {
+              "likelihood": 3,
+              "severity": 4,
+              "score": 12,
+              "level": "높음"
+            },
+            "measures": [
+              {
+                "measureId": "M-01-1",
+                "text": "혼용 구간 전용 구조 검토서를 반입 전까지 수령하고 원청 공무팀이 검토합니다.",
+                "type": "관리적",
+                "owner": "user_park",
+                "dueDate": "2026-08-23",
+                "status": "open"
+              },
+              {
+                "measureId": "M-01-2",
+                "text": "수평연결재를 2단마다 설치하고 설치 후 사진으로 기록합니다.",
+                "type": "공학적",
+                "owner": "sub_seojin",
+                "dueDate": "2026-08-28",
+                "status": "open"
+              }
+            ],
+            "residualRisk": {
+              "likelihood": 2,
+              "severity": 4,
+              "score": 8,
+              "level": "보통"
+            },
+            "legalReferences": [
+              {
+                "ref": "law_2_c1v7bd",
+                "citable": true,
+                "note": "수시평가 실시 사유의 근거로 조회한 원문입니다."
+              }
+            ],
+            "derivedFrom": {
+              "evidenceIds": [
+                "ev_20260819_a"
+              ],
+              "contextDocRefs": [
+                "doc_2_k3f9x1qm"
+              ]
+            }
+          },
+          {
+            "itemId": "RI-03",
+            "process": "시스템동바리와 강관동바리 경계 구간 시공",
+            "hazard": "서로 다른 지지 방식이 만나는 지점에서 하중 전달이 불연속적으로 바뀌어 국부 침하가 발생",
+            "hazardClass": "붕괴·도괴",
+            "currentControl": "해당 구간에 대한 별도 지침이 없습니다.",
+            "risk": {
+              "likelihood": 3,
+              "severity": 4,
+              "score": 12,
+              "level": "높음"
+            },
+            "measures": [
+              {
+                "measureId": "M-03-1",
+                "text": "경계 구간 1.5m 범위를 시스템동바리로 통일하고 도면에 표기합니다.",
+                "type": "공학적",
+                "owner": "sub_seojin",
+                "dueDate": "2026-08-26",
+                "status": "open"
+              }
+            ],
+            "residualRisk": {
+              "likelihood": 2,
+              "severity": 3,
+              "score": 6,
+              "level": "낮음"
+            },
+            "legalReferences": [
+              {
+                "ref": "law_2_c1v7bd",
+                "citable": true,
+                "note": "수시평가 실시 사유의 근거로 조회한 원문입니다."
+              }
+            ],
+            "derivedFrom": {
+              "evidenceIds": [
+                "ev_20260819_a"
+              ],
+              "contextDocRefs": [
+                "doc_2_k3f9x1qm"
+              ]
+            }
+          },
+          {
+            "itemId": "RI-05",
+            "process": "콘크리트 타설 중 동바리 상태 감시",
+            "hazard": "타설 하중이 집중되는 시점에 변형을 인지하지 못해 대피가 지연",
+            "hazardClass": "붕괴·도괴",
+            "currentControl": "타설 담당 반장이 겸임하여 감시합니다.",
+            "risk": {
+              "likelihood": 2,
+              "severity": 4,
+              "score": 8,
+              "level": "보통"
+            },
+            "measures": [
+              {
+                "measureId": "M-05-1",
+                "text": "타설 당일 동바리 전담 감시자를 지정하고 무전기를 지급합니다.",
+                "type": "관리적",
+                "owner": "sub_seojin",
+                "dueDate": "2026-09-01",
+                "status": "open"
+              }
+            ],
+            "residualRisk": {
+              "likelihood": 1,
+              "severity": 4,
+              "score": 4,
+              "level": "낮음"
+            },
+            "legalReferences": [
+              {
+                "ref": "law_2_c1v7bd",
+                "citable": true,
+                "note": "수시평가 실시 사유의 근거로 조회한 원문입니다."
+              }
+            ],
+            "derivedFrom": {
+              "evidenceIds": [
+                "ev_20260819_c"
+              ],
+              "contextDocRefs": [
+                "doc_2_k3f9x1qm"
+              ]
+            }
+          }
+        ]
+      },
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-23T18:00:00+09:00",
+      "estimatedMinutes": 240,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 1000,
+      "createdAt": "2026-08-18T18:12:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_letter_structure",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "approval",
+      "origin": "machine",
+      "title": "구조 검토서 요청 공문",
+      "summary": "하도급사로 나가는 공문이며 반입 보류라는 계약상 효력이 따라옵니다. 반입일이 8월 24일이므로 오늘 안에 나가야 하며 T-03이 만든 초안 넷 가운데 가장 급합니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "동바리 자재가 MAT_SYS_SHORE 에서 MAT_PIPE_SHORE 로 바뀌고, 그 자재가 붙은 task_4f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm",
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.91,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_07_regular",
+          "scope": "4층 슬래브를 다루는 행 전체",
+          "reason": "shoringAssumption 이 시스템동바리로 적혀 있어 전제를 잃었습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "공문",
+          "to": "서진건설"
+        }
+      ],
+      "draft": {
+        "form": "공문",
+        "수신": "(주)서진건설 공무팀",
+        "제목": "4층 슬래브 동바리 혼용 시공 구조 검토서 제출 요청",
+        "본문": "귀사가 2026년 8월 18일 통보한 4층 슬래브 층고 8.2m 구간(A~C열 약 1,850㎡)의 강관동바리 혼용 시공과 관련하여, 혼용 구간 전용 구조 검토서 제출을 요청합니다. 검토서에는 수직도 관리 기준, 수평연결재 설치 간격, 이음부 처리 방법, 시스템동바리와의 경계 구간 하중 전달 계획이 포함되어야 합니다. 검토서 수령과 원청 공무팀 검토가 완료되기 전까지 8월 24일 예정된 자재 반입은 보류합니다.",
+        "첨부": [
+          "동바리_대체자재_견적서.pdf",
+          "강관동바리_사양서.pdf"
+        ]
+      },
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-19 중 발송 (반입 2026-08-24 이전)",
+      "estimatedMinutes": null,
+      "assignee": "user_park",
+      "delegable": true,
+      "blockedBy": [],
+      "laneOrder": 2000,
+      "createdAt": "2026-08-18T18:12:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_agenda_1400",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "approval",
+      "origin": "machine",
+      "title": "오늘 14시 협의체 안건 자료",
+      "summary": "회의 자리에서 협력사에 직접 묻는 문항입니다. 표현이 관계에 영향을 줍니다. 안건 3번은 동바리 변경 건(T-03), 안건 4번은 이행확인 미표시 4행(S-02)입니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "동바리 자재가 MAT_SYS_SHORE 에서 MAT_PIPE_SHORE 로 바뀌고, 그 자재가 붙은 task_4f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm",
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.91,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [],
+      "produces": [
+        {
+          "form": "회의자료",
+          "for": "협력사 안전보건협의체",
+          "teams": [
+            "sub_seojin",
+            "sub_hanbit",
+            "sub_jungang",
+            "sub_daeyang",
+            "sub_kyungin",
+            "sub_woori"
+          ]
+        }
+      ],
+      "draft": {
+        "form": "회의자료",
+        "제목": "2026년 8월 협력사 안전보건협의체 안건",
+        "안건": [
+          {
+            "번호": 1,
+            "제목": "지난 회의 조치사항 확인",
+            "문항": [
+              "7월 협의체에서 정한 조치 가운데 아직 열려 있는 항목이 있습니까?"
+            ]
+          },
+          {
+            "번호": 2,
+            "제목": "금주 위험작업 공유",
+            "문항": [
+              "8월 19일부터 22일까지 3층 벽체 타설이 진행됩니다. 야간 작업 계획이 있는 팀이 있습니까?"
+            ]
+          },
+          {
+            "번호": 3,
+            "제목": "4층 슬래브 동바리 자재 변경 건",
+            "문항": [
+              "층고 8.2m 구간의 강관동바리 혼용 시공에 대한 구조 검토서는 언제 제출 가능합니까?",
+              "검토서 수령 전까지 8월 24일 반입을 보류하는 데 이견이 있습니까?",
+              "시스템동바리와 강관동바리가 만나는 경계 구간은 어느 쪽 기준으로 시공할 계획입니까?"
+            ]
+          },
+          {
+            "번호": 4,
+            "제목": "8월 회의록 이행확인 미표시 4행",
+            "문항": [
+              "서진건설 담당 2행(슬래브 개구부 덮개 고정, 거푸집 해체재 낙하 방지)의 실제 실행 여부를 확인해 주십시오.",
+              "한빛가설 담당 2행(단부 안전난간 설치, 가설 통로 폭 확보)의 실제 실행 여부를 확인해 주십시오."
+            ]
+          }
+        ]
+      },
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-19T14:00:00+09:00",
+      "estimatedMinutes": null,
+      "assignee": "user_park",
+      "delegable": true,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-18T18:12:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_tbm_3",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "approval",
+      "origin": "machine",
+      "title": "내일 TBM 자료 3건 · 골조 · 가설 · 양중",
+      "summary": "위 회의록 3행이 먼저 승인되어야 내용이 확정됩니다. 순서가 걸려 있습니다(blockedBy). 통역이 필요한 인원 4명의 전달 방안이 포함됩니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "동바리 자재가 MAT_SYS_SHORE 에서 MAT_PIPE_SHORE 로 바뀌고, 그 자재가 붙은 task_4f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm",
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.91,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [],
+      "produces": [
+        {
+          "form": "TBM자료",
+          "count": 3,
+          "teams": [
+            "골조",
+            "가설",
+            "양중"
+          ]
+        }
+      ],
+      "draft": {
+        "form": "TBM자료",
+        "팀": "골조",
+        "항목": [
+          "오늘 4층 슬래브 동바리는 강관동바리 혼용으로 바뀔 수 있습니다. 구조 검토서가 오기 전에는 자재를 올리지 않습니다.",
+          "층고 8.2m 구간은 4단 조립입니다. 수평연결재를 2단마다 걸고, 걸고 나서 사진을 찍어 반장에게 보냅니다.",
+          "시스템동바리와 강관동바리가 만나는 경계에서 1.5m 안쪽은 시스템동바리로 통일합니다. 임의로 섞지 않습니다.",
+          "타설 당일에는 동바리만 보는 감시자가 따로 붙습니다. 변형이 보이면 무전으로 즉시 알리고 하부에서 나옵니다."
+        ],
+        "통역필요인원": 4
+      },
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-20T06:40:00+09:00",
+      "estimatedMinutes": null,
+      "assignee": "user_park",
+      "delegable": true,
+      "blockedBy": [
+        "card_ra_draft_3rows"
+      ],
+      "laneOrder": 4000,
+      "createdAt": "2026-08-18T18:12:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_tbm_today",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "daily",
+      "status": "done",
+      "origin": "machine",
+      "title": "오늘 TBM 3개 팀 실시",
+      "summary": null,
+      "trigger": null,
+      "invalidates": [],
+      "produces": [],
+      "draft": null,
+      "confirmedBy": "user_park",
+      "confirmedAt": "2026-08-19T07:20:00+09:00",
+      "dueBy": null,
+      "estimatedMinutes": 70,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 1000,
+      "createdAt": "2026-08-19T05:30:00+09:00",
+      "updatedAt": "2026-08-19T07:20:00+09:00"
+    },
+    {
+      "itemId": "card_permit_5",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "daily",
+      "status": "done",
+      "origin": "machine",
+      "title": "작업허가서 5건 검토와 발급",
+      "summary": null,
+      "trigger": null,
+      "invalidates": [],
+      "produces": [],
+      "draft": null,
+      "confirmedBy": "user_park",
+      "confirmedAt": "2026-08-19T09:00:00+09:00",
+      "dueBy": null,
+      "estimatedMinutes": 50,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 2000,
+      "createdAt": "2026-08-19T05:30:00+09:00",
+      "updatedAt": "2026-08-19T09:00:00+09:00"
+    },
+    {
+      "itemId": "card_mail_parse",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "done",
+      "origin": "machine",
+      "title": "동바리 변경 메일 파싱과 근거 등록",
+      "summary": "사람의 판단이 필요 없는 단계입니다. 승인을 거치지 않고 바로 완료로 들어옵니다. 첨부 11쪽에서 규격과 수량을 표까지 복원했고 원문 조회에 성공해 doc_2_k3f9x1qm 가 citable 상태입니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "동바리 자재가 MAT_SYS_SHORE 에서 MAT_PIPE_SHORE 로 바뀌고, 그 자재가 붙은 task_4f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm",
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.91,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_07_regular",
+          "scope": "4층 슬래브를 다루는 행 전체",
+          "reason": "shoringAssumption 이 시스템동바리로 적혀 있어 전제를 잃었습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "기록",
+          "into": "doc_2_k3f9x1qm"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": null,
+      "estimatedMinutes": null,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-18T14:35:12+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    }
+  ]
+}
