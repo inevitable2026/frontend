@@ -247,11 +247,13 @@ export function AssistantPanel({
       </div>
 
       <ChatAskBar
-        chat={chat}
         className="board-assistant-ask"
+        disabled={chat.isSubmitting}
         inputId="board-assistant-question"
+        onChange={chat.setQuestion}
         onSubmit={handleSubmit}
         placeholder="보드를 고치거나 법령을 물어보세요."
+        value={chat.question}
       />
     </aside>
   );
