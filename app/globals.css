@@ -2641,6 +2641,70 @@ button {
   padding: 4px 10px 12px;
 }
 
+/* 넷째 조건부터를 감춰 두는 접이 상자다. 항목 하나하나의 여닫이와 같은 격자 비율 전환을 쓴다.
+   접혀 있는 동안에는 목록이 벌려 놓은 간격 한 칸을 음수 여백으로 되돌려, 높이가 0 인 상자
+   때문에 빈 틈이 생기지 않게 한다. */
+.board-brief-more-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -6px;
+  transition:
+    grid-template-rows 0.24s cubic-bezier(0.22, 0.61, 0.36, 1),
+    margin-top 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.board-brief-more-fold.is-open {
+  grid-template-rows: 1fr;
+  margin-top: 0;
+}
+
+/* 자르는 상자다. 여백을 여기 두면 접혔을 때 그만큼이 남는다. */
+.board-brief-more-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.board-brief-more-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.board-brief-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.board-brief-more:hover {
+  background: #fbfcfe;
+  color: var(--text-sidebar);
+}
+
+.board-brief-more-chevron {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: var(--board-chevron-ink);
+  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.board-brief-more.is-open .board-brief-more-chevron {
+  transform: rotate(180deg);
+}
 
 /* ---------------- 브리핑 항목 ---------------- */
 
@@ -4127,6 +4191,12 @@ button {
 
   .board-rsn-fold,
   .board-rsn-body {
+    transition: none;
+  }
+
+  .board-brief-more-fold,
+  .board-brief-more,
+  .board-brief-more-chevron {
     transition: none;
   }
 
