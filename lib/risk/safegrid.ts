@@ -145,6 +145,16 @@ export async function 어휘읽기(): Promise<어휘> {
   return (await res.json()) as 어휘;
 }
 
+/** 지금까지 만든 평가 목록. 저쪽이 일자별로 묶어서 준다. */
+export type 평가요약 = { id: string; title: string; created_at: string };
+export type 평가일자 = { date: string; items: 평가요약[] };
+
+export async function 평가목록(): Promise<{ days: 평가일자[] }> {
+  const res = await 부르기("/assessments", {}, 조회_제한시간);
+  if (!res.ok) throw new Error(`평가 목록 조회 실패 (${res.status})`);
+  return (await res.json()) as { days: 평가일자[] };
+}
+
 /** 평가 1건 조회. 새로고침 복원과 이행확인 저장 후 재확인에 쓴다. */
 export async function 평가읽기(id: string): Promise<Assessment> {
   const res = await 부르기(`/assessments/${encodeURIComponent(id)}`, {}, 조회_제한시간);

@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import AgentPanel, { type 패널상태, type 필드 } from "@/components/risk/agent-panel";
 import RiskQueue, { 위험성평가카드인가 } from "@/components/risk/risk-queue";
+import RiskRecords from "@/components/risk/risk-records";
 import RiskTable from "@/components/risk/risk-table";
 import RiskWorkspace from "@/components/risk/risk-workspace";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
+import type { 평가일자 } from "@/lib/risk/safegrid";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
 
 /**
@@ -89,6 +91,9 @@ export function RiskAssessmentPanel() {
   const [대기열로딩, set대기열로딩] = useState(true);
   // 기한 판정의 기준 시각. 대기열을 읽을 때 한 번 잡고 렌더 중에는 다시 재지 않는다.
   const [기준시각, set기준시각] = useState(0);
+  const [기록, set기록] = useState<평가일자[]>([]);
+  const [기록로딩, set기록로딩] = useState(true);
+  const [기록펼침, set기록펼침] = useState(false);
   const [고른카드, set고른카드] = useState<WorkItem | null>(null);
 
   const [모드, set모드] = useState<생성모드>("데모");
@@ -188,6 +193,43 @@ export function RiskAssessmentPanel() {
       살아있음 = false;
     };
   }, []);
+
+  /**
+   * 지금까지 만든 평가서 목록. **보드 카드와 다른 곳에 있다** —
+   * 감지 카드는 보드 저장소에, 만든 평가서는 SAFEGRID 자체 DB 에 있다.
+   * 탭이 "기록 목록"을 표방하므로 둘 다 보여야 한다.
+   */
+  useEffect(() => {
+    let 살아있음 = true;
+    fetch("/api/risk/list")
+      .then((r) => (r.ok ? (r.json() as Promise<{ days: 평가일자[] }>) : null))
+      .then((v) => {
+        if (살아있음 && v?.days) set기록(v.days);
+      })
+      .catch(() => {
+        /* 기록을 못 읽어도 대기열과 새 평가는 계속 쓸 수 있어야 한다. */
+      })
+      .finally(() => {
+        if (살아있음) set기록로딩(false);
+      });
+    return () => {
+      살아있음 = false;
+    };
+  }, []);
+
+  /** 저장된 평가서를 연다. 새로 만드는 것이 아니라 SAFEGRID 에서 읽어 온다. */
+  async function 기록열기(id: string) {
+    set오류(null);
+    set화면("새평가");
+    try {
+      const res = await fetch(`/api/risk/${id}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? `평가를 읽지 못했습니다 (${res.status})`);
+      setAssessment(body.assessment as Assessment);
+    } catch (err) {
+      set오류((err as Error).message);
+    }
+  }
 
   const 미리보기만들기 = useCallback((file: File) => {
     const url = URL.createObjectURL(file);
@@ -456,6 +498,16 @@ export function RiskAssessmentPanel() {
             set고른카드(item);
             set화면("작업장");
           }}
+        />
+
+        {/* 감지 카드와 만든 평가서는 **다른 곳에 산다.** 탭이 "기록 목록"을 표방하므로
+            둘 다 보여야 한다 — 감지 카드만 보이면 실제로 만든 평가서가 통째로 사라진다. */}
+        <RiskRecords
+          일자별={기록}
+          불러오는중={기록로딩}
+          열기={(id) => void 기록열기(id)}
+          펼침={기록펼침}
+          펼치기={() => set기록펼침(true)}
         />
       </div>
     );
