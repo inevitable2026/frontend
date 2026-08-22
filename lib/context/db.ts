@@ -40,18 +40,51 @@ const POOL_SIZE = 8;
 
 // 쉬는 커넥션을 놓기까지의 시간.
 //
-// 짧게 잡으면 안 된다. 연결 하나를 새로 세우는 데 TLS 악수까지 1.8초가 걸려서, 잠깐 쉬었다고
-// 끊어 버리면 다음 요청이 그 값을 고스란히 문다. 그렇다고 무한정 붙들면 인스턴스가 여럿일 때
-// Postgres 의 max_connections 를 잠식하므로, 사람이 화면을 보고 있을 만한 시간은 살려 두고
-// 그 뒤에 놓는 쪽으로 5분을 잡았다.
-const IDLE_TIMEOUT_SECONDS = 300;
+// 처음에는 300초였다. 근거는 "연결 하나를 새로 세우는 데 TLS 악수까지 1.8초가 걸리니 잠깐
+// 쉬었다고 끊으면 다음 요청이 그 값을 문다" 였고, 그 자체는 맞다. 그런데 **Railway 의 TCP
+// 프록시가 우리보다 먼저 끊는다.** 그러면 풀은 살아 있다고 믿는 소켓에 질의를 써 넣고,
+// 그 결과가 이렇다:
+//
+//   POST /api/context/ingest   500  in 3.5min
+//     ⨯ write CONNECTION_CLOSED tokaido.proxy.rlwy.net:19001
+//   GET /api/context/sites     500  in 70s   (read ECONNRESET)
+//
+// 사용자에게는 "업로드 요청에 실패했습니다" 로 보였다. 라이브 게이트는 통과한 뒤였고,
+// 죽은 것은 DB 소켓이었다.
+//
+// 그래서 **프록시보다 우리가 먼저 놓는다.** 대가는 1분 넘게 쉰 뒤 첫 질의에 붙는 2초이고,
+// 얻는 것은 그 자리에서 나던 500 이 사라지는 것이다. 2초 기다리는 것과 실패하는 것 중에
+// 고르는 문제라면 기다리는 쪽이다.
+const IDLE_TIMEOUT_SECONDS = 60;
+
+// 커넥션 하나를 얼마나 오래 쓸 것인가.
+//
+// 쉬지 않고 계속 쓰이는 커넥션은 `idle_timeout` 이 손대지 않는다. 그런 것도 프록시 쪽에서
+// 언젠가 끊기므로, 우리가 먼저 돌려 쓴다. postgres.js 가 이 값에 흔들림을 섞어 여러 커넥션이
+// 동시에 끊기지 않게 한다.
+const MAX_LIFETIME_SECONDS = 10 * 60;
+
+// 질의 하나가 붙들 수 있는 시간.
+//
+// 위 3.5분짜리 500 은 죽은 소켓 위에서 질의가 **아무 제한 없이 매달려 있다가** 소켓이
+// 완전히 닫힐 때에야 끝난 것이다. 화면은 그동안 "분석 중…" 을 띄우고 있었다. 30초면
+// 원본 바이트를 넣는 트랜잭션에도 넉넉하고(도쿄 왕복 2초), 죽은 연결은 그 전에 드러난다.
+const STATEMENT_TIMEOUT_MS = 30_000;
 
 export function db() {
   if (!globalThis.__contextSql) {
     globalThis.__contextSql = postgres(connectionString(), {
       max: POOL_SIZE,
       idle_timeout: IDLE_TIMEOUT_SECONDS,
+      max_lifetime: MAX_LIFETIME_SECONDS,
+      connect_timeout: 15,
       prepare: PREPARE,
+      connection: { statement_timeout: STATEMENT_TIMEOUT_MS },
+      // 질의가 없는 사이에 소켓이 끊기면 postgres.js 가 처리되지 않은 거절을 낸다.
+      // 잡아 주지 않으면 Node 가 그것을 unhandledRejection 으로 올리고, 배포 환경에서는
+      // 그 한 번이 인스턴스를 내린다. 풀은 다음 질의에서 새 커넥션을 세우므로 여기서는
+      // 삼키는 것이 맞다 — 진짜 실패는 질의를 부른 쪽이 받는다.
+      onclose: () => {},
     });
   }
   return globalThis.__contextSql;

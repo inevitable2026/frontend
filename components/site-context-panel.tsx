@@ -292,6 +292,11 @@ export function SiteContextPanel({
     );
   }
 
+  /** 현장 id 를 사람이 읽는 이름으로. 모르면 null — 이름을 지어내지 않는다. */
+  function 현장이름(id: string): string | null {
+    return sites.find((s) => s.id === id)?.name ?? null;
+  }
+
   async function save() {
     if (!jobId || !chosenSiteId) return;
     setSaving(true);
@@ -310,6 +315,27 @@ export function SiteContextPanel({
     setPhase("idle");
     setJobId(null);
     setStages(emptyStages());
+
+    /*
+     * **저장한 현장으로 문서함을 옮긴다.**
+     *
+     * 저장은 `chosenSiteId`(모델이 추천했거나 사람이 고른 현장)로 가는데, 아래 문서함은
+     * `siteFilter`(지금 보고 있던 현장)를 그대로 보고 있었다. 둘이 다르면 — 흔하다,
+     * 추천이 문서 내용에서 나오므로 — 저장은 성공했는데 목록은 **비어 있는 남의 현장**을
+     * 그리고, 화면이 "저장된 문서가 없습니다" 라고 말한다.
+     *
+     * 실제로 그렇게 됐다. 「강남 오피스텔 신축공사」로 저장된 계약서를 두고 「김포 고촌
+     * 물류센터」 문서함이 0건을 보여, 저장이 안 된 것처럼 보였다.
+     *
+     * 안내 문장은 저장된 현장 이름을 이미 적고 있었다. 그런데 사람은 문장보다 목록을
+     * 믿는다. 목록을 옮긴다.
+     */
+    if (chosenSiteId && chosenSiteId !== siteFilter) {
+      onUrlStateChange({ siteId: chosenSiteId, documentId: null });
+      // 필터가 바뀌면 목록 effect 가 다시 읽는다. 여기서 또 부르면 옛 현장을 읽는다.
+      await loadSites();
+      return;
+    }
     await Promise.all([loadSites(), loadDocuments()]);
   }
 
@@ -789,7 +815,17 @@ export function SiteContextPanel({
         </header>
 
         {documents.length === 0 ? (
-          <p className="context-empty">저장된 문서가 없습니다.</p>
+          /*
+           * **어느 현장이 비었는지 말한다.**
+           *
+           * "저장된 문서가 없습니다" 만 적으면 방금 저장한 사람은 저장이 실패했다고 읽는다.
+           * 실제로는 다른 현장에 들어가 있고 이 현장이 원래 비어 있는 것이다 — 김포 고촌은
+           * 문서가 한 번도 없었고, 기존 16건은 전부 다른 네 현장에 있다.
+           */
+          <p className="context-empty">
+            {현장이름(siteFilter) ? `「${현장이름(siteFilter)}」 문서함에 저장된 문서가 없습니다.` : "저장된 문서가 없습니다."}
+            {kindFilter ? ` (${kindFilter} 만 보는 중)` : ""}
+          </p>
         ) : (
           <table className="context-table">
             <thead>
