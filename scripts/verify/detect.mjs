@@ -42,6 +42,12 @@ writeFileSync(
       compilerOptions: {
         target: "ES2022",
         lib: ["esnext"],
+        // 규칙이 끌어오는 파일 가운데 `process.env` 를 읽는 것이 생겼다
+        // (`lib/generate/model.ts`). node 타입을 안 넣으면 그 한 줄 때문에 컴파일이
+        // 죽고 검증기 전체가 실행되지 못한다.
+        types: ["node"],
+        // tsconfig 가 임시 디렉터리에 있어 node_modules 를 위로 못 찾는다. 경로를 박아 준다.
+        typeRoots: [path.join(ROOT, "node_modules", "@types")],
         module: "commonjs",
         moduleResolution: "node",
         strict: false,
@@ -101,7 +107,7 @@ const deltas = computeDeltas(facts, { siteId: SITE });
 console.log(`\n[델타] ${deltas.length}건`);
 for (const d of deltas) console.log(`  ${d.factType} :: ${d.key} @ ${d.observedAt}`);
 
-const run = runDetect({ siteId: SITE, now: NOW, facts, rules: triggerRules });
+const run = await runDetect({ siteId: SITE, now: NOW, facts, rules: triggerRules });
 
 const byRule = new Map();
 for (const d of run.detections) {
@@ -240,19 +246,19 @@ for (const t of 중복) console.log(`  ${t} × ${제목들.filter((x) => x === t
 function 사본() {
   return JSON.parse(JSON.stringify(facts));
 }
-function 발화규칙(f) {
-  const r = runDetect({ siteId: SITE, now: NOW, facts: f, rules: triggerRules });
+async function 발화규칙(f) {
+  const r = await runDetect({ siteId: SITE, now: NOW, facts: f, rules: triggerRules });
   return [...new Set(r.detections.map((d) => d.ruleId))].sort();
 }
 
 console.log("\n[원인 가리기]");
-console.log(`  원본 시드 → ${발화규칙(사본()).join(", ")}`);
+console.log(`  원본 시드 → ${(await 발화규칙(사본())).join(", ")}`);
 
 const a = 사본();
 for (const f of a) {
   if (f.factType === "riskAssessmentRow" && f.value?.회의록) f.value.assessmentId = f.value.회의록;
 }
-console.log(`  riskAssessmentRow.value 에 assessmentId=회의록 별칭 → ${발화규칙(a).join(", ")}`);
+console.log(`  riskAssessmentRow.value 에 assessmentId=회의록 별칭 → ${(await 발화규칙(a)).join(", ")}`);
 
 const b2 = 사본();
 for (const f of b2) {
@@ -260,13 +266,13 @@ for (const f of b2) {
     f.value.대상행 = f.value.지적대상행;
   }
 }
-console.log(`  externalReviewComment.value 에 대상행=지적대상행 별칭 → ${발화규칙(b2).join(", ")}`);
+console.log(`  externalReviewComment.value 에 대상행=지적대상행 별칭 → ${(await 발화규칙(b2)).join(", ")}`);
 
 const c2 = 사본();
 for (const f of c2) {
   if (f.factType === "tbmMinutesFeedback") f.value.항목id = f.key.split("#")[1];
 }
-console.log(`  tbmMinutesFeedback.value 에 항목id=key 뒷부분 → ${발화규칙(c2).join(", ")}`);
+console.log(`  tbmMinutesFeedback.value 에 항목id=key 뒷부분 → ${(await 발화규칙(c2)).join(", ")}`);
 
 const d2 = 사본();
 for (const f of d2) {
@@ -275,7 +281,7 @@ for (const f of d2) {
     if (f.key === "tbm_pour#fb_1" && f.value.회차 === "2026-08-19") f.value.내용 = "야간 작업 구간 조도 확보";
   }
 }
-console.log(`  위 + 08-19 제기 문구를 점검 항목 문구와 일치시킴 → ${발화규칙(d2).join(", ")}`);
+console.log(`  위 + 08-19 제기 문구를 점검 항목 문구와 일치시킴 → ${(await 발화규칙(d2)).join(", ")}`);
 
 /* --------------------------------------------------------------- 판정 */
 

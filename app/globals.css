@@ -5275,3 +5275,1399 @@ button {
   margin: 2px 0 0;
   font-size: 13px;
 }
+
+/* ===========================================================================
+   위험성평가 (risk-*)
+   형제 탭(.context-*)과 같은 뼈대를 쓴다. 같은 콘솔 안에서 탭마다 다르게 생기면
+   쓰는 사람이 매번 다시 배워야 한다.
+
+   2-pane 을 쓰지 않는 이유 — .context-panel 이 max-width 960px 이고, 여기를 좌우로
+   나누면 표 쪽이 460px 남는다. 위험요인·빈도·강도·위험도·대책·조문 6개가 들어갈 폭이
+   아니다. 넓은 화면에서도 한 컬럼으로 두고 행을 카드로 그린다.
+   =========================================================================== */
+
+:root {
+  --risk-high: #e5484d;
+  --risk-mid: #f5a524;
+  --risk-low: #12a594;
+}
+
+.risk-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 960px;
+  padding: 48px 40px 80px;
+  overflow-y: auto;
+}
+
+.risk-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.risk-head h1 {
+  margin: 6px 0 8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.risk-sub {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.risk-demo-note {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.risk-demo-note.is-live {
+  border-color: color-mix(in srgb, var(--purple-primary) 32%, transparent);
+  background: color-mix(in srgb, var(--purple-primary) 6%, transparent);
+}
+
+/* --- 업로드 ------------------------------------------------------------- */
+
+.risk-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--sidebar-surface);
+}
+
+/* 현장에서 장갑 낀 손으로 누른다. 44px 아래로 내리지 않는다. */
+.risk-upload .upload-button {
+  min-height: 44px;
+}
+
+/* --- 에이전트 패널 ------------------------------------------------------ */
+
+.risk-agents {
+  display: grid;
+  gap: 14px;
+}
+
+.risk-agent {
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.risk-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--sidebar-surface);
+}
+
+.risk-agent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-agent-engine {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--border-soft);
+  color: var(--text-sidebar);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.risk-badge.is-실행중 {
+  background: color-mix(in srgb, var(--purple-primary) 14%, transparent);
+  color: var(--purple-primary);
+}
+
+.risk-badge.is-완료 {
+  background: color-mix(in srgb, var(--risk-low) 16%, transparent);
+  color: var(--risk-low);
+}
+
+.risk-badge.is-실패 {
+  background: color-mix(in srgb, var(--risk-high) 14%, transparent);
+  color: var(--risk-high);
+}
+
+.risk-agent-body {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+}
+
+.risk-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--sidebar-surface);
+}
+
+.risk-preview.is-empty,
+.risk-preview-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 132px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.risk-preview img,
+.risk-preview object {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 요청이 실제로 날아가 있는 동안에만 돈다. 없는 분석을 하는 척하지 않는다. */
+.risk-scanline {
+  position: absolute;
+  inset-inline: 0;
+  height: 34px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--purple-primary) 45%, transparent),
+    transparent
+  );
+  animation: risk-scan 1.5s ease-in-out infinite;
+}
+
+@keyframes risk-scan {
+  0% { transform: translateY(-34px); }
+  100% { transform: translateY(132px); }
+}
+
+.risk-fields {
+  display: grid;
+  gap: 5px;
+}
+
+.risk-field-row {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.risk-field-name {
+  flex-shrink: 0;
+  width: 44px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.risk-field-value {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.risk-skeleton {
+  border-radius: 4px;
+  background: var(--border-soft);
+  color: transparent;
+  animation: risk-pulse 1.2s ease-in-out infinite;
+}
+
+.risk-field-value.risk-skeleton {
+  height: 15px;
+}
+
+@keyframes risk-pulse {
+  50% { opacity: 0.45; }
+}
+
+.risk-agent-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-agent-note.is-error {
+  color: var(--risk-high);
+}
+
+.risk-agent-memo {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* --- 입력 --------------------------------------------------------------- */
+
+.risk-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.risk-inputs label {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-sidebar);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-inputs input,
+.risk-inputs select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 400;
+}
+
+.risk-chips {
+  display: grid;
+  /* 셋을 한 줄에 놓으면 칩 하나가 한 칸을 넘겨 목록이 눌린다. 세로로 쌓는다. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.risk-chips ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.risk-chips li button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.risk-chip-empty {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* --- 실행 --------------------------------------------------------------- */
+
+.risk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.risk-generate {
+  min-height: 48px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-generate:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.risk-export {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  color: var(--text-sidebar);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.risk-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-error {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--risk-high) 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--risk-high) 7%, transparent);
+  color: var(--risk-high);
+  font-size: 14px;
+}
+
+/* --- 평가표 ------------------------------------------------------------- */
+
+.risk-progress {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--sidebar-surface);
+}
+
+/* 숫자 묶음은 줄이지 않는다. 줄이면 "이행확인 3 / 9 33%" 가 잘린다 — 대신 막대가 줄어든다. */
+.risk-progress > div:first-child {
+  display: flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* `.eyebrow` 를 빌려 쓰지 않는 이유: 그쪽은 `min-width: 100%` 라 flex 행에서 폭을
+   전부 먹는다. 실제로 그렇게 썼다가 "0 / 8" 이 13px 로 찌그러졌다. */
+.risk-progress-label {
+  color: var(--purple-copy);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.risk-progress strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-progress-pct {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.risk-progress-bar {
+  flex: 1 1 160px;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border-soft);
+}
+
+.risk-progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--purple-primary);
+  transition: width 0.25s ease;
+}
+
+.risk-saving {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-rows {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-row {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.risk-row.is-done {
+  border-color: color-mix(in srgb, var(--risk-low) 40%, transparent);
+  background: color-mix(in srgb, var(--risk-low) 4%, transparent);
+}
+
+.risk-row-main {
+  display: flex;
+  gap: 12px;
+}
+
+.risk-row-no {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.risk-row-step {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-row-hazard {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.risk-row-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.risk-row-scores label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--sidebar-surface);
+}
+
+.risk-score b {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-score em {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.risk-score small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.risk-score.is-high { background: color-mix(in srgb, var(--risk-high) 12%, transparent); color: var(--risk-high); }
+.risk-score.is-mid  { background: color-mix(in srgb, var(--risk-mid) 16%, transparent); color: #8a5a00; }
+.risk-score.is-low  { background: color-mix(in srgb, var(--risk-low) 13%, transparent); color: var(--risk-low); }
+
+.risk-controls,
+.risk-clauses {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-inline-start: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.risk-clauses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+/* 조문은 검색으로 붙인 것만 나온다. 모델이 쓴 조문은 여기에 없다. */
+.risk-clauses li {
+  padding: 4px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--text-sidebar);
+  font-size: 12px;
+}
+
+.risk-row-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.risk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-check input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--purple-primary);
+}
+
+.risk-owner input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  font: inherit;
+}
+
+@media (max-width: 1023px) {
+  .risk-panel {
+    padding: 28px 20px 64px;
+  }
+
+  .risk-head {
+    flex-direction: column;
+  }
+
+  /* 좁은 화면에서 미리보기가 세로를 다 먹지 않게 위아래로 쌓는다. */
+  .risk-agent-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .risk-preview {
+    min-height: 160px;
+  }
+}
+
+/* --- 조치 대기열 --------------------------------------------------------- */
+/* 카드 생김새는 `.board-card` 를 그대로 쓴다. 여기서는 묶음 머리와,
+   버튼으로 감싸면서 달라지는 것(정렬·커서)만 손본다. */
+
+.risk-queue {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+/* 세 묶음을 세로로 쌓으면 화면이 길어지고 카드 한 장이 가로로 늘어난다.
+   보드 칸반처럼 열로 놓으면 둘 다 해결된다 — 한 열이 좁아 글줄도 저절로 짧아진다. */
+@media (max-width: 1023px) {
+  .risk-queue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.risk-queue-empty {
+  margin: 0;
+  padding: 32px 20px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 14px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.risk-queue-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.risk-queue-group h3 em {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.risk-queue-group.is-재평가 h3 { color: var(--risk-high); }
+.risk-queue-group.is-작성중 h3 { color: var(--purple-primary); }
+.risk-queue-group.is-최신 h3 { color: var(--text-muted); }
+
+.risk-queue-group ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* `.board-card` 는 div 를 전제로 쓰였다. 버튼으로 감싸면서 필요한 것만 되돌린다. */
+.risk-queue-card {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risk-queue-card:hover {
+  border-color: var(--purple-primary);
+}
+
+/* 보드에는 없는 것 하나 — 어느 현장인지. 대기열은 현장이 섞이기 때문이다. */
+.risk-queue-site {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* --- 작업장 --------------------------------------------------------------- */
+
+.risk-ws-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.risk-ws-head h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.risk-ws-back {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.risk-ws-site {
+  margin: 0;
+  color: var(--purple-copy);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-ws-progress {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.risk-ws-why {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.risk-ws-why em {
+  color: var(--risk-mid);
+  font-style: normal;
+}
+
+.risk-ws-invalidates {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 18px 14px 34px;
+  border: 1px solid color-mix(in srgb, var(--risk-high) 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--risk-high) 5%, transparent);
+  font-size: 13px;
+}
+
+.risk-row-current {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.risk-controls li small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* 원문을 확인하지 못한 조문. 인용할 수 없다는 것이 보여야 한다. */
+.risk-clauses li.is-uncited {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.risk-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-evidence li {
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.risk-approve {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-approve:disabled {
+  background: color-mix(in srgb, var(--risk-low) 16%, transparent);
+  color: var(--risk-low);
+  cursor: default;
+}
+
+.risk-derives {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 1023px) {
+  .risk-queue-group button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .risk-queue-meta,
+  .risk-queue-invalidates,
+  .risk-queue-blocked {
+    grid-column: 1;
+  }
+
+  .risk-ws-head {
+    flex-wrap: wrap;
+  }
+}
+
+/* 작업장 — 보드 카드 위에 얹는 것만 */
+
+.risk-row-scores {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.risk-row-scores label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-row-arrow {
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+.risk-row-no {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-draft-value small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* 원문을 확인하지 못한 조문. 점선으로 갈라 보인다. */
+.board-tag.risk-uncited {
+  border: 1px dashed var(--border-soft);
+  color: var(--text-muted);
+}
+
+/* 보류한 행은 흐리게 — 지금 손대지 않기로 한 것이다. */
+.risk-row.is-held {
+  opacity: 0.55;
+}
+
+.risk-ws-notice {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px dashed color-mix(in srgb, var(--risk-mid) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--risk-mid) 7%, transparent);
+  color: #8a5a00;
+  font-size: 13px;
+}
+
+/* --- 만든 평가서 기록 --------------------------------------------------- */
+
+.risk-queue-group.is-기록 h3 { color: var(--text-sidebar); }
+
+.risk-rec-day h4 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 14px 0 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-rec-day h4 em {
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.risk-rec-day ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-rec-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risk-rec-item:hover { border-color: var(--purple-primary); }
+
+.risk-rec-time {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-rec-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-rec-go { color: var(--text-muted); }
+
+.risk-rec-more {
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.risk-rec-note {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* --- 읽기 폭 ------------------------------------------------------------
+   보드 카드는 칸반 3열 안에 있어 한 열이 370px 남짓이다. 그래서 원래는 한 줄이
+   길어질 일이 없었다. 목록으로 펴면서 954px 이 되어 한 줄에 74~78자가 들어갔다 —
+   한글 읽기 적정선(35~45자)의 두 배다.
+
+   패널 폭(960px)은 그대로 두고 **글 블록만** 좁힌다. 카드 테두리까지 좁히면
+   태그·기한 같은 오른쪽 정렬 요소가 갈 곳을 잃는다.
+
+   단위는 `em` 이다. `ch` 는 숫자 "0" 의 폭이라 한글의 절반쯤이고, `46ch` 로 뒀다가
+   29자로 좁아졌다. 한글 글자는 대략 `1em` 이므로 `em` 이 글자 수와 맞는다.
+   ------------------------------------------------------------------------ */
+
+.risk-queue-card .board-card-title,
+.risk-queue-card .board-card-note,
+.risk-queue-card .board-card-why,
+.risk-queue-card .board-card-blocked,
+.risk-row .board-card-title,
+.risk-row .board-card-note,
+.risk-row .board-draft-value,
+.risk-ws-why,
+.risk-ws-invalidates li,
+.risk-tl-why,
+.risk-tl-invalid {
+  max-width: 42em;
+}
+
+/* 대기열이 열로 서면 열 자체가 좁으므로 상한을 풀어 준다. 두 번 좁히면 글자가 갇힌다. */
+.risk-queue-card .board-card-title,
+.risk-queue-card .board-card-note,
+.risk-queue-card .board-card-why,
+.risk-queue-card .board-card-blocked {
+  max-width: none;
+}
+
+/* 여러 줄이 되는 곳은 줄 간격도 같이 넉넉하게. */
+.risk-queue-card .board-card-note,
+.risk-queue-card .board-card-why,
+.risk-row .board-draft-value {
+  line-height: 1.65;
+}
+
+/* --- 현장 시간축 --------------------------------------------------------- */
+
+.risk-site-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.risk-site-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-site-bar button:hover { border-color: var(--purple-primary); }
+
+.risk-site-bar button em {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.risk-timeline { display: grid; gap: 24px; }
+
+.risk-tl-day h3 {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-tl-day ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 시간축의 선. 항목 사이를 잇는다 — 마지막 항목만 선이 끊긴다. */
+.risk-tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.risk-tl-item::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  left: 11px;
+  width: 1px;
+  background: var(--border-soft);
+}
+
+.risk-tl-item:last-child::before { display: none; }
+
+.risk-tl-mark {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  font-size: 11px;
+}
+
+.risk-tl-item.is-변경 .risk-tl-mark { color: var(--risk-high); }
+.risk-tl-item.is-작성 .risk-tl-mark { color: var(--purple-primary); }
+.risk-tl-item.is-승인 .risk-tl-mark { color: var(--risk-low); }
+.risk-tl-item.is-할일 .risk-tl-mark { color: var(--text-muted); }
+
+.risk-tl-body {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risk-tl-body:hover { border-color: var(--purple-primary); }
+
+.risk-tl-kind {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.risk-tl-item.is-변경 .risk-tl-kind { color: var(--risk-high); }
+
+.risk-tl-title { font-size: 14px; font-weight: 600; }
+
+.risk-tl-why,
+.risk-tl-invalid,
+.risk-tl-produces {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.risk-tl-invalid { color: var(--risk-high); }
+
+/* --- 새 평가 · 대화형 입력 ------------------------------------------------ */
+
+.risk-composer {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--sidebar-surface);
+}
+
+.risk-thread {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.risk-bubble {
+  max-width: 42em;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.risk-bubble p { margin: 0; }
+
+/* 내가 올린 것은 오른쪽. 시스템이 말한 것은 왼쪽. 챗봇의 관례를 그대로 쓴다. */
+.risk-bubble.is-me {
+  justify-self: end;
+  background: var(--purple-primary);
+  color: #ffffff;
+}
+
+.risk-bubble.is-me em {
+  margin-inline-start: 8px;
+  font-size: 12px;
+  font-style: normal;
+  opacity: 0.75;
+}
+
+.risk-bubble.is-error {
+  border: 1px solid color-mix(in srgb, var(--risk-high) 40%, transparent);
+  color: var(--risk-high);
+}
+
+.risk-bubble-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px !important;
+  font-weight: 600;
+}
+
+.risk-bubble-head em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-readout {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.risk-readout > div {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.risk-readout dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.risk-readout dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* 요청이 실제로 날아가 있는 동안에만 돈다. */
+.risk-dots::after {
+  content: "···";
+  display: inline-block;
+  margin-inline-start: 4px;
+  animation: risk-dots 1.2s steps(4) infinite;
+}
+
+@keyframes risk-dots {
+  0% { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
+.risk-composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.risk-composer-bar button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-composer-bar button:hover:not(:disabled) { border-color: var(--purple-primary); }
+.risk-composer-bar button:disabled { opacity: 0.5; cursor: default; }
+
+.risk-composer-note {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* --- 어휘 선택 ------------------------------------------------------------ */
+
+.risk-picker { position: relative; }
+
+.risk-picker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.risk-picker-label {
+  color: var(--text-sidebar);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-picker-count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-chipbox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: text;
+}
+
+.risk-chipbox:focus-within { border-color: var(--purple-primary); }
+
+.risk-chipbox input {
+  flex: 1;
+  min-width: 120px;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 13px;
+}
+
+.risk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  font-size: 12px;
+}
+
+.risk-chip button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.risk-chip button:hover { background: var(--border-soft); }
+
+/* `.risk-chips` 가 grid 라 목록이 그 트랙 안에서 눌린다. 목록 항목은 한 줄이어야 한다 —
+   실제로 "무한궤도식 크레인" 이 글자마다 줄바꿈돼 세로로 깨졌다. */
+.risk-picker-list li { display: block; }
+
+.risk-picker-list button {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.risk-picker-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  margin: 4px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+  list-style: none;
+}
+
+.risk-picker-list button {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risk-picker-list button:hover { background: var(--sidebar-surface); }
+.risk-picker-new { color: var(--purple-primary); font-weight: 600; }
+
+@media (max-width: 1023px) {
+  .risk-chips { grid-template-columns: minmax(0, 1fr); }
+}
