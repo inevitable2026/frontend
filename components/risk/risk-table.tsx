@@ -1,5 +1,6 @@
 "use client";
 
+import ClauseTip from "@/components/risk/clause-tip";
 import type { Assessment, Hazard } from "@/lib/risk/types";
 
 /**
@@ -110,8 +111,8 @@ export default function RiskTable({
                 {h.clauses.map((c) => (
                   // 조문은 생성 모델이 쓰지 않는다. 검색으로 붙인 것만 나온다 —
                   // 없는 조문을 그럴듯하게 지어내면 그게 이 화면에서 가장 위험한 오류다.
-                  <li key={c.article} title={c.title}>
-                    {c.label}
+                  <li key={c.article}>
+                    <ClauseTip clause={c} matchSource={h.match_source} />
                   </li>
                 ))}
               </ul>

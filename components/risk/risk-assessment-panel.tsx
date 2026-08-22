@@ -9,7 +9,7 @@ import RiskComposer, { type 대화항목 } from "@/components/risk/risk-composer
 import RiskTimeline from "@/components/risk/risk-timeline";
 import VocabPicker from "@/components/risk/vocab-picker";
 import RiskTable from "@/components/risk/risk-table";
-import RiskWorkspace from "@/components/risk/risk-workspace";
+import RiskDocPanel from "@/components/risk/risk-doc-panel";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
 import type { 평가일자 } from "@/lib/risk/safegrid";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
@@ -86,7 +86,7 @@ function 문서필드(r: Record<string, unknown>): 필드[] {
 const 보드기본현장 = [{ id: "site_gimpo_gochon_01", name: "김포 고촌 현장" }];
 
 /** 이 탭이 지금 무엇을 보이고 있는가. 대기열이 기본이다. */
-type 화면 = "대기열" | "타임라인" | "작업장" | "새평가";
+type 화면 = "대기열" | "타임라인" | "새평가";
 
 export function RiskAssessmentPanel() {
   const [화면, set화면] = useState<화면>("대기열");
@@ -486,26 +486,21 @@ export function RiskAssessmentPanel() {
 
   const 입력있음 = 공종.length > 0 || 장비.length > 0 || 자재.length > 0;
 
-  // 작업장 — 대기열에서 고른 카드를 연 상태.
-  if (화면 === "작업장" && 고른카드) {
-    return (
-      <div className="risk-panel">
-        <RiskWorkspace
-          item={고른카드}
-          현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
-          닫기={() => {
-            set화면("대기열");
-            set고른카드(null);
-          }}
-          승인={() => {
-            // 지금은 화면 안에서만 잠근다. 서버 반영은 보드의 승인 경로를 쓰는 것이
-            // 맞는데, 그쪽 계약을 확인하기 전까지 여기서 임의로 PATCH 하지 않는다 —
-            // 두 곳이 같은 카드를 다르게 바꾸면 보드와 이 화면이 어긋난다.
-          }}
-        />
-      </div>
-    );
-  }
+  /**
+   * 고른 카드의 평가서 서랍. **화면을 갈아치우지 않고 위에 얹는다.**
+   *
+   * 예전에는 `화면 === "작업장"` 으로 페이지를 통째로 바꿨다. 그러면 대기열이 사라져
+   * "몇 건 남았는지" 를 잃고, 다음 카드로 가려면 뒤로 갔다가 다시 눌러야 했다.
+   */
+  const 서랍 =
+    고른카드 !== null ? (
+      <RiskDocPanel
+        item={고른카드}
+        siteId={고른카드.siteId}
+        현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
+        닫기={() => set고른카드(null)}
+      />
+    ) : null;
 
   // 시간축 — 현장 하나에 무슨 일이 있었는가.
   if (화면 === "타임라인" && 고른현장) {
@@ -519,11 +514,10 @@ export function RiskAssessmentPanel() {
             set화면("대기열");
             set고른현장(null);
           }}
-          선택={(item) => {
-            set고른카드(item);
-            set화면("작업장");
-          }}
+          // 시간축 위에 그대로 서랍이 열린다. 시간축을 벗어나지 않는다.
+          선택={(item) => set고른카드(item)}
         />
+        {서랍}
       </div>
     );
   }
@@ -571,10 +565,8 @@ export function RiskAssessmentPanel() {
           현장이름={현장이름}
           불러오는중={대기열로딩}
           기준시각={기준시각}
-          선택={(item) => {
-            set고른카드(item);
-            set화면("작업장");
-          }}
+          // 대기열은 그대로 두고 오른쪽에 평가서가 열린다. 다음 카드로 바로 넘어갈 수 있다.
+          선택={(item) => set고른카드(item)}
         />
 
         {/* 감지 카드와 만든 평가서는 **다른 곳에 산다.** 탭이 "기록 목록"을 표방하므로
@@ -586,6 +578,7 @@ export function RiskAssessmentPanel() {
           펼침={기록펼침}
           펼치기={() => set기록펼침(true)}
         />
+        {서랍}
       </div>
     );
   }
