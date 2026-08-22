@@ -1,7 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, type CSSProperties, useEffect, useRef, useState } from "react";
+import {
+  FormEvent,
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { JsonViewer } from "@/components/json-viewer";
 import { MarkdownContent, type CitationSource } from "@/components/markdown-content";
@@ -233,7 +240,46 @@ export function ConstructionConsole() {
   const [answer, setAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [isAwayFromLatest, setIsAwayFromLatest] = useState(false);
+  const [hasUnseenContent, setHasUnseenContent] = useState(false);
   const uploadInput = useRef<HTMLInputElement>(null);
+  const latestContent = useRef<HTMLDivElement>(null);
+  const askBar = useRef<HTMLFormElement>(null);
+  const followsLatest = useRef(false);
+  const isScrollingToLatest = useRef(false);
+  const scrollResetTimer = useRef<number | undefined>(undefined);
+  const hasResponseContent = toolCalls.length > 0 || Boolean(answer) || Boolean(error);
+
+  const latestContentIsVisible = useCallback(() => {
+    const latest = latestContent.current;
+    if (!latest) return true;
+
+    const composerTop = askBar.current?.getBoundingClientRect().top ?? window.innerHeight;
+    const visibleBottom = Math.min(composerTop, window.innerHeight);
+    return latest.getBoundingClientRect().top <= visibleBottom - 12;
+  }, []);
+
+  const scrollToLatest = useCallback(() => {
+    followsLatest.current = true;
+    isScrollingToLatest.current = true;
+    setIsAwayFromLatest(false);
+    setHasUnseenContent(false);
+
+    if (scrollResetTimer.current !== undefined) {
+      window.clearTimeout(scrollResetTimer.current);
+    }
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+
+    scrollResetTimer.current = window.setTimeout(() => {
+      isScrollingToLatest.current = false;
+    }, 800);
+  }, []);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -260,6 +306,74 @@ export function ConstructionConsole() {
     };
   }, [sidebarOpen]);
 
+  useEffect(() => {
+    if (!lastQuestion || activeNav !== 0) return;
+
+    let frame: number | undefined;
+
+    function updateLatestPosition() {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const isVisible = latestContentIsVisible();
+        if (isScrollingToLatest.current) {
+          if (isVisible) {
+            isScrollingToLatest.current = false;
+            followsLatest.current = true;
+            setIsAwayFromLatest(false);
+            setHasUnseenContent(false);
+          }
+          return;
+        }
+
+        followsLatest.current = isVisible;
+        setIsAwayFromLatest(!isVisible);
+        if (isVisible) setHasUnseenContent(false);
+      });
+    }
+
+    window.addEventListener("scroll", updateLatestPosition, { passive: true });
+    window.addEventListener("resize", updateLatestPosition);
+
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", updateLatestPosition);
+      window.removeEventListener("resize", updateLatestPosition);
+    };
+  }, [activeNav, lastQuestion, latestContentIsVisible]);
+
+  useEffect(() => {
+    if (!hasResponseContent || activeNav !== 0) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (followsLatest.current) {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: "auto",
+        });
+        setIsAwayFromLatest(false);
+        setHasUnseenContent(false);
+        return;
+      }
+
+      const isVisible = latestContentIsVisible();
+      followsLatest.current = isVisible;
+      setIsAwayFromLatest(!isVisible);
+      if (isVisible) {
+        setHasUnseenContent(false);
+      } else {
+        setHasUnseenContent(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeNav, answer, error, hasResponseContent, latestContentIsVisible, toolCalls]);
+
+  useEffect(() => () => {
+    if (scrollResetTimer.current !== undefined) {
+      window.clearTimeout(scrollResetTimer.current);
+    }
+  }, []);
+
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedQuestion = question.trim();
@@ -272,6 +386,10 @@ export function ConstructionConsole() {
     setAnswer("");
     setError("");
     setIsSubmitting(true);
+    setIsAwayFromLatest(false);
+    setHasUnseenContent(false);
+    followsLatest.current = true;
+    isScrollingToLatest.current = false;
 
     try {
       const response = await fetch("/api/chat", {
@@ -425,6 +543,9 @@ export function ConstructionConsole() {
               onClick={() => {
                 setActiveNav(index);
                 setSidebarOpen(false);
+                followsLatest.current = true;
+                setIsAwayFromLatest(false);
+                setHasUnseenContent(false);
               }}
             >
               <span
@@ -573,33 +694,55 @@ export function ConstructionConsole() {
               {answer ? <MarkdownContent content={answer} sources={citationSources(toolCalls)} /> : isSubmitting ? <p className="assistant-pending">답변을 준비하고 있습니다…</p> : null}
               {error ? <p className="chat-error" role="alert">{error}</p> : null}
             </article>
+
+            <div className="chat-latest-anchor" ref={latestContent} aria-hidden="true" />
           </section>}
 
-          <form className="ask-bar" onSubmit={submitQuestion}>
-            <label className="sr-only" htmlFor="question">
-              질문
-            </label>
-            <textarea
-              id="question"
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
-              disabled={isSubmitting}
-              placeholder="무엇이든 물어보세요. "
-              rows={2}
-            />
-            <button className="submit-question" type="submit" aria-label="질문 보내기" disabled={isSubmitting || !question.trim()}>
-              <Image src="/assets/arrow-up.svg" alt="" width={24} height={24} />
-            </button>
-            <p className="sr-only" aria-live="polite">
-              {error ? `오류: ${error}` : isSubmitting ? "질문을 보내고 답변을 기다리는 중입니다." : answer ? "답변이 완료되었습니다." : lastQuestion ? `질문을 보냈습니다: ${lastQuestion}` : ""}
-            </p>
-          </form>
+          <div className="composer-dock">
+            <div className="new-content-live">
+              {isAwayFromLatest ? (
+                <button
+                  className={`new-content-pill${hasUnseenContent ? " is-new" : ""}`}
+                  type="button"
+                  onClick={scrollToLatest}
+                >
+                  <span className="new-content-touch-target" aria-hidden="true" />
+                  {hasUnseenContent ? <span className="new-content-dot" aria-hidden="true" /> : null}
+                  <span>{hasUnseenContent ? "새 내용이 도착했어요" : "맨 아래로 이동"}</span>
+                  <span className="new-content-arrow" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            <span className="sr-only" aria-live="polite" aria-atomic="true">
+              {hasUnseenContent ? "새 내용이 도착했습니다. 새 내용으로 이동 버튼을 이용할 수 있습니다." : ""}
+            </span>
+
+            <form className="ask-bar" ref={askBar} onSubmit={submitQuestion}>
+              <label className="sr-only" htmlFor="question">
+                질문
+              </label>
+              <textarea
+                id="question"
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                disabled={isSubmitting}
+                placeholder="무엇이든 물어보세요. "
+                rows={2}
+              />
+              <button className="submit-question" type="submit" aria-label="질문 보내기" disabled={isSubmitting || !question.trim()}>
+                <Image src="/assets/arrow-up.svg" alt="" width={24} height={24} />
+              </button>
+              <p className="sr-only" aria-live="polite">
+                {error ? `오류: ${error}` : isSubmitting ? "질문을 보내고 답변을 기다리는 중입니다." : answer ? "답변이 완료되었습니다." : lastQuestion ? `질문을 보냈습니다: ${lastQuestion}` : ""}
+              </p>
+            </form>
+          </div>
         </div>
         )}
       </section>
