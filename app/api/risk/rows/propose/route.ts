@@ -40,29 +40,44 @@ const 제안스키마 = z.object({
     .describe("바꿀 행들. 바꿀 것이 없으면 빈 배열"),
 });
 
-function fail(message: string, status: number) {
-  return Response.json({ error: message }, { status, headers: HEADERS });
+function fail(message: string, status: number, code?: string) {
+  return Response.json(code ? { error: message, code } : { error: message }, {
+    status,
+    headers: HEADERS,
+  });
 }
 
 export async function POST(req: Request) {
   if (!isGenerationConfigured()) {
-    return fail("생성 모델이 설정되지 않았습니다. 직접 편집 탭을 쓰세요.", 503);
+    return fail(
+      "지금은 자동 제안을 쓸 수 없습니다. 직접 편집 탭에서 고쳐 주세요.",
+      503,
+      "generation_not_configured",
+    );
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return fail("본문이 JSON 이 아닙니다.", 400);
+    return fail(
+      "제안을 만들지 못했습니다. 보낸 내용을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+      400,
+      "body_not_json",
+    );
   }
   const b = (body ?? {}) as Record<string, unknown>;
 
   const 지시 = typeof b.지시 === "string" ? b.지시.trim() : "";
-  if (!지시) return fail("지시가 필요합니다.", 400);
-  if (지시.length > 2_000) return fail("지시가 너무 깁니다.", 400);
+  if (!지시) return fail("무엇을 고칠지 적어 주세요.", 400, "instruction_required");
+  if (지시.length > 2_000) {
+    return fail("요청이 너무 깁니다. 2,000자 안으로 줄여 주세요.", 400, "instruction_too_long");
+  }
 
   const 행들 = Array.isArray(b.행들) ? b.행들 : [];
-  if (행들.length === 0) return fail("행이 없습니다.", 400);
+  if (행들.length === 0) {
+    return fail("고칠 평가 항목이 없습니다. 평가서를 먼저 불러와 주세요.", 400, "no_rows");
+  }
   /*
    * 행 개수와 크기에 상한을 둔다.
    *
@@ -70,8 +85,12 @@ export async function POST(req: Request) {
    * 상한이 없으면 ⑴ 익명 호출자가 큰 배열로 토큰을 마음껏 태울 수 있고 ⑵ 행 안에
    * 긴 문자열을 심어 시스템 프롬프트를 밀어낼 수 있다. 실제 평가서는 20~30행이다.
    */
-  if (행들.length > 60) return fail("행이 너무 많습니다. 60행까지 봅니다.", 400);
-  if (JSON.stringify(행들).length > 60_000) return fail("행 내용이 너무 깁니다.", 400);
+  if (행들.length > 60) {
+    return fail("평가 항목이 너무 많습니다. 한 번에 60개까지 볼 수 있습니다.", 400, "too_many_rows");
+  }
+  if (JSON.stringify(행들).length > 60_000) {
+    return fail("평가 항목의 내용이 너무 깁니다. 항목 수를 줄여 다시 시도해 주세요.", 400, "rows_too_large");
+  }
 
   // 모델에 넘기는 것은 판단에 필요한 만큼이다. 행 전체를 그대로 실어 보내면
   // 토큰만 먹고, 모델이 고칠 수 없는 필드까지 고치려 든다.
@@ -127,7 +146,14 @@ export async function POST(req: Request) {
       { headers: HEADERS },
     );
   } catch (error) {
-    if (error instanceof GenerationUnavailableError) return fail(error.message, 503);
-    return fail(error instanceof Error ? error.message : "제안을 만들지 못했습니다.", 502);
+    console.error("[risk/rows/propose]", error);
+    if (error instanceof GenerationUnavailableError) {
+      return fail(
+        "지금은 자동 제안을 쓸 수 없습니다. 직접 편집 탭에서 고쳐 주세요.",
+        503,
+        "generation_unavailable",
+      );
+    }
+    return fail("제안을 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.", 502, "propose_failed");
   }
 }

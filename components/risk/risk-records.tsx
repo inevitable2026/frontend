@@ -39,7 +39,7 @@ export default function RiskRecords({
   펼침: boolean;
   펼치기: () => void;
 }) {
-  if (불러오는중) return <p className="risk-queue-empty">기록을 불러오는 중…</p>;
+  if (불러오는중) return <p className="risk-queue-empty">기록을 불러오는 중입니다…</p>;
   if (일자별.length === 0) return null;
 
   const 총건수 = 일자별.reduce((n, d) => n + d.items.length, 0);
@@ -84,8 +84,7 @@ export default function RiskRecords({
 
       {/* 저쪽 API 에 현장 필터가 없다. 숨기지 않고 적는다. */}
       <p className="risk-rec-note">
-        이 목록에는 같은 백엔드를 쓰는 <b>모든 기록</b>이 들어 있습니다. 현장별로 가르는 것은
-        현장 식별자가 붙은 뒤입니다.
+        아직 현장별로 나눠 보여 주지 못합니다. 지금은 <b>모든 현장</b>의 기록이 함께 나옵니다.
       </p>
     </section>
   );

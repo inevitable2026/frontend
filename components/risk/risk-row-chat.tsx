@@ -2,17 +2,21 @@
 
 import { useRef, useState } from "react";
 
+import { 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
 import { 회사표시, type 평가행 } from "@/lib/risk/rows";
 
 /**
  * 챗봇으로 평가행 고치기.
  *
  * **제안과 반영을 갈라 둔다.** 모델이 말한 것은 제안 카드로만 쌓이고, 팩트에 반영되는 것은
- * 사람이 「적용」을 눌렀을 때뿐이다. 이 화면이 다루는 값에 이행확인이 섞여 있기 때문이다 —
+ * 사람이 「평가표에 반영」을 눌렀을 때뿐이다. 이 화면이 다루는 값에 이행확인이 섞여 있기 때문이다 —
  * 이행확인은 "현장에서 실제로 실행됐다"는 사람의 진술이고, 모델이 대신 채우면 그건 위조다.
  * 그래서 서버도 이행확인 제안 자체를 막고(`app/api/risk/rows/propose`), 화면도 대책과
  * 담당사만 적용한다.
  */
+
+/** 요청이 어디서 어떻게 실패했든 사용자에게는 같은 안내를 준다. 원인은 콘솔로 내린다. */
+const 요청실패안내 = "제안을 받지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
 
 type 제안 = {
   행id: string;
@@ -64,13 +68,17 @@ export default function RiskRowChat({
         버려진제안?: number;
         error?: string;
       };
-      if (!res.ok) throw new Error(body.error ?? `${res.status}`);
+      if (!res.ok) {
+        console.error("[risk] 제안 요청 실패", res.status, body.error);
+        throw new Error(요청실패안내);
+      }
       set대화((p) => [
         ...p,
         { 종류: "봇", 글: body.답 ?? "", 제안: body.제안 ?? [], 버려진: body.버려진제안 ?? 0 },
       ]);
     } catch (e) {
-      set대화((p) => [...p, { 종류: "실패", 글: e instanceof Error ? e.message : "실패했습니다." }]);
+      console.error("[risk] 제안 요청 실패", e);
+      set대화((p) => [...p, { 종류: "실패", 글: 요청실패안내 }]);
     } finally {
       set보내는중(false);
       requestAnimationFrame(() => 끝.current?.scrollIntoView({ behavior: "smooth" }));
@@ -101,12 +109,18 @@ export default function RiskRowChat({
         <div className="risk-bubble is-system">
           <p>
             {현장이름}
-            {docId ? ` · ${docId}` : ""} 의 <b>{행들.length}행</b>을 보고 있습니다. 대책을 보강하거나
-            담당사를 바꾸는 일을 도울 수 있습니다.
+            {docId ? (
+              <>
+                {" "}
+                <b title={문서키툴팁(docId)}>{문서표시(docId)}</b>
+              </>
+            ) : null}
+            의 평가 항목 <b>{행들.length}건</b>을 보고 있습니다. 대책을 보강하거나 담당사를 바꾸는
+            일을 도울 수 있습니다.
           </p>
           <p className="risk-rowchat-note">
-            이행확인은 채워 드릴 수 없습니다 — 현장에서 실제로 실행됐는지는 사람만 확인할 수
-            있습니다. 직접 편집 탭에서 눌러 주세요.
+            이행확인은 대신 채워 드릴 수 없습니다. 현장에서 실제로 실행됐는지는 사람만 확인할 수
+            있습니다. 직접 편집 탭에서 해당 항목의 확인란을 직접 체크해 주세요.
           </p>
         </div>
 
@@ -130,7 +144,7 @@ export default function RiskRowChat({
               <p>{m.글}</p>
               {m.버려진 > 0 ? (
                 <p className="risk-rowchat-note">
-                  목록에 없는 행을 가리킨 제안 {m.버려진}건은 버렸습니다.
+                  이 평가표에 없는 항목을 고치려는 제안 {m.버려진}건은 표시하지 않았습니다.
                 </p>
               ) : null}
 
@@ -141,8 +155,10 @@ export default function RiskRowChat({
                 return (
                   <div className={`risk-proposal${끝남 ? " is-applied" : ""}`} key={표시}>
                     <p className="risk-proposal-head">
-                      <b>{p.행id}</b>
-                      <span>{행?.단위작업 ?? "(목록에 없음)"}</span>
+                      <b title={`평가 항목 번호: ${p.행id}`}>
+                        {행?.단위작업 ?? "이 평가표에 없는 항목"}
+                      </b>
+                      {행?.공종분류 ? <span>{행.공종분류}</span> : null}
                     </p>
                     <p className="risk-proposal-why">{p.이유}</p>
 
@@ -161,7 +177,7 @@ export default function RiskRowChat({
                     ) : null}
 
                     <button type="button" disabled={끝남 || !행} onClick={() => void 적용(p, 표시)}>
-                      {끝남 ? "적용됨" : "적용"}
+                      {끝남 ? "평가표에 반영 완료" : "평가표에 반영"}
                     </button>
                   </div>
                 );
@@ -173,7 +189,7 @@ export default function RiskRowChat({
         {보내는중 ? (
           <div className="risk-bubble is-system is-working">
             <p>
-              보는 중<span className="risk-dots" aria-hidden="true" />
+              답변을 만드는 중입니다<span className="risk-dots" aria-hidden="true" />
             </p>
           </div>
         ) : null}
@@ -184,7 +200,7 @@ export default function RiskRowChat({
         <input
           type="text"
           value={입력}
-          placeholder="예: 개구부 관련 행의 대책을 구체적으로 보강해 줘"
+          placeholder="예: 개구부 관련 항목의 대책을 더 구체적으로 보강해 주세요"
           disabled={보내는중}
           onChange={(e) => set입력(e.target.value)}
           onKeyDown={(e) => {

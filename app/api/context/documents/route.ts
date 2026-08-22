@@ -10,17 +10,24 @@ const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
 
 class SaveConflictError extends Error {}
 
+// ingest_jobs.status 값은 서버·저장 데이터와 맞물려 있어 그대로 두고, 화면 문구만 여기서 고른다.
+const 저장못하는이유: Record<string, string | undefined> = {
+  pending: "문서 분석이 아직 시작되지 않았습니다. 분석이 끝난 뒤 저장해 주세요.",
+  running: "문서 분석이 아직 진행 중입니다. 분석이 끝난 뒤 저장해 주세요.",
+  failed: "문서 분석에 실패해 저장할 수 없습니다. 문서를 다시 올려 주세요.",
+};
+
 export async function POST(req: Request) {
   let body: { jobId?: string; siteId?: string; kind?: DocumentKind; title?: string };
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "JSON 본문이 필요합니다." }, { status: 400, headers: HEADERS });
+    return Response.json({ error: "저장 요청을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요." }, { status: 400, headers: HEADERS });
   }
 
   const { jobId, siteId } = body;
   if (!jobId || !siteId) {
-    return Response.json({ error: "jobId 와 siteId 가 필요합니다." }, { status: 400, headers: HEADERS });
+    return Response.json({ error: "저장할 분석 작업과 현장이 지정되지 않았습니다. 현장을 고른 뒤 다시 저장해 주세요." }, { status: 400, headers: HEADERS });
   }
 
   const sql = db();
@@ -36,7 +43,7 @@ export async function POST(req: Request) {
     }>
   >`select id, kind, status, mode, document_id, cleanup_deadline, steps from ingest_jobs where id = ${jobId} limit 1`;
 
-  if (!job) return Response.json({ error: "그런 잡이 없습니다." }, { status: 404, headers: HEADERS });
+  if (!job) return Response.json({ error: "분석 작업을 찾지 못했습니다. 문서를 다시 올려 주세요." }, { status: 404, headers: HEADERS });
   if (job.mode === "demo") {
     return Response.json(
       { error: "데모 모드 결과는 문서함에 저장하지 않습니다. 고정된 응답이라 저장하면 문서함에 사실이 아닌 항목이 남습니다." },
@@ -44,14 +51,18 @@ export async function POST(req: Request) {
     );
   }
   if (job.status !== "done") {
-    return Response.json({ error: `잡이 아직 ${job.status} 입니다.` }, { status: 409, headers: HEADERS });
+    console.error(`[context] save rejected: job=${jobId} status=${job.status}`);
+    return Response.json(
+      { error: 저장못하는이유[job.status] ?? "문서 분석이 끝나지 않아 저장할 수 없습니다. 분석이 끝난 뒤 다시 저장해 주세요." },
+      { status: 409, headers: HEADERS },
+    );
   }
   if (job.document_id) {
-    return Response.json({ error: "이미 저장된 잡입니다.", documentId: job.document_id }, { status: 409, headers: HEADERS });
+    return Response.json({ error: "이미 문서함에 저장한 문서입니다. 문서함에서 확인해 주세요.", documentId: job.document_id }, { status: 409, headers: HEADERS });
   }
 
   const [site] = await sql<Array<{ id: string; name: string }>>`select id, name from sites where id = ${siteId} limit 1`;
-  if (!site) return Response.json({ error: "그런 현장이 없습니다." }, { status: 404, headers: HEADERS });
+  if (!site) return Response.json({ error: "현장을 찾지 못했습니다. 현장 목록에서 다시 선택해 주세요." }, { status: 404, headers: HEADERS });
 
   const [file] = await sql<Array<{ id: string; mime: string; original_filename: string }>>`
     select id, mime, original_filename from document_files where job_id = ${jobId} limit 1
@@ -102,7 +113,7 @@ export async function POST(req: Request) {
            and cleanup_deadline > now()
         returning id
       `;
-      if (!claimed) throw new SaveConflictError("다른 요청이 이 잡을 이미 저장했습니다.");
+      if (!claimed) throw new SaveConflictError("저장하는 사이에 같은 문서가 먼저 저장되었습니다. 문서함에서 확인해 주세요.");
       const confirmed = await tx<Array<{ id: string }>>`
         update document_chunks set document_id = ${doc.id}, site_id = ${siteId}, kind = ${kind}
          where job_id = ${jobId} and document_id is null

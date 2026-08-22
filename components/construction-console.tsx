@@ -8,16 +8,14 @@ import { ChatAskBar } from "@/components/chat/chat-ask-bar";
 import { useLatestPin } from "./chat/use-latest-pin";
 import { askBarStatus } from "@/components/chat/status";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
-import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
+import { ASSISTANT_LABEL, isActivePrompt, PROMPT_CARDS } from "@/components/chat/prompts";
 import { useLawChat } from "@/components/chat/use-law-chat";
 import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
 import { 재평가건수 } from "@/components/risk/risk-queue";
 import type { BoardPage } from "@/lib/board/types";
 import { SiteContextPanel } from "@/components/site-context-panel";
-import { ContextWatch } from "@/components/task-board/context-watch";
 import { TaskBoard } from "@/components/task-board/task-board";
 import type { BoardSources } from "@/components/task-board/board-data";
-import type { BoardWatch } from "@/components/task-board/types";
 import {
   type ConsoleNav,
   type ConsoleUrlState,
@@ -102,11 +100,6 @@ export function ConstructionConsole({
    */
   const [riskBadge, setRiskBadge] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  /**
-   * "연결된 맥락을 보고 있습니다". 보드가 스냅샷을 읽고 나서 올려 주고, 사이드바가 그린다.
-   * 아직 한 번도 읽지 않았으면 null 이고 그 자리는 비워 둔다.
-   */
-  const [watch, setWatch] = useState<BoardWatch | null>(null);
 
   const updateUrl = useCallback((patch: Partial<ConsoleUrlState>): void => {
     const next = patchConsoleUrlState(pendingUrlStateRef.current, patch);
@@ -298,8 +291,6 @@ export function ConstructionConsole({
           />
         </button>
 
-        {watch === null ? null : <ContextWatch watch={watch} />}
-
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">
             <AssetCarousel blurred />
@@ -336,7 +327,6 @@ export function ConstructionConsole({
           <TaskBoard
             key={`${urlState.siteId}:${urlState.boardDate}:${urlState.boardFilterDate ?? "all"}:${urlState.boardView}`}
             initialSources={initialBoard}
-            onWatchChange={setWatch}
             siteId={urlState.siteId}
             boardDate={urlState.boardDate}
             selectedDate={urlState.boardFilterDate}
@@ -388,11 +378,11 @@ export function ConstructionConsole({
           <div className="prompt-grid">
             {PROMPT_CARDS.map((card) => (
               <button
-                className={`prompt-card${card.label === ACTIVE_PROMPT_LABEL ? " is-enabled" : " is-disabled"}`}
+                className={`prompt-card${isActivePrompt(card.label) ? " is-enabled" : " is-disabled"}`}
                 key={card.label}
                 type="button"
-                disabled={card.label !== ACTIVE_PROMPT_LABEL}
-                aria-disabled={card.label !== ACTIVE_PROMPT_LABEL}
+                disabled={!isActivePrompt(card.label)}
+                aria-disabled={!isActivePrompt(card.label)}
                 onClick={() => chat.setQuestion(card.prompt)}
               >
                 <Image src={card.icon} alt="" width={28} height={28} />

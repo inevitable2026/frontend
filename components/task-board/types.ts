@@ -79,20 +79,8 @@ export type ReferenceDetail = {
 };
 
 /* ------------------------------------------------------------------ *
- * 현장 헤더와 연결된 맥락 소스
+ * 현장 헤더
  * ------------------------------------------------------------------ */
-
-export type ContextSourceIcon = "mail" | "document" | "schedule" | "observation";
-
-/** "연결된 맥락을 보고 있습니다" 한 줄. */
-export type ContextSource = {
-  id: string;
-  /** "회사 메일함" */
-  label: string;
-  icon: ContextSourceIcon;
-  /** "4분 전" · "오늘 06:00" — 지금은 저장된 문자열이다. */
-  lastSyncedLabel: string;
-};
 
 export type BoardCounterKey = "condition" | "due" | "approval";
 
@@ -105,14 +93,6 @@ export type BoardCounter = {
   tone: Extract<MarkerTone, "alert" | "due" | "ai">;
 };
 
-export type BoardWatch = {
-  /** "연결된 맥락을 보고 있습니다" */
-  title: string;
-  sources: ContextSource[];
-  /** "변경이 감지되면 초안을 만들어 승인 열에 올립니다. 확정은 담당자가 합니다." */
-  footnote: string;
-};
-
 export type BoardSiteHeader = {
   siteId: string;
   /** "김포 고촌 물류센터" */
@@ -120,7 +100,6 @@ export type BoardSiteHeader = {
   /** "골조 · 4층 슬래브 선행" */
   phase: string;
   counters: BoardCounter[];
-  watch: BoardWatch;
 };
 
 /* ------------------------------------------------------------------ *

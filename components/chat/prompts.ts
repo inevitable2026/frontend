@@ -1,7 +1,7 @@
 /**
- * 예시 질문 세 장. **지금 라우트가 답할 수 있는 것은 법령 질문 하나뿐**이라서
- * `ACTIVE_PROMPT_LABEL` 만 누를 수 있고 나머지는 막아 둔다. 사내 문서 도구가
- * 붙으면(`docs/company-chatbot-plan.md` 로드맵 2단계) 나머지도 열린다.
+ * 예시 질문 세 장. 예전에는 라우트가 법령 질문 하나만 답할 수 있어 한 장만 열어 뒀는데,
+ * 이제 사내 문서·위험성평가·현장 사실 도구가 붙어 세 장 다 근거를 가지고 답한다.
+ * 누를 수 없는 카드는 데모에서 "왜 안 눌러요" 질문만 부르므로 남겨 두지 않는다.
  */
 export const PROMPT_CARDS = [
   {
@@ -21,6 +21,19 @@ export const PROMPT_CARDS = [
   },
 ] as const;
 
-export const ACTIVE_PROMPT_LABEL = "작업 전 법령 체크";
+/**
+ * 누를 수 있는 카드 라벨. 단수 상수였던 것을 집합으로 바꿨다 — 열 카드가 하나가 아니고,
+ * 도구가 더 붙을 때마다 비교식을 고치는 대신 여기만 늘리면 되게 한다.
+ */
+export const ACTIVE_PROMPT_LABELS: readonly string[] = [
+  "오늘의 안전 현황",
+  "감사 대응",
+  "작업 전 법령 체크",
+];
 
-export const ASSISTANT_LABEL = "현장 법령 체크 에이전트";
+export function isActivePrompt(label: string): boolean {
+  return ACTIVE_PROMPT_LABELS.includes(label);
+}
+
+/** 이제 법령만 보지 않는다. 화면 문구("업로드된 서류, 법령, 공공데이터, 현장 기록")와 맞춘다. */
+export const ASSISTANT_LABEL = "현장 안전 에이전트";

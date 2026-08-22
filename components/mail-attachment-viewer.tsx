@@ -9,9 +9,16 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
 const ATTACH_STATE_NOTE: Record<MailAttachment["상태"], string> = {
-  적재됨: "이 첨부는 문서함에 적재되어 검색에 걸립니다.",
-  적재대기: "아직 문서함에 적재되지 않아 검색에 걸리지 않습니다.",
-  제외: "적재 대상에서 빼 둔 첨부입니다. 문서함에는 들어가지 않습니다.",
+  적재됨: "이 첨부는 문서함에 저장되어 검색됩니다.",
+  적재대기: "아직 문서함에 저장되지 않아 검색되지 않습니다.",
+  제외: "저장 대상에서 빼 둔 첨부입니다. 문서함에는 들어가지 않습니다.",
+};
+
+/** 상태 enum → 화면에 적을 말. 값은 저장 데이터와 맞물리므로 표시만 바꾼다. */
+const ATTACH_STATE_LABEL: Record<MailAttachment["상태"], string> = {
+  적재됨: "문서함 저장됨",
+  적재대기: "저장 대기",
+  제외: "저장 제외",
 };
 
 /**
@@ -98,7 +105,7 @@ export function MailAttachmentViewer({
             <p className="eyebrow">{siteName} · 메일 첨부</p>
             <h2 id="mailfile-title">{attachment.이름}</h2>
             <p className="docview-meta">
-              {attachment.종류} · 전체 {attachment.쪽수}쪽 · {attachment.상태}
+              {attachment.종류} · 전체 {attachment.쪽수}쪽 · {ATTACH_STATE_LABEL[attachment.상태]}
             </p>
           </div>
           <div className="docview-actions">
@@ -131,17 +138,17 @@ export function MailAttachmentViewer({
                 </p>
               </article>
             ) : (
-              <p className="context-empty">이 첨부는 아직 미리보기 내용이 없습니다.</p>
+              <p className="context-empty">이 첨부는 미리 볼 수 있는 내용이 없습니다.</p>
             )}
           </div>
 
           <div className="docview-side">
             <section className="docview-fields">
               <h3>
-                쪽 고르기 {pages.length}/{attachment.쪽수}쪽
+                쪽 고르기 · 전체 {attachment.쪽수}쪽 중 {pages.length}쪽
               </h3>
               {pages.length === 0 ? (
-                <p className="context-empty">채워 둔 쪽이 없습니다.</p>
+                <p className="context-empty">미리 볼 수 있는 쪽이 없습니다.</p>
               ) : (
                 <ol className="mailfile-pages">
                   {pages.map((p, i) => (

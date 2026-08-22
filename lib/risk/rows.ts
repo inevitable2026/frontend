@@ -48,6 +48,46 @@ export type 평가행 = {
   근거?: string;
 };
 
+/**
+ * 문서의 결재 상태. `documentApprovalState` 팩트 값과 같은 이름을 쓴다.
+ *
+ * `제출가능` 이 이 화면의 핵심이다 — "결재 상신을 올릴 수 있는가" 를 저장된 값으로
+ * 말하는 유일한 자리다. 시드에는 있었는데 읽는 코드가 하나도 없었다.
+ */
+export type 결재상태 = {
+  문서: string;
+  상태: "작성중" | "결재대기" | "결재완료";
+  제출가능: boolean;
+  /** 아직 남은 결격 사유. 이 화면이 해결한 것만 빼야 한다. */
+  미비?: string[];
+  상신예정?: string;
+  결재선?: string[];
+  완료일?: string;
+};
+
+/**
+ * 결재 상태의 화면 표기.
+ *
+ * 저장 값(`작성중`·`결재대기`·`결재완료`)은 팩트와 맞물려 있어 그대로 둔다.
+ * 바꾸는 것은 화면에 찍히는 글자뿐이다.
+ */
+export const 결재상태표시: Record<결재상태["상태"], string> = {
+  작성중: "작성 중",
+  결재대기: "결재 대기",
+  결재완료: "결재 완료",
+};
+
+/**
+ * 미비 목록에서 **이행확인 항목만** 뺀다.
+ *
+ * 시드의 `미비` 는 `["이행확인 9행", "법적 근거란 공란 12행", "개선 후 위험도 미기재 7행"]`
+ * 이다. 이 서랍이 해결한 것은 첫 번째뿐이다. 셋 다 지우면 **해결하지 않은 것을 해결했다고
+ * 적는 셈**이라, 남은 둘은 그대로 둔다.
+ */
+export function 이행확인미비뺀것(미비: string[] | undefined): string[] {
+  return (미비 ?? []).filter((m) => !m.startsWith("이행확인"));
+}
+
 export type 이행상태 = "확인" | "빈칸" | "불일치";
 
 export function 이행상태읽기(행: 평가행): 이행상태 {
@@ -73,6 +113,26 @@ export function 불일치행(rows: 평가행[]): 평가행[] {
   return rows.filter((r) => 이행상태읽기(r) === "불일치");
 }
 
+/**
+ * 같은 key 의 팩트를 **가장 나중 것 하나**로 접는다.
+ *
+ * `data/board/seed-facts.json` 의 「키규칙」은 *"같은 (factType, key) 의 앞뒤 두 항목이
+ * 곧 델타의 before · after"* 라고 말한다. 즉 중복은 이력이지 오류가 아니다. 화면이
+ * 묻는 것은 "지금 상태" 이므로 접어야 한다.
+ *
+ * 접지 않으면 실제로 숫자가 어긋난다. `ra_2026_08_regular` 의 이행확인이 빈 행은
+ * 접으면 **9행**(카드가 말하는 수)이지만, 접지 않으면 `RI-11` 이 두 번 세어져 10행이 된다.
+ */
+export function 최신만<T extends { key: string; observedAt: string }>(facts: T[]): T[] {
+  const 최신 = new Map<string, T>();
+  for (const f of facts) {
+    const 이전 = 최신.get(f.key);
+    // observedAt 이 같으면 나중에 온 것을 쓴다. 배열 순서가 곧 기록 순서다.
+    if (!이전 || 이전.observedAt <= f.observedAt) 최신.set(f.key, f);
+  }
+  return [...최신.values()];
+}
+
 /** 팩트 배열에서 행만 골라 행id 순으로 세운다. */
 export function 행정렬(facts: 행팩트[]): 평가행[] {
   return facts
@@ -81,7 +141,7 @@ export function 행정렬(facts: 행팩트[]): 평가행[] {
     .sort((a, b) => a.행id.localeCompare(b.행id, "en", { numeric: true }));
 }
 
-/** 하도급사 코드 → 사람이 읽는 이름. 없는 코드는 코드 그대로 보인다. */
+/** 하도급사 코드 → 사람이 읽는 이름. 목록에 없는 코드는 「협력사」로 보인다. */
 export const 회사이름: Record<string, string> = {
   co_hanshin: "한신종합건설",
   sub_seojin: "서진건설",
@@ -94,11 +154,12 @@ export const 회사이름: Record<string, string> = {
 
 export function 회사표시(code: string | undefined): string {
   if (!code) return "미지정";
-  return 회사이름[code] ?? code;
+  // 목록에 없는 코드를 그대로 내보내면 화면에 저장소 키가 찍힌다. 안전한 총칭으로 받는다.
+  return 회사이름[code] ?? "협력사";
 }
 
 /**
- * 위험도 표시. `빈도 × 강도 = 위험도` 그대로 보인다.
+ * 위험도 표시. `발생 가능성 × 피해 크기 → 위험도` 그대로 보인다.
  *
  * **등급(높음·보통·낮음)을 화면에서 만들지 않는다.** 처음에는 9 이상이면 높음 같은
  * 고정 임계로 색을 칠했는데, 그건 이 저장소가 여러 곳에서 경고하는 바로 그 잘못이다 —
@@ -108,9 +169,12 @@ export function 회사표시(code: string | undefined): string {
  * 행에서는 높음이고 어떤 행에서는 보통이다. 모르는 것을 색으로 단정하면, 안전 화면에서
  * 가장 하면 안 되는 종류의 거짓말이 된다.
  *
- * `lib/detect/delta.ts:197` 의 `scoreText` 와 같은 표기를 쓴다.
+ * **표기가 갈렸다.** 예전에는 `lib/detect/delta.ts:197` 의 `scoreText` 와 같은
+ * `빈도 n × 강도 n = n` 을 썼는데, 여기만 현장 용어(`발생 가능성 × 피해 크기 → 위험도`)로
+ * 옮겼다. 저쪽은 아직 옛 표기라 두 화면의 글자가 다르다. 맞추려면 `scoreText` 도
+ * 같이 고쳐야 한다.
  */
 export function 위험도표시(s: { 빈도: number; 강도: number; 위험도: number } | undefined): string {
   if (!s) return "미기재";
-  return `빈도 ${s.빈도} × 강도 ${s.강도} = ${s.위험도}`;
+  return `발생 가능성 ${s.빈도} × 피해 크기 ${s.강도} → 위험도 ${s.위험도}`;
 }

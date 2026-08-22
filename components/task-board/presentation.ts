@@ -6,9 +6,9 @@
 // 없고 있어서도 안 되는 표현 상수**만 여기로 옮겼다.
 //
 // 남긴 기준은 하나다. "이 값이 현장마다 달라질 수 있는가" 를 물어 아니라고 답하면 남겼다.
-// 열 이름과 캘린더 범례와 제품이 스스로 하는 약속("확정은 담당자가 합니다")은 데이터가
-// 아니라 이 화면의 문구다. 그것을 DB 에 두면 현장마다 다른 약속을 하게 되고, 반대로 카드나
-// 브리핑을 여기에 두면 화면이 오늘의 안전 상황을 지어내게 된다.
+// 열 이름과 캘린더 범례와 제품이 스스로 하는 약속은 데이터가 아니라 이 화면의 문구다.
+// 그것을 DB 에 두면 현장마다 다른 약속을 하게 되고, 반대로 카드나 브리핑을 여기에 두면
+// 화면이 오늘의 안전 상황을 지어내게 된다.
 //
 // 여기 있는 값은 어느 것도 서버 응답을 대신하지 않는다. 요청이 실패하면 board-data.ts 가
 // 오류를 던지고 화면은 그 사유를 적는다. 실패를 이 파일의 값으로 메우지 않는다.
@@ -19,7 +19,6 @@ import type {
   CalendarLegendItem,
   CardTone,
   ConditionSlug,
-  ContextSource,
   MarkerTone,
 } from "./types";
 import type { DraftForm as ServerDraftForm } from "@/lib/board/types";
@@ -64,37 +63,15 @@ export const WEEK_DOW: string[] = ["월", "화", "수", "목", "금", "토", "�
 export const DOW_NAMES: string[] = ["일", "월", "화", "수", "목", "금", "토"];
 
 /* ------------------------------------------------------------------ *
- * 헤더의 "연결된 맥락" 네 줄
+ * 브리핑 계량의 "읽은 소스"
  *
- * 커넥터가 실제로 붙어 있는 것은 문서함 하나뿐이다. 메일함·전자결재·공정표·기상 관측은
- * 아직 연동이 없고 동기화 시각을 적어 두는 테이블도 없다. 그래서 네 줄의 이름표는 상수로
- * 두고, 마지막 동기화 문구는 문서 줄만 public.documents 의 최신 created_at 에서 만든다.
+ * 사이드바에 서 있던 "연결된 맥락을 보고 있습니다" 목록은 걷어냈다. 남은 자리는 브리핑이
+ * 적는 소스 수 하나뿐이다. 읽는 곳은 회사 메일함 · 전자결재 문서함 · 공정표 · 기상 관측
+ * 넷이고, 커넥터가 실제로 붙어 있는 것은 문서함 하나뿐이며 나머지 셋은 아직 연동이 없다.
+ * 현장마다 달라지는 값이 아니므로 수는 상수다.
  * ------------------------------------------------------------------ */
 
-export const WATCH_TITLE = "연결된 맥락을 보고 있습니다";
-export const WATCH_FOOTNOTE =
-  "변경이 감지되면 초안을 만들어 승인 열에 올립니다. 확정은 담당자가 합니다.";
-
-/** 문서함에서 온 줄. 이 줄만 마지막 동기화 문구가 실제 값으로 바뀐다. */
-export const DOCUMENT_SOURCE_ID = "src_approval";
-
-/** 문서가 한 건도 없을 때 문서 줄에 적는 문구. 없는 시각을 지어내지 않는다. */
-export const DOCUMENT_SOURCE_EMPTY = "등록된 문서가 없습니다";
-
-/**
- * 문서함을 아예 읽지 못했을 때 문서 줄에 적는 문구.
- *
- * "등록된 문서가 없습니다" 와 반드시 갈라 두어야 한다. 질의가 실패한 것과 한 건도 없는 것은
- * 전혀 다른 사실인데, 둘을 같은 문구로 적으면 화면이 확인하지 않은 것을 확인했다고 말한다.
- */
-export const DOCUMENT_SOURCE_UNREAD = "문서함을 읽지 못했습니다";
-
-export const WATCH_SOURCES: ContextSource[] = [
-  { id: "src_mail", label: "회사 메일함", icon: "mail", lastSyncedLabel: "연동 준비 중" },
-  { id: DOCUMENT_SOURCE_ID, label: "전자결재 · 공무 문서", icon: "document", lastSyncedLabel: DOCUMENT_SOURCE_EMPTY },
-  { id: "src_schedule", label: "공정표 · 출역 명부", icon: "schedule", lastSyncedLabel: "연동 준비 중" },
-  { id: "src_observation", label: "기상 관측 · 아차사고 대장", icon: "observation", lastSyncedLabel: "연동 준비 중" },
-];
+export const WATCH_SOURCE_COUNT = 4;
 
 /* ------------------------------------------------------------------ *
  * 브리핑 머리의 고정 문구

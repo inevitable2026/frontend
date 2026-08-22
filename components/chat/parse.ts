@@ -23,19 +23,27 @@ export function asText(value: unknown): string | undefined {
   }
 }
 
+/**
+ * 링크로 걸어도 되는 주소인지. 법령은 외부 http(s) 지만 사내 문서·위험성평가는
+ * 이 앱 안의 `/api/context/documents/{id}` · `/api/risk/{id}` 라 외부 URL 이 없다.
+ * 그렇다고 전부 통과시키면 `javascript:` 가 그대로 href 로 들어간다 — 여기가 보안 경계다.
+ * `//evil.com` 같은 프로토콜 상대 주소는 슬래시로 시작하지만 외부로 나가므로 막는다.
+ */
+function isSafeSourceUrl(url: string): boolean {
+  return /^https?:\/\//.test(url) || /^\/(?![/\\])/.test(url);
+}
+
 function toSourceLinks(value: unknown): SourceLink[] {
   if (!Array.isArray(value)) return [];
 
   return value.flatMap((source, index) => {
     if (typeof source === "string") {
-      return /^https?:\/\//.test(source)
-        ? [{ label: `출처 ${index + 1}`, url: source }]
-        : [];
+      return isSafeSourceUrl(source) ? [{ label: `출처 ${index + 1}`, url: source }] : [];
     }
     if (!isRecord(source)) return [];
 
     const url = asText(source.url ?? source.href ?? source.link);
-    if (!url || !/^https?:\/\//.test(url)) return [];
+    if (!url || !isSafeSourceUrl(url)) return [];
 
     return [{ label: asText(source.title ?? source.name ?? source.label) ?? `출처 ${index + 1}`, url }];
   });
@@ -62,31 +70,70 @@ function structuredRecord(value: unknown): JsonRecord | undefined {
   }
 }
 
+/** 읽기에 성공해야 근거다. 검색 도구는 후보만 내놓으므로 여기 없다. */
+const CITABLE_READ_TOOLS = new Set(["read_official_law", "read_company_document", "read_assessment"]);
+
 /**
- * 인용 가능한 출처만 모은다. 성공한 `read_official_law` 만 통과시키므로 검색 후보는
+ * 인용 가능한 출처만 모은다. 성공한 **읽기** 도구만 통과시키므로 검색 후보(`citable: false`)는
  * 여기에 들어오지 않는다 (`docs/company-chatbot-plan.md` 의 인용 규칙).
+ *
+ * 사내 문서·위험성평가는 `authority` 에 `현장명 · 종류`, `version` 에 출처 등급을 넣는다.
+ * 문서 16건이 전부 합성 데이터라서 근거 카드에 "합성" 이 보이지 않으면 심사에서
+ * "이거 진짜 데이터입니까" 에 화면이 답하지 못한다 — 이 자리가 그 답이다.
+ *
+ * 중복 제거 키가 url 이 아닌 이유: 한 문서의 여러 청크가 같은 url(`/api/context/documents/{id}`)
+ * 을 쓴다. url 로 묶으면 서로 다른 근거 본문이 하나로 접혀 각주가 엉뚱한 문단을 가리킨다.
  */
 export function citationSources(toolCalls: ToolCall[]): CitationSource[] {
-  const sources = toolCalls.flatMap((tool) => {
-    if (tool.name !== "read_official_law" || tool.status !== "completed") return [];
+  const entries = toolCalls.flatMap<[string, CitationSource]>((tool) => {
+    if (!CITABLE_READ_TOOLS.has(tool.name) || tool.status !== "completed") return [];
 
     const output = structuredRecord(tool.output);
     const result = output && isRecord(output.result) ? output.result : output;
-    const officialSource = result && isRecord(result.source) ? result.source : undefined;
-    const url = asText(result?.canonicalUrl ?? officialSource?.url ?? tool.sources[0]?.url);
-    const title = asText(result?.title ?? officialSource?.title ?? tool.sources[0]?.label);
-    if (!url || !title || !/^https?:\/\//.test(url)) return [];
 
-    return [{
+    if (tool.name === "read_official_law") {
+      const officialSource = result && isRecord(result.source) ? result.source : undefined;
+      const url = asText(result?.canonicalUrl ?? officialSource?.url ?? tool.sources[0]?.url);
+      const title = asText(result?.title ?? officialSource?.title ?? tool.sources[0]?.label);
+      if (!url || !title || !/^https?:\/\//.test(url)) return [];
+
+      return [[url, {
+        kind: "법령",
+        title,
+        url,
+        authority: asText(result?.authority ?? officialSource?.authority),
+        version: asText(result?.version ?? officialSource?.version),
+        excerpt: asText(result?.excerpt),
+      }]];
+    }
+
+    const url = asText(result?.url ?? tool.sources[0]?.url);
+    const title = asText(result?.title ?? tool.sources[0]?.label);
+    if (!url || !title || !isSafeSourceUrl(url)) return [];
+
+    const siteAndKind = [asText(result?.siteName), asText(result?.kind)]
+      .filter((part) => Boolean(part))
+      .join(" · ");
+    // 위험성평가 색인에는 SAFEGRID 인스턴스 전체가 들어 있어 남이 만든 평가도 섞인다
+    // (lib/agent/assessment-index.ts 의 "현장 필터가 없다"). 근거 카드가 소유자를
+    // 말하지 않으면 화면이 그것을 우리 현장 기록처럼 보여 준다.
+    const authority = tool.name === "read_company_document"
+      ? siteAndKind || undefined
+      : "위험성평가 기록 · 현장 소속 미확인";
+
+    return [[`${url}#${asText(result?.seq) ?? title}`, {
+      // 계열을 실어 보내지 않으면 각주 UI 가 이 합성 문서를 법령 원문으로 그린다
+      // (`components/markdown-content.tsx` 의 CITATION_LINK_LABEL).
+      kind: tool.name === "read_company_document" ? "사내문서" : "위험성평가",
       title,
       url,
-      authority: asText(result?.authority ?? officialSource?.authority),
-      version: asText(result?.version ?? officialSource?.version),
-      excerpt: asText(result?.excerpt),
-    }];
+      authority,
+      version: asText(result?.source),
+      excerpt: asText(result?.text),
+    }]];
   });
 
-  return [...new Map(sources.map((source) => [source.url, source])).values()];
+  return [...new Map(entries).values()];
 }
 
 export function parseEvent(payload: unknown, index: number): { tool?: ToolCall; answer?: string; error?: string } {

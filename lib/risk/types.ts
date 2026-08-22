@@ -13,6 +13,15 @@
 export const MATRICES = ["4x3", "5x4", "3x3"] as const;
 export type Matrix = (typeof MATRICES)[number];
 
+/**
+ * 눈금의 화면 표기. 값은 백엔드와 맞물려 있어 그대로 두고 글자만 바꾼다.
+ */
+export const 매트릭스표시: Record<Matrix, string> = {
+  "4x3": "빈도 4단계 × 강도 3단계",
+  "5x4": "빈도 5단계 × 강도 4단계",
+  "3x3": "빈도 3단계 × 강도 3단계",
+};
+
 /** `backend/app/schema.py` 의 MATRIX_SPEC 과 같은 값. 화면이 눈금을 그리는 데 쓴다. */
 export const MATRIX_SPEC: Record<Matrix, { 빈도: number; 강도: number; 높음: number }> = {
   "4x3": { 빈도: 4, 강도: 3, 높음: 9 },
@@ -136,13 +145,35 @@ export type 어휘 = {
  */
 export type 생성모드 = "데모" | "라이브";
 
+/**
+ * 생성 모드의 화면 표기.
+ *
+ * **두 값을 한 문구로 뭉개지 않는다.** 미리 준비해 둔 예시를 보여 준 것과 올린 문서를
+ * 실제로 분석한 것은 다른 사실이라, 같은 말로 적으면 화면이 거짓말을 한다.
+ */
+export const 생성모드표시: Record<생성모드, string> = {
+  데모: "예시 자료",
+  라이브: "실제 분석",
+};
+
 /** 진행 단계 — 화면이 무엇을 기다리는 중인지 보여주는 데 쓴다. */
-export const 단계순서 = ["문서 파싱", "사진 판독", "위험요인 생성", "법령 대조"] as const;
+export const 단계순서 = ["문서 읽기", "사진 판독", "위험요인 생성", "법령 대조"] as const;
 export type 단계이름 = (typeof 단계순서)[number];
+
+export type 단계상태 = "대기" | "실행중" | "완료" | "실패" | "건너뜀";
+
+/** 진행 상황의 화면 표기. 값은 그대로 두고 글자만 바꾼다. */
+export const 단계상태표시: Record<단계상태, string> = {
+  대기: "대기 중",
+  실행중: "진행 중",
+  완료: "완료",
+  실패: "실패",
+  건너뜀: "건너뜀",
+};
 
 export type 단계 = {
   이름: 단계이름;
-  상태: "대기" | "실행중" | "완료" | "실패" | "건너뜀";
+  상태: 단계상태;
   소요: number | null;
   메모?: string;
 };

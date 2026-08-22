@@ -34,9 +34,6 @@ import {
   CONSOLE_ACTOR,
   CONSOLE_ACTOR_NAME,
   COUNTER_LABEL,
-  DOCUMENT_SOURCE_EMPTY,
-  DOCUMENT_SOURCE_ID,
-  DOCUMENT_SOURCE_UNREAD,
   DOW_NAMES,
   DRAFT_CARD_TONE,
   DRAFT_KIND_BADGE,
@@ -49,9 +46,7 @@ import {
   NO_LEGAL_REFERENCE,
   REFERENCE_FALLBACK_KIND,
   USERS,
-  WATCH_FOOTNOTE,
-  WATCH_SOURCES,
-  WATCH_TITLE,
+  WATCH_SOURCE_COUNT,
   WEEK_DOW,
 } from "./presentation";
 import type {
@@ -68,7 +63,6 @@ import type {
   CalendarDay,
   CardTone,
   ConditionSlug,
-  ContextSource,
   DailyBriefing,
   InvalidatedDoc,
   MarkerTone,
@@ -885,7 +879,7 @@ function 머리글(briefing: Briefing): RichText[] {
 function 계량(briefing: Briefing, 새문서수: number | null): BriefingMetric[] {
   return [
     // 소스 연동이 상수라서 소스 수도 상수다.
-    { key: "sources", value: WATCH_SOURCES.length, label: "읽은 소스", tone: "neutral" },
+    { key: "sources", value: WATCH_SOURCE_COUNT, label: "읽은 소스", tone: "neutral" },
     { key: "documents", value: 새문서수, label: "새 문서", tone: "neutral" },
     { key: "conditions", value: briefing.conditionCount, label: "감지한 조건", tone: "neutral" },
     { key: "tasks", value: briefing.createdCount, label: "만든 태스크", tone: "neutral" },
@@ -1044,43 +1038,11 @@ function 카운터(cards: TaskCard[], boardDate: string): BoardCounter[] {
   }));
 }
 
-/** "4분 전" · "2일 전" 처럼 지금과의 사이를 적는다. 기준 시각은 브리핑을 만든 시각이다. */
-function 사이문구(from: string, 기준: string): string | null {
-  const a = Date.parse(from);
-  const b = Date.parse(기준);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  const 분 = Math.floor((b - a) / 60_000);
-  if (분 < 1) return "방금";
-  if (분 < 60) return `${분}분 전`;
-  const 시 = Math.floor(분 / 60);
-  if (시 < 24) return `${시}시간 전`;
-  return `${Math.floor(시 / 24)}일 전`;
-}
-
-/** `documents` 가 null 이면 문서함을 읽지 못한 것이라 "없습니다" 가 아니라 그렇게 적는다. */
-function 맥락소스(documents: ContextDocument[] | null, 기준: string): ContextSource[] {
-  const 최신 = (documents ?? [])
-    .map((문서) => 문서.created_at)
-    .filter((at) => Number.isFinite(Date.parse(at)))
-    .sort()
-    .at(-1);
-
-  const 빈문구 = documents === null ? DOCUMENT_SOURCE_UNREAD : DOCUMENT_SOURCE_EMPTY;
-
-  return WATCH_SOURCES.map((source) => {
-    if (source.id !== DOCUMENT_SOURCE_ID) return { ...source };
-    if (!최신) return { ...source, lastSyncedLabel: 빈문구 };
-    return { ...source, lastSyncedLabel: 사이문구(최신, 기준) ?? 빈문구 };
-  });
-}
-
 function 헤더(
   siteId: string,
   siteName: string,
   cards: TaskCard[],
   boardDate: string,
-  documents: ContextDocument[] | null,
-  기준: string,
 ): BoardSiteHeader {
   return {
     siteId,
@@ -1090,11 +1052,6 @@ function 헤더(
     // 헤더의 span 이 자리째 사라진다.
     phase: "",
     counters: 카운터(cards, boardDate),
-    watch: {
-      title: WATCH_TITLE,
-      sources: 맥락소스(documents, 기준),
-      footnote: WATCH_FOOTNOTE,
-    },
   };
 }
 
@@ -1156,14 +1113,7 @@ export function toBoardSnapshot(src: BoardSources): BoardSnapshot {
   };
 
   return {
-    site: 헤더(
-      src.siteId,
-      src.siteName,
-      cards,
-      src.date,
-      src.documents,
-      src.briefing.generatedAt,
-    ),
+    site: 헤더(src.siteId, src.siteName, cards, src.date),
     briefing,
     calendar: 캘린더(src.week, src.date),
     columns: BOARD_COLUMNS,

@@ -38,10 +38,32 @@ const 기본어휘: 어휘 = {
   criteria: { occurrence_cycles: [], damage_levels: [], past_fatality: [] },
 };
 
+/**
+ * 화면에 적을 실패 문구. 상태 코드·영문 원문은 화면이 아니라 콘솔로 보낸다.
+ *
+ * 네트워크가 끊기면 `err.message` 는 "Failed to fetch" 다. 그걸 그대로 붙이면
+ * 관리자는 무엇을 해야 하는지 알 수 없다. 우리가 쓴 한국어 문장만 그대로 쓴다.
+ */
+function 실패문구(err: unknown, 기본: string): string {
+  const 원문 = err instanceof Error ? err.message.trim() : "";
+  return /[가-힣]/.test(원문) ? 원문 : 기본;
+}
+
+/** 위험도 산정 기준을 사람이 읽는 말로. 저장 값(`4x3`)은 그대로 두고 표시만 바꾼다. */
+function 기준이름(값: string): string {
+  const m = /^(\d+)x(\d+)$/.exec(값);
+  return m ? `빈도 ${m[1]}단계 × 강도 ${m[2]}단계` : 값;
+}
+
+/** 생성 방식 이름. 저장 값은 그대로 두고 화면 표시만 바꾼다. */
+const 모드이름: Record<생성모드, string> = {
+  라이브: "실제 생성",
+  데모: "미리보기",
+};
+
 type 분석패널 = {
   키: string;
   이름: string;
-  엔진: string;
   상태: 패널상태;
   소요: number | null;
   필드들: 필드[];
@@ -148,6 +170,16 @@ export function RiskAssessmentPanel({
   // 미리보기 URL 은 컴포넌트가 사라질 때 반드시 회수한다. 안 하면 페이지를 오래 열어 둘수록 샌다.
   const 미리보기들 = useRef<string[]>([]);
 
+  /**
+   * 저장에 실패했을 때 되돌아갈 자리. **마지막으로 저쪽이 받아 준 상태**다.
+   *
+   * 이게 없으면 PATCH 가 실패해도 화면은 켜진 체크와 「이행확인 9 / 9 · 100%」 를
+   * 그대로 들고 있는다. 사용자는 빨간 줄 하나를 지나치고 엑셀을 내려받는데, 저쪽
+   * DB 에서 만들어진 파일은 8행만 채워져 있다. 결재 상신 가능이라고 말한 화면과
+   * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
+   */
+  const 마지막저장본 = useRef<Assessment | null>(null);
+
   function 주소화면(
     next: 화면,
     patch: Partial<ConsoleUrlState> = {},
@@ -176,83 +208,132 @@ export function RiskAssessmentPanel({
   }, []);
 
   /**
-   * 대기열을 채운다. **감지는 여기서 하지 않는다** — 태스크 보드가 이미 만들어 둔
-   * 카드를 현장별로 읽어 위험성평가에 해당하는 것만 고른다. 출처가 하나여야
-   * 두 화면이 서로 다른 말을 하지 않는다.
+   * 대기열을 읽는다. 보드가 이미 만들어 둔 카드를 현장별로 읽어 위험성평가에 해당하는
+   * 것만 고른다. 출처가 하나여야 두 화면이 서로 다른 말을 하지 않는다.
    *
    * 보드 API 는 `siteId` 를 필수로 요구한다(다른 현장 카드가 섞이면 담당자 이름과
    * 하도급사 상호가 그대로 노출되기 때문이다). 그래서 현장을 먼저 읽고 현장마다 부른다.
+   *
+   * **효과 밖으로 뺀 이유:** 예전에는 이 코드가 `useEffect(..., [])` 안에 갇혀 있어
+   * 마운트할 때 딱 한 번만 돌았다. 그래서 카드를 확정하거나 감지를 돌려도 화면이
+   * 그대로였다 — 서버는 바뀌었는데 사람이 보기엔 아무 일도 안 일어난 것과 같았다.
+   * 낙관적으로 배열에서 빼는 대신 **서버가 말하는 사실**로 다시 그린다.
    */
-  useEffect(() => {
-    let 살아있음 = true;
+  const 대기열읽기 = useCallback(async () => {
+    try {
+      // 현장 목록은 Postgres 에서 온다. 조회 실패가 대기열을 통째로 비우면 안 된다 —
+      // 실제로 그렇게 만들었다가 "손볼 것 없음"이 거짓으로 떴다.
+      const sites = await fetch("/api/context/sites")
+        .then((r) => (r.ok ? (r.json() as Promise<{ sites: Array<{ id: string; name: string }> }>) : null))
+        .then((v) => v?.sites ?? [])
+        .catch(() => []);
 
-    (async () => {
-      try {
-        // 현장 목록은 Postgres 에서 온다. 그런데 태스크 보드는 지금 JSON 저장소로 돌아서
-        // DB 가 없어도 카드가 있다. 현장 조회 실패가 대기열을 통째로 비우면 안 된다 —
-        // 실제로 그렇게 만들었다가 "손볼 것 없음"이 거짓으로 떴다.
-        const sites = await fetch("/api/context/sites")
-          .then((r) => (r.ok ? (r.json() as Promise<{ sites: Array<{ id: string; name: string }> }>) : null))
-          .then((v) => v?.sites ?? [])
-          .catch(() => []);
-        if (!살아있음) return;
+      const 모든현장 = sites.length > 0 ? sites : 보드기본현장;
+      // 주소가 가리키는 현장만 읽는다. 콘솔은 한 번에 한 현장을 열고 있고, 다른 현장 카드가
+      // 섞이면 주소와 화면이 갈라진다.
+      const 목록 = 모든현장.filter((site) => site.id === siteId);
+      set현장이름(new Map(목록.map((s) => [s.id, s.name])));
 
-        const 모든현장 = sites.length > 0 ? sites : 보드기본현장;
-        const 목록 = 모든현장.filter((site) => site.id === siteId);
-        set현장이름(new Map(목록.map((s) => [s.id, s.name])));
-
-        // 한 현장이 실패해도 나머지 대기열은 보여야 한다.
-        const 결과 = await Promise.allSettled(
-          목록.map((s) =>
-            fetch(`/api/board/items?siteId=${encodeURIComponent(s.id)}`).then((r) =>
-              r.ok ? (r.json() as Promise<BoardPage>) : Promise.reject(new Error(String(r.status))),
-            ),
+      // 한 현장이 실패해도 나머지 대기열은 보여야 한다.
+      const 결과 = await Promise.allSettled(
+        목록.map((s) =>
+          fetch(`/api/board/items?siteId=${encodeURIComponent(s.id)}`, { cache: "no-store" }).then((r) =>
+            r.ok ? (r.json() as Promise<BoardPage>) : Promise.reject(new Error(String(r.status))),
           ),
-        );
-        if (!살아있음) return;
+        ),
+      );
 
-        const 카드 = 결과
-          .filter((r): r is PromiseFulfilledResult<BoardPage> => r.status === "fulfilled")
-          .flatMap((r) => r.value.items)
-          .filter(위험성평가카드인가);
-        set대기열(카드);
-        set기준시각(Date.now());
-      } catch {
-        // 대기열을 못 읽는 것과 대기열이 비어 있는 것은 다르다. 빈 목록으로 두고
-        // 새 평가 경로는 계속 열어 둔다.
-        if (살아있음) set대기열([]);
-      } finally {
-        if (살아있음) set대기열로딩(false);
-      }
-    })();
-
-    return () => {
-      살아있음 = false;
-    };
+      const 카드 = 결과
+        .filter((r): r is PromiseFulfilledResult<BoardPage> => r.status === "fulfilled")
+        .flatMap((r) => r.value.items)
+        .filter(위험성평가카드인가);
+      set대기열(카드);
+      set기준시각(Date.now());
+    } catch {
+      // 대기열을 못 읽는 것과 대기열이 비어 있는 것은 다르다. 빈 목록으로 두고
+      // 새 평가 경로는 계속 열어 둔다.
+      set대기열([]);
+    } finally {
+      set대기열로딩(false);
+    }
   }, [siteId]);
 
   /**
    * 지금까지 만든 평가서 목록. **보드 카드와 다른 곳에 있다** —
    * 감지 카드는 보드 저장소에, 만든 평가서는 SAFEGRID 자체 DB 에 있다.
-   * 탭이 "기록 목록"을 표방하므로 둘 다 보여야 한다.
+   *
+   * 이것도 효과 밖으로 뺀다. `set기록` 을 부르는 곳이 지금까지 **하나도 없어서**,
+   * 「위험성평가표 만들기」로 실제로 만든 평가서조차 새로고침 전에는 목록에 안 떴다.
    */
-  useEffect(() => {
-    let 살아있음 = true;
-    fetch("/api/risk/list")
-      .then((r) => (r.ok ? (r.json() as Promise<{ days: 평가일자[] }>) : null))
-      .then((v) => {
-        if (살아있음 && v?.days) set기록(v.days);
-      })
-      .catch(() => {
-        /* 기록을 못 읽어도 대기열과 새 평가는 계속 쓸 수 있어야 한다. */
-      })
-      .finally(() => {
-        if (살아있음) set기록로딩(false);
-      });
-    return () => {
-      살아있음 = false;
-    };
+  const 기록읽기 = useCallback(async () => {
+    try {
+      const v = await fetch("/api/risk/list", { cache: "no-store" }).then((r) =>
+        r.ok ? (r.json() as Promise<{ days: 평가일자[] }>) : null,
+      );
+      if (v?.days) set기록(v.days);
+    } catch {
+      /* 기록을 못 읽어도 대기열과 새 평가는 계속 쓸 수 있어야 한다. */
+    } finally {
+      set기록로딩(false);
+    }
   }, []);
+
+  // 효과 본문에서 곧장 부르면 `react-hooks` 가 "효과에서 동기적으로 setState 한다"고 본다.
+  // 실제로는 await 뒤에서만 바뀌지만 규칙이 그 구분을 못 한다. 규칙을 끄는 것보다 낫다.
+  useEffect(() => {
+    void (async () => {
+      await 대기열읽기();
+    })();
+  }, [대기열읽기]);
+
+  useEffect(() => {
+    void (async () => {
+      await 기록읽기();
+    })();
+  }, [기록읽기]);
+
+  /**
+   * 감지를 실제로 돌린다.
+   *
+   * 이 앱에서 `POST /api/board/detect` 를 부르는 **유일한 자리**다. 지금까지 감지 엔진은
+   * 완성돼 있고 검증기도 통과하는데 부르는 사람이 없어서, 화면의 "재평가 필요"는
+   * 감지 결과가 아니라 시드가 넣어 둔 카드였다.
+   *
+   * 실패해도 숫자를 지어내지 않는다 — 사유를 문자열로 돌려주고 화면이 그대로 적는다.
+   */
+  const 감지돌리기 = useCallback(async (): Promise<{ 감지: number; 생성: number } | string> => {
+    const 현장들 = [...현장이름.keys()];
+    const 대상 = 현장들.length > 0 ? 현장들 : [BOARD_SITE_ID];
+    let 감지수 = 0;
+    let 생성수 = 0;
+
+    for (const id of 대상) {
+      try {
+        const res = await fetch("/api/board/detect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ siteId: id }),
+        });
+        const body = (await res.json()) as {
+          run?: { detections?: unknown[]; created?: unknown[] };
+          error?: string;
+        };
+        if (!res.ok) {
+          console.error("[risk] board detect failed", { siteId: id, status: res.status, error: body.error });
+          return "현장을 점검하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+        }
+        감지수 += body.run?.detections?.length ?? 0;
+        생성수 += body.run?.created?.length ?? 0;
+      } catch (e) {
+        console.error("[risk] board detect failed", { siteId: id, error: e });
+        return "현장을 점검하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+      }
+    }
+
+    // 돌린 뒤 목록을 다시 읽는다. 안 그러면 서버는 카드를 만들었는데 화면은 그대로다.
+    await 대기열읽기();
+    return { 감지: 감지수, 생성: 생성수 };
+  }, [현장이름, 대기열읽기]);
 
   /**
    * 빈 종이에서 시작한다.
@@ -294,7 +375,14 @@ export function RiskAssessmentPanel({
       try {
         const res = await fetch(`/api/risk/${assessmentId}`);
         const body = await res.json();
-        if (!res.ok) throw new Error(body?.error ?? `평가를 읽지 못했습니다 (${res.status})`);
+        if (!res.ok) {
+          console.error("[risk] assessment fetch failed", {
+            id: assessmentId,
+            status: res.status,
+            error: body?.error,
+          });
+          throw new Error("평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+        }
         if (!살아있음) return;
         const a = body.assessment as Assessment;
         setAssessment(a);
@@ -307,7 +395,7 @@ export function RiskAssessmentPanel({
         set현장(a.site ?? "");
         set오류(null);
       } catch (err) {
-        if (살아있음) set오류((err as Error).message);
+        if (살아있음) set오류(실패문구(err, "평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요."));
       }
     })();
     return () => {
@@ -330,7 +418,6 @@ export function RiskAssessmentPanel({
     const 신규: 분석패널[] = 목록.map((f) => ({
       키: `doc-${f.name}-${f.size}`,
       이름: f.name,
-      엔진: "upstage",
       상태: "실행중" as 패널상태,
       소요: null,
       필드들: [],
@@ -351,15 +438,14 @@ export function RiskAssessmentPanel({
           const res = await fetch("/api/risk/ingest", { method: "POST", body: fd });
           const body = await res.json();
           const 소요 = performance.now() - 시작;
-          if (!res.ok) throw new Error(body?.error ?? `문서 파싱 실패 (${res.status})`);
+          if (!res.ok) {
+            console.error("[risk] doc ingest failed", { file: f.name, status: res.status, error: body?.error });
+            throw new Error("문서를 읽지 못했습니다. 파일을 확인하고 다시 올려 주세요.");
+          }
 
           const r = body.결과 as Record<string, unknown>;
           set패널들((p) =>
-            p.map((x) =>
-              x.키 === 신규[i].키
-                ? { ...x, 상태: "완료", 소요, 엔진: String(r.engine ?? "upstage"), 필드들: 문서필드(r) }
-                : x,
-            ),
+            p.map((x) => (x.키 === 신규[i].키 ? { ...x, 상태: "완료", 소요, 필드들: 문서필드(r) } : x)),
           );
           // 뽑아낸 값을 입력에 합친다. 사용자가 지운 것을 되살리지 않도록 합집합만 만든다.
           set공종((v) => 합치기(v, (r.work_types as string[]) ?? []));
@@ -371,19 +457,13 @@ export function RiskAssessmentPanel({
             ...v,
             { filename: f.name, extracted_at: new Date().toISOString(), engine: String(r.engine ?? ""), fields: r },
           ]);
-          set대화((d) => [
-            ...d,
-            { 종류: "결과", 파일명: f.name, 엔진: String(r.engine ?? "upstage"), 소요, 필드들: 문서필드(r) },
-          ]);
+          set대화((d) => [...d, { 종류: "결과", 파일명: f.name, 소요, 필드들: 문서필드(r) }]);
         } catch (err) {
           const 소요 = performance.now() - 시작;
-          set패널들((p) =>
-            p.map((x) =>
-              x.키 === 신규[i].키 ? { ...x, 상태: "실패", 소요, 메모: (err as Error).message } : x,
-            ),
-          );
+          const 사유 = 실패문구(err, "문서를 읽지 못했습니다. 파일을 확인하고 다시 올려 주세요.");
+          set패널들((p) => p.map((x) => (x.키 === 신규[i].키 ? { ...x, 상태: "실패", 소요, 메모: 사유 } : x)));
           // 실패를 조용히 지나가지 않는다. 어느 파일이 왜 실패했는지 대화에 남는다.
-          set대화((d) => [...d, { 종류: "실패", 파일명: f.name, 사유: (err as Error).message }]);
+          set대화((d) => [...d, { 종류: "실패", 파일명: f.name, 사유 }]);
         }
       }),
     );
@@ -401,7 +481,6 @@ export function RiskAssessmentPanel({
       {
         키,
         이름: `현장 사진 ${원본.length}장`,
-        엔진: "vision",
         상태: "실행중",
         소요: null,
         필드들: [],
@@ -421,7 +500,10 @@ export function RiskAssessmentPanel({
       const res = await fetch("/api/risk/ingest", { method: "POST", body: fd });
       const body = await res.json();
       const 소요 = performance.now() - 시작;
-      if (!res.ok) throw new Error(body?.error ?? `사진 판독 실패 (${res.status})`);
+      if (!res.ok) {
+        console.error("[risk] photo ingest failed", { status: res.status, error: body?.error });
+        throw new Error("사진을 읽지 못했습니다. 잠시 뒤 다시 올려 주세요.");
+      }
 
       const r = body.결과 as Record<string, unknown>;
       const 단서 = (r.photo_findings as string[]) ?? [];
@@ -432,10 +514,9 @@ export function RiskAssessmentPanel({
                 ...x,
                 상태: "완료",
                 소요,
-                엔진: String(r.engine ?? "vision"),
                 필드들: [
-                  { 이름: "장면", 값: ((r.scenes as string[]) ?? []).join(", ") },
-                  { 이름: "미착용", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
+                  { 이름: "사진 속 상황", 값: ((r.scenes as string[]) ?? []).join(", ") },
+                  { 이름: "미착용 보호구", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
                   { 이름: "공종", 값: ((r.work_types as string[]) ?? []).join(", ") },
                 ].filter((f) => f.값),
                 메모: 단서[0],
@@ -449,12 +530,11 @@ export function RiskAssessmentPanel({
         {
           종류: "결과",
           파일명: `현장 사진 ${원본.length}장`,
-          엔진: String(r.engine ?? "vision"),
           소요,
           필드들: [
-            { 이름: "장면", 값: ((r.scenes as string[]) ?? []).join(", ") },
-            { 이름: "미착용", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
-            { 이름: "단서", 값: 단서.slice(0, 2).join(" · ") },
+            { 이름: "사진 속 상황", 값: ((r.scenes as string[]) ?? []).join(", ") },
+            { 이름: "미착용 보호구", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
+            { 이름: "사진에서 확인된 사항", 값: 단서.slice(0, 2).join(" · ") },
           ].filter((f) => f.값),
         },
       ]);
@@ -462,9 +542,8 @@ export function RiskAssessmentPanel({
       set장비((v) => 합치기(v, (r.equipment as string[]) ?? []));
     } catch (err) {
       const 소요 = performance.now() - 시작;
-      set패널들((p) =>
-        p.map((x) => (x.키 === 키 ? { ...x, 상태: "실패", 소요, 메모: (err as Error).message } : x)),
-      );
+      const 사유 = 실패문구(err, "사진을 읽지 못했습니다. 잠시 뒤 다시 올려 주세요.");
+      set패널들((p) => p.map((x) => (x.키 === 키 ? { ...x, 상태: "실패", 소요, 메모: 사유 } : x)));
     }
   }
 
@@ -488,13 +567,19 @@ export function RiskAssessmentPanel({
         }),
       });
       const body = await res.json();
-      // 실패를 표로 덮지 않는다. 라이브가 실패했으면 그렇게 말한다.
-      if (!res.ok) throw new Error(body?.error ?? `생성 실패 (${res.status})`);
+      // 실패를 표로 덮지 않는다. 만들지 못했으면 그렇게 말한다.
+      if (!res.ok) {
+        console.error("[risk] assessment create failed", { status: res.status, error: body?.error });
+        throw new Error("평가표를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+      }
       const 만든것 = body.assessment as Assessment;
       setAssessment(만든것);
       마지막저장본.current = 만든것;
+      // 방금 만든 평가서가 아래 목록에 뜨게 한다. 이걸 안 부르면 새로고침 전까지
+      // 진짜로 만든 것조차 안 보인다.
+      void 기록읽기();
     } catch (err) {
-      set오류((err as Error).message);
+      set오류(실패문구(err, "평가표를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       set생성중(false);
     }
@@ -508,6 +593,41 @@ export function RiskAssessmentPanel({
    * 체크를 빠르게 두 번 누르면 두 번째가 렌더 시점의 낡은 값으로 계산돼 첫 번째를
    * 덮어썼다 — 눌렀는데 체크가 안 남는다. 병합은 여기서, 최신 상태 위에서 한다.
    */
+  /**
+   * 이행확인을 저쪽에 보낸다.
+   *
+   * **`저장예약` 보다 위에 둔다.** 아래에 두면 함수 선언 호이스팅으로 돌기는 하지만,
+   * 읽는 사람도 린트도 "선언 전 접근" 으로 읽는다.
+   */
+  async function 저장하기(next: Assessment) {
+    if (!next.id) {
+      set저장중(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/risk/${next.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        console.error("[risk] assessment save failed", { id: next.id, status: res.status, error: body?.error });
+        throw new Error("이행확인을 저장하지 못했습니다.");
+      }
+      마지막저장본.current = next;
+      set오류(null);
+    } catch (err) {
+      set오류(
+        `${실패문구(err, "이행확인을 저장하지 못했습니다.")} 화면을 저장 전 상태로 되돌렸습니다.`,
+      );
+      // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
+      if (마지막저장본.current) setAssessment(마지막저장본.current);
+    } finally {
+      set저장중(false);
+    }
+  }
+
   /**
    * 저장을 모아서 보낸다. 담당자 이름은 글자마다 onChange 가 나므로 그대로 두면
    * 한 글자에 한 번씩 PATCH 가 날아간다. 저쪽은 전체 payload 치환이라 순서가 뒤집히면
@@ -536,44 +656,6 @@ export function RiskAssessmentPanel({
     [저장예약],
   );
 
-  /**
-   * 저장에 실패했을 때 되돌아갈 자리. **마지막으로 저쪽이 받아 준 상태**다.
-   *
-   * 이게 없으면 PATCH 가 실패해도 화면은 켜진 체크와 「이행확인 9 / 9 · 100%」 를
-   * 그대로 들고 있는다. 사용자는 빨간 줄 하나를 지나치고 엑셀을 내려받는데, 저쪽
-   * DB 에서 만들어진 파일은 8행만 채워져 있다. 결재 상신 가능이라고 말한 화면과
-   * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
-   */
-  const 마지막저장본 = useRef<Assessment | null>(null);
-
-  async function 저장하기(next: Assessment) {
-    if (!next.id) {
-      set저장중(false);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/risk/${next.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(next),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? "이행확인을 저장하지 못했습니다.");
-      }
-      마지막저장본.current = next;
-      set오류(null);
-    } catch (err) {
-      set오류(
-        `${(err as Error).message} — 화면을 저장 전 상태로 되돌렸습니다.`,
-      );
-      // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
-      if (마지막저장본.current) setAssessment(마지막저장본.current);
-    } finally {
-      set저장중(false);
-    }
-  }
-
   /** 대기열에 카드가 실제로 있는 현장만. 빈 현장 버튼은 누를 이유가 없다. */
   const 현장있는것: Array<[string, string]> = [...new Set(대기열.map((i) => i.siteId))].map((id) => [
     id,
@@ -598,8 +680,10 @@ export function RiskAssessmentPanel({
         siteId={고른카드.siteId}
         현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
         닫기={() => onUrlStateChange({ cardId: null })}
-        카드끝남={(itemId) => {
-          set대기열((v) => v.filter((i) => i.itemId !== itemId));
+        // 낙관적으로 빼지 않는다. 서버가 확정한 뒤 다시 읽어야 새로고침해도 같은
+        // 화면이 나온다 — 예전에는 배열에서만 빠져서 새로고침하면 카드가 돌아왔다.
+        카드끝남={() => {
+          void 대기열읽기();
           onUrlStateChange({ cardId: null });
         }}
       />
@@ -631,8 +715,8 @@ export function RiskAssessmentPanel({
             <p className="eyebrow">위험성평가</p>
             <h1>지금 손봐야 할 것</h1>
             <p className="risk-sub">
-              태스크 보드가 찾아낸 조건 가운데 위험성평가에 해당하는 것입니다. 여기서 열어
-              제안된 행을 검토하고, 모두 승인된 경우에만 위험성평가서에 반영할 수 있습니다.
+              태스크 보드가 찾아낸 것 가운데 위험성평가에 해당하는 것입니다. 여기서 열어
+              제안된 평가 항목을 하나씩 검토하고, 모두 승인해야 위험성평가서에 반영할 수 있습니다.
             </p>
           </div>
           <button type="button" className="risk-generate" onClick={새평가시작}>
@@ -643,7 +727,7 @@ export function RiskAssessmentPanel({
         {/* 현장별 시간축 입구. 대기열은 "지금 무엇을" 이고 시간축은 "이 현장에 무슨 일이" 다.
             현장이 하나뿐일 때도 버튼을 숨기지 않는다 — 두 화면이 다른 질문에 답하기 때문이다. */}
         {현장있는것.length > 0 ? (
-          <nav className="risk-site-bar" aria-label="현장 시간축">
+          <nav className="risk-site-bar" aria-label="현장별 이력">
             {현장있는것.map(([id, 이름]) => (
               <button
                 key={id}
@@ -664,6 +748,7 @@ export function RiskAssessmentPanel({
           기준시각={기준시각}
           // 대기열은 그대로 두고 오른쪽에 평가서가 열린다. 다음 카드로 바로 넘어갈 수 있다.
           선택={(item) => onUrlStateChange({ cardId: item.itemId })}
+          감지={감지돌리기}
         />
 
         {/* 감지 카드와 만든 평가서는 **다른 곳에 산다.** 탭이 "기록 목록"을 표방하므로
@@ -691,19 +776,19 @@ export function RiskAssessmentPanel({
               className="risk-ws-back"
               onClick={() => 주소화면("대기열", { cardId: null, assessmentId: null })}
             >
-              ← 대기열
+              ← 할 일 목록
             </button>
           </p>
           <h1>문서와 사진을 올리면 평가표를 만듭니다</h1>
           <p className="risk-sub">
-            Upstage 가 계약서·자재표에서 공종과 장비를 읽고, 위험요인마다 산업안전보건기준에 관한
+            계약서·자재표에서 공종과 장비를 읽고, 위험요인마다 산업안전보건기준에 관한
             규칙 조문을 붙입니다.
           </p>
         </div>
-        <div className="mode-toggle" role="group" aria-label="생성 모드">
+        <div className="mode-toggle" role="group" aria-label="평가표 생성 방식">
           {(["라이브", "데모"] as const).map((v) => (
             <button key={v} type="button" className={모드 === v ? "is-active" : ""} onClick={() => set모드(v)}>
-              {v}
+              {모드이름[v]}
             </button>
           ))}
         </div>
@@ -711,13 +796,14 @@ export function RiskAssessmentPanel({
 
       {모드 === "데모" ? (
         <p className="risk-demo-note">
-          데모 모드입니다. <b>문서 분석은 실제로 돕니다</b> — 올린 PDF 를 Upstage 가 읽습니다.
-          평가표 생성만 미리 녹화해 둔 고정 응답이라 시연 중 45초를 기다리지 않습니다.
+          미리보기입니다. 올린 문서와 사진은 <b>실제로 읽어</b> 공종·장비·자재를 채웁니다.
+          평가표는 준비된 예시로 바로 나옵니다. <b>이렇게 만든 평가표도 「만든 평가서」에
+          남으니</b> 실제 기록과 섞이지 않게 확인해 주세요.
         </p>
       ) : (
         <p className="risk-demo-note is-live">
-          라이브 모드입니다. 생성에 <b>45초 안팎</b>이 걸리고, 실패하면 표 대신 실패 사유가
-          나옵니다 — 실패를 그럴듯한 표로 덮지 않습니다.
+          실제 생성입니다. 평가표를 만드는 데 <b>45초 안팎</b>이 걸리고, 만들지 못하면 평가표 대신
+          그 사유를 알려 드립니다.
         </p>
       )}
 
@@ -744,11 +830,11 @@ export function RiskAssessmentPanel({
           </select>
         </label>
         <label>
-          매트릭스
+          위험도 산정 기준
           <select value={매트릭스} onChange={(e) => set매트릭스(e.target.value)}>
             {어휘.matrices.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {기준이름(m)}
               </option>
             ))}
           </select>
@@ -767,9 +853,9 @@ export function RiskAssessmentPanel({
       */}
       {assessment && !입력있음 ? (
         <p className="risk-warn" role="status">
-          이 평가서에는 <b>공종·장비·자재가 저장되어 있지 않습니다.</b> 표의 행은 그대로
-          보이지만 어떤 조건으로 만든 것인지가 남아 있지 않아, 이 상태로는 다시 만들 수
-          없습니다. 아래에서 조건을 채우면 그때부터 편집·재생성이 됩니다.
+          이 평가서에는 <b>공종·장비·자재가 저장되어 있지 않습니다.</b> 평가 항목은 그대로
+          보이지만 어떤 조건으로 만든 것인지가 남아 있지 않아, 지금은 평가표를 다시 만들 수
+          없습니다. 아래에서 조건을 채우면 그때부터 고치고 다시 만들 수 있습니다.
         </p>
       ) : null}
 
@@ -789,7 +875,11 @@ export function RiskAssessmentPanel({
 
       <div className="risk-actions">
         <button type="button" className="risk-generate" disabled={생성중 || !입력있음} onClick={() => void 생성하기()}>
-          {생성중 ? (모드 === "라이브" ? "생성 중… (45초 안팎)" : "생성 중…") : "위험성평가표 만들기"}
+          {생성중
+            ? 모드 === "라이브"
+              ? "평가표를 만드는 중입니다… (45초 안팎)"
+              : "평가표를 만드는 중입니다…"
+            : "위험성평가표 만들기"}
         </button>
         {!입력있음 ? <span className="risk-hint">공종·장비·자재 중 하나가 필요합니다.</span> : null}
         {assessment?.id ? (

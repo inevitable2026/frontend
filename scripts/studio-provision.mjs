@@ -14,10 +14,15 @@ const MAX_DOCS_AGE_MS = 24 * 60 * 60_000;
 const SENSITIVE_KEY = /(authorization|api[_-]?key|token|content|document|base64|text|filename)/i;
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+// 코드유닛 비교로 고정한다 (lib/context/studio-manifest.ts 의 canonicalizeStudioValue 와 같은 규칙).
+// `localeCompare` 는 런타임 로케일에 의존해서 같은 매니페스트가 머신마다 다른 지문을 낸다. 이
+// 스크립트는 서명 검증(parseManifest)과 configFingerprint 양쪽에 이 함수를 쓰므로, 로케일이 섞이면
+// ko-KR 머신에서는 프로비저닝이 시작도 못 하고 통과하더라도 오염된 지문이 영수증에 박힌다.
+// 앱을 import 하지 않는다는 이 파일의 설계(위 주석)를 지키기 위해 정의를 복사해 둔다.
 const canonicalize = (value) => Array.isArray(value)
   ? value.map(canonicalize)
   : isRecord(value)
-    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, canonicalize(child)]))
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([key, child]) => [key, canonicalize(child)]))
     : value;
 const hash = (value) => createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
 const redact = (value) => Array.isArray(value)

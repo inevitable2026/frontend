@@ -6,11 +6,46 @@ const UPSTAGE_BASE = "https://api.upstage.ai/v2";
 const MAX_RETRIES = 3;
 const POLL_INTERVAL_MS = 1_500;
 
+/**
+ * 오류 코드 → 화면에 적을 문장.
+ *
+ * `StudioError.code` 는 그대로 두고(서버 로그·분기에서 쓴다) 화면에 나가는 `message`
+ * 만 여기서 고른다. 코드를 문장으로 쓰면 관리자 화면에 `RESPONSE_TIMEOUT` 같은 말이
+ * 그대로 뜬다 — 실패 사유는 `components/site-context-panel.tsx` 의 `stage-error` 로
+ * 렌더된다.
+ */
+const 실패문구: Record<string, string> = {
+  API_KEY_MISSING: "문서 분석 서비스 접속 정보가 없습니다. 시스템 담당자에게 문의해 주세요.",
+  IDENTITY_UNVERIFIED: "문서 분석 설정이 확인되지 않았습니다. 시스템 담당자에게 문의해 주세요.",
+  HOST_BUDGET_INVALID: "문서 정리 기한이 분석 기한보다 앞서 있습니다. 시스템 담당자에게 문의해 주세요.",
+  DEADLINE_EXCEEDED: "문서 분석 요청이 제한 시간을 넘겼습니다. 잠시 뒤 다시 시도해 주세요.",
+  NETWORK_ERROR: "문서 분석 서비스에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  FILE_UPLOAD_FAILED: "올린 파일을 분석 서비스에 보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  FILE_UPLOAD_INVALID: "올린 파일을 분석 서비스가 받았는지 확인하지 못했습니다. 문서를 다시 올려 주세요.",
+  FILE_READINESS_FAILED: "올린 파일의 준비 상태를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  FILE_READINESS_INVALID: "올린 파일의 준비 상태를 읽지 못했습니다. 문서를 다시 올려 주세요.",
+  FILE_NOT_READY_FAILED: "올린 파일이 분석 준비 단계에서 처리되지 못했습니다. 문서를 다시 올려 주세요.",
+  FILE_NOT_READY_UNKNOWN: "올린 파일의 준비 상태를 알 수 없습니다. 문서를 다시 올려 주세요.",
+  FILE_NOT_READY_TIMEOUT: "올린 파일이 제한 시간 안에 준비되지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+  RESPONSE_CREATE_FAILED: "문서 분석을 시작하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  RESPONSE_CREATE_INVALID: "문서 분석이 시작됐는지 확인하지 못했습니다. 문서를 다시 올려 주세요.",
+  RESPONSE_GET_FAILED: "문서 분석 진행 상황을 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  RESPONSE_GET_INVALID: "문서 분석 진행 상황을 읽지 못했습니다. 문서를 다시 올려 주세요.",
+  RESPONSE_FAILED: "문서 분석이 도중에 중단되었습니다. 문서를 다시 올려 주세요.",
+  RESPONSE_STATUS_UNKNOWN: "문서 분석 진행 상황을 알 수 없습니다. 문서를 다시 올려 주세요.",
+  RESPONSE_TIMEOUT: "문서 분석이 제한 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+  SERVED_IDENTITY_MISMATCH: "분석을 맡긴 곳과 응답한 곳이 달라 결과를 쓰지 않았습니다. 시스템 담당자에게 문의해 주세요.",
+  WORKFLOW_FAILED: "문서 분석에 실패했습니다. 문서를 다시 올려 주세요.",
+  WORKFLOW_INCOMPLETE: "문서 분석 결과가 다 오지 않았습니다. 문서를 다시 올려 주세요.",
+};
+
+const 기본실패문구 = "문서 분석에 실패했습니다. 잠시 뒤 다시 시도해 주세요.";
+
 export class StudioError extends Error {
   readonly code: string;
   constructor(
     code: string,
-    message = code,
+    message = 실패문구[code] ?? 기본실패문구,
     readonly cause?: unknown,
     readonly failure?: StudioWorkflowFailure,
   ) {
@@ -23,6 +58,13 @@ export { StudioParseError };
 
 export type StudioAgent = { id: string; name: string; role: string };
 export type StudioCleanupStatus = "not_started" | "deleted" | "pending" | "failed";
+/** 저장 값은 그대로 두고 화면 문장에 끼워 넣을 말만 고른다. */
+const 정리상태: Record<StudioCleanupStatus, string> = {
+  not_started: "시작되지 않았습니다",
+  deleted: "끝났습니다",
+  pending: "아직 진행 중입니다",
+  failed: "실패했습니다",
+};
 export type StudioIdentity = {
   agentId: string;
   agentName?: string;
@@ -95,7 +137,7 @@ export type StudioWorkflowFailure = {
 
 function apiKey(): string {
   const key = process.env.UPSTAGE_API_KEY;
-  if (!key) throw new StudioError("API_KEY_MISSING", "UPSTAGE_API_KEY 가 없습니다.");
+  if (!key) throw new StudioError("API_KEY_MISSING");
   return key;
 }
 function headers(json = true): Record<string, string> {
@@ -139,7 +181,7 @@ function verifiedIdentity(identity: StudioIdentity): StudioIdentity {
     requestFields.length === 0 ||
     requestFields.some((field) => !["config_id", "config_external_id", "revision_id", "version_id"].includes(field))
   ) {
-    throw new StudioError("IDENTITY_UNVERIFIED", "검증된 불변 Studio 워크플로우 바인딩이 필요합니다.");
+    throw new StudioError("IDENTITY_UNVERIFIED");
   }
   return value;
 }
@@ -150,7 +192,7 @@ async function boundedFetch(fetchImpl: typeof fetch, now: () => number, deadline
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), budget);
   try { return await fetchImpl(input, { ...init, signal: controller.signal }); }
-  catch (cause) { if (controller.signal.aborted) throw new StudioError("DEADLINE_EXCEEDED", "Studio 요청 시간이 초과되었습니다.", cause); throw new StudioError("NETWORK_ERROR", "Studio 네트워크 요청에 실패했습니다.", cause); }
+  catch (cause) { if (controller.signal.aborted) throw new StudioError("DEADLINE_EXCEEDED", undefined, cause); throw new StudioError("NETWORK_ERROR", undefined, cause); }
   finally { clearTimeout(timeout); }
 }
 
@@ -187,7 +229,11 @@ async function postOnce(operation: StudioOperation, url: string, init: RequestIn
   catch (error) { metric.finish(); throw error; }
 }
 async function assertOk(response: Response, code: string): Promise<void> {
-  if (!response.ok) throw new StudioError(code, `${code} (${response.status})`);
+  // 상태 코드는 관리자에게 보여 줄 말이 아니다. 코드와 함께 로그로만 남긴다.
+  if (!response.ok) {
+    console.error(`[context] studio call failed: code=${code} status=${response.status}`);
+    throw new StudioError(code);
+  }
 }
 
 async function uploadFile(bytes: Uint8Array, filename: string, mime: string, options: Required<Pick<StudioWorkflowOptions, "fetch" | "now">>, deadline: number, metrics: StudioRunMetrics): Promise<string> {
@@ -242,9 +288,9 @@ export async function runStudioWorkflow(kind: DocumentKind, bytes: Uint8Array, f
     supplied.deadline <= options.now() ||
     supplied.cleanupDeadline <= supplied.deadline
   ) {
-    throw new StudioError("HOST_BUDGET_INVALID", "Studio 정리 기한은 처리 기한 뒤여야 합니다.");
+    throw new StudioError("HOST_BUDGET_INVALID");
   }
-  const identity = verifiedIdentity(supplied.identity); const metrics = supplied.metrics ?? new StudioRunMetrics(options.now); const agent: StudioAgent = { id: identity.agentId, name: identity.agentName ?? identity.agentId, role: identity.role ?? "pinned Studio workflow" };
+  const identity = verifiedIdentity(supplied.identity); const metrics = supplied.metrics ?? new StudioRunMetrics(options.now); const agent: StudioAgent = { id: identity.agentId, name: identity.agentName ?? identity.agentId, role: identity.role ?? "문서 판독" };
   let fileId: string | undefined; let cleanup: { status: StudioCleanupStatus; attempts: number } = { status: "not_started", attempts: 0 };
   let responseId: string | undefined;
   let servedIdentity: string | undefined;
@@ -336,7 +382,7 @@ export async function runStudioWorkflow(kind: DocumentKind, bytes: Uint8Array, f
   if (cleanup.status !== "deleted") {
     throw new StudioError(
       "REMOTE_CLEANUP_INCOMPLETE",
-      `Studio 원격 파일 정리가 ${cleanup.status} 상태입니다.`,
+      `분석 서비스에 올린 파일 삭제가 ${정리상태[cleanup.status]}. 이 결과는 저장할 수 없습니다. 문서를 다시 올려 주세요.`,
       primaryError,
       failure,
     );
@@ -348,7 +394,7 @@ export async function runStudioWorkflow(kind: DocumentKind, bytes: Uint8Array, f
     if (primaryError instanceof StudioError) {
       throw new StudioError(primaryError.code, primaryError.message, primaryError.cause, failure);
     }
-    throw new StudioError("WORKFLOW_FAILED", "Studio 워크플로우가 실패했습니다.", primaryError, failure);
+    throw new StudioError("WORKFLOW_FAILED", undefined, primaryError, failure);
   }
   if (!completedResult) throw new StudioError("WORKFLOW_INCOMPLETE");
   return { ...completedResult, cleanup, metrics: metrics.snapshot() };

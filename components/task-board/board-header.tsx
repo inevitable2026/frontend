@@ -26,7 +26,7 @@ type BoardHeaderProps = {
 
 export function BoardHeader({ site, cards, boardDate }: BoardHeaderProps): JSX.Element {
   // 주/월 토글과 "연결된 맥락" 은 헤더에서 뺐다. 달력 보기는 캘린더 자신의 "월간 펼치기"
-  // 버튼 하나가 쥐고, 맥락 목록은 AI 사이드바로 옮겼다(`context-watch.tsx`).
+  // 버튼 하나가 쥐고, 맥락 목록은 화면에서 아예 걷어냈다.
   // 남은 요소는 모두 `.board-header` 의 **직계 자식**이어야 한다. `.board-counters`
   // (flex 1 1 300px)가 헤더의 가로 flex 안에서 둘째 줄로 내려가 눕는 전제이고, 헤더
   // 밖으로 나가면 `.board-shell` 의 세로 flex 를 타고 위아래로 늘어난다.

@@ -39,6 +39,16 @@ import {
 const STAGE_LIMITS = { 임베딩: 15_000 } as const;
 const CHUNK_INSERT_BATCH = 25;
 
+const 시간초과문구 = "문서 분석에 주어진 시간을 넘겼습니다. 문서를 다시 올려 주세요.";
+
+/**
+ * `ingest_jobs.error` 에는 `STUDIO_LIVE_DISABLED: …` 처럼 코드가 앞에 붙어 저장된 값도
+ * 있다. 저장 값은 그대로 두고, 화면에 내보낼 때만 코드 조각을 떼어 낸다.
+ */
+function 저장된사유(error: string): string {
+  return error.replace(/^[A-Z][A-Z0-9_]*:\s*/, "").trim() || error;
+}
+
 function emptyStage(name: StageName): IngestStage {
   return { 이름: name, 상태: "대기", 시작: null, 소요ms: null };
 }
@@ -90,7 +100,7 @@ export async function* runIngest(
     output?: (value: T) => unknown,
   ): AsyncGenerator<IngestEvent, T> {
     setLease(await renewIngestLease(lease));
-    if (Date.now() >= processingDeadline) throw new Error("Studio 처리 예산이 만료되었습니다.");
+    if (Date.now() >= processingDeadline) throw new Error(시간초과문구);
     const i = indexOf(name);
     const started = Date.now();
     stages[i] = { ...stages[i], 상태: "실행중", 시작: new Date().toISOString() };
@@ -100,7 +110,7 @@ export async function* runIngest(
     // A stage may finish after its own upstream timeout (notably a DB query).
     // Do not let subsequent processing consume the cleanup/response windows.
     if (Date.now() >= processingDeadline) {
-      throw new Error("Studio 처리 예산이 만료되었습니다.");
+      throw new Error(시간초과문구);
     }
     stages[i] = {
       ...stages[i],
@@ -121,7 +131,7 @@ export async function* runIngest(
     }));
 
     const identity = getStudioIdentityFromReceipt(input.readiness, input.kind);
-    if (!identity) throw new Error(`${input.kind} Studio 워크플로우 바인딩이 준비 영수증에 없습니다.`);
+    if (!identity) throw new Error(`${input.kind} 문서를 분석할 설정이 없습니다. 시스템 담당자에게 문의해 주세요.`);
 
     const workflow = yield* stage(
       "레이아웃분석",
@@ -220,7 +230,7 @@ export async function* runIngest(
           // This is an ownership boundary as well as a deadline boundary: do
           // not write another batch after another runner has reclaimed it.
           setLease(await renewIngestLease(lease));
-          if (Date.now() >= processingDeadline) throw new Error("Studio 처리 예산이 만료되었습니다.");
+          if (Date.now() >= processingDeadline) throw new Error(시간초과문구);
           const slice = chunks.slice(i, i + CHUNK_INSERT_BATCH);
           await sql`
             insert into document_chunks ${sql(
@@ -245,14 +255,14 @@ export async function* runIngest(
         스테이징: true,
         추천현장: stagingSiteId,
         안내: stagingSiteId
-          ? "저장 시점에 documentId 가 붙고 현장이 확정됩니다."
-          : "추천 현장이 없습니다. 저장할 때 고른 현장으로 채워집니다.",
+          ? "저장할 때 현장이 확정됩니다."
+          : "문서에서 현장을 찾지 못했습니다. 저장할 때 고른 현장으로 채워집니다.",
       }),
     );
 
     const upstageCalls = studioCalls + embeddingCalls;
     if (Date.now() >= processingDeadline) {
-      throw new Error("Studio 처리 예산이 만료되었습니다.");
+      throw new Error(시간초과문구);
     }
     setLease(await completeIngestLease(lease, stages, upstageCalls));
     setLease(await openHumanSaveWindow(lease));
@@ -264,6 +274,7 @@ export async function* runIngest(
       execution = failure.execution;
       studioCalls = failure.calls || studioCalls;
     }
+    console.error(`[context] ingest failed: job=${jobId}`, error);
     const reason = error instanceof Error ? error.message : String(error);
     const running = stages.find((s) => s.상태 === "실행중");
     if (running) {
@@ -305,7 +316,7 @@ export async function* replayStages(
       from ingest_jobs where id = ${jobId} limit 1`;
 
   if (!job) {
-    yield { 종류: "실패", 단계: null, 사유: "그런 잡이 없습니다." };
+    yield { 종류: "실패", 단계: null, 사유: "분석 작업을 찾지 못했습니다. 문서를 다시 올려 주세요." };
     return;
   }
 
@@ -322,7 +333,7 @@ export async function* replayStages(
     }, expectedProvenance);
     const observedMatches = job.studio_served_identity === null || job.studio_served_identity === expectedProvenance.servedIdentity;
     if (!plannedMatches || !observedMatches || (job.status === "done" && job.studio_served_identity === null)) {
-      yield { 종류: "실패", 단계: null, 사유: "저장된 Studio 작업 출처가 현재 검증된 준비 영수증과 일치하지 않습니다." };
+      yield { 종류: "실패", 단계: null, 사유: "이 분석 작업은 지금 승인된 분석 설정과 달라 결과를 보여 줄 수 없습니다. 문서를 다시 올려 주세요." };
       return;
     }
   }
@@ -330,7 +341,7 @@ export async function* replayStages(
   for (const step of job.steps ?? []) yield { 종류: "단계", 단계: step };
 
   if (job.status === "failed") {
-    yield { 종류: "실패", 단계: null, 사유: job.error ?? "실패한 잡입니다." };
+    yield { 종류: "실패", 단계: null, 사유: job.error ? 저장된사유(job.error) : "문서 분석에 실패한 작업입니다. 문서를 다시 올려 주세요." };
     return;
   }
   if (job.status === "done") {
@@ -355,7 +366,7 @@ export async function* replayStages(
       종류: "실패",
       단계: null,
       code: "INGEST_RECOVERY_PENDING",
-      사유: "처리 실행이 중단되었습니다. 정리 작업이 끝난 뒤 파일을 다시 올려 주세요.",
+      사유: "문서 분석이 중단되었습니다. 정리가 끝난 뒤 문서를 다시 올려 주세요.",
     };
   }
 }
