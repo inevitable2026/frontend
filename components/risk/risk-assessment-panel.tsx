@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AgentPanel, { type 패널상태, type 필드 } from "@/components/risk/agent-panel";
 import RiskQueue, { 위험성평가카드인가 } from "@/components/risk/risk-queue";
 import RiskRecords from "@/components/risk/risk-records";
+import RiskComposer, { type 대화항목 } from "@/components/risk/risk-composer";
 import RiskTimeline from "@/components/risk/risk-timeline";
+import VocabPicker from "@/components/risk/vocab-picker";
 import RiskTable from "@/components/risk/risk-table";
 import RiskWorkspace from "@/components/risk/risk-workspace";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
@@ -25,6 +27,7 @@ import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어�
 /** 어휘 조회가 실패해도 화면이 멈추지 않게 하는 최소 목록. */
 const 기본어휘: 어휘 = {
   industries: [{ value: "건축공사", label: "건축공사" }],
+  work_types: [],
   methods: ["빈도·강도법"],
   matrices: [...MATRICES],
   equipment: [],
@@ -102,6 +105,7 @@ export function RiskAssessmentPanel() {
   const [어휘, set어휘] = useState<어휘>(기본어휘);
 
   const [패널들, set패널들] = useState<분석패널[]>([]);
+  const [대화, set대화] = useState<대화항목[]>([]);
   const [문서근거, set문서근거] = useState<SourceDoc[]>([]);
   const [현장, set현장] = useState<string>("");
 
@@ -256,6 +260,8 @@ export function RiskAssessmentPanel() {
       mime: f.type || "application/pdf",
     }));
     set패널들((p) => [...p, ...신규]);
+    // 대화에 "올렸다"를 먼저 남긴다. 결과는 도착하는 대로 뒤에 붙는다.
+    set대화((d) => [...d, ...목록.map((f) => ({ 종류: "올림" as const, 파일명: f.name, 크기: f.size }))]);
 
     await Promise.allSettled(
       목록.map(async (f, i) => {
@@ -287,6 +293,10 @@ export function RiskAssessmentPanel() {
             ...v,
             { filename: f.name, extracted_at: new Date().toISOString(), engine: String(r.engine ?? ""), fields: r },
           ]);
+          set대화((d) => [
+            ...d,
+            { 종류: "결과", 파일명: f.name, 엔진: String(r.engine ?? "upstage"), 소요, 필드들: 문서필드(r) },
+          ]);
         } catch (err) {
           const 소요 = performance.now() - 시작;
           set패널들((p) =>
@@ -294,6 +304,8 @@ export function RiskAssessmentPanel() {
               x.키 === 신규[i].키 ? { ...x, 상태: "실패", 소요, 메모: (err as Error).message } : x,
             ),
           );
+          // 실패를 조용히 지나가지 않는다. 어느 파일이 왜 실패했는지 대화에 남는다.
+          set대화((d) => [...d, { 종류: "실패", 파일명: f.name, 사유: (err as Error).message }]);
         }
       }),
     );
@@ -319,6 +331,8 @@ export function RiskAssessmentPanel() {
         mime: 원본[0].type || "image/jpeg",
       },
     ]);
+
+    set대화((d) => [...d, ...원본.map((f) => ({ 종류: "올림" as const, 파일명: f.name, 크기: f.size }))]);
 
     const 시작 = performance.now();
     const fd = new FormData();
@@ -352,6 +366,20 @@ export function RiskAssessmentPanel() {
         ),
       );
       set사진단서((v) => [...v, ...단서]);
+      set대화((d) => [
+        ...d,
+        {
+          종류: "결과",
+          파일명: `현장 사진 ${원본.length}장`,
+          엔진: String(r.engine ?? "vision"),
+          소요,
+          필드들: [
+            { 이름: "장면", 값: ((r.scenes as string[]) ?? []).join(", ") },
+            { 이름: "미착용", 값: ((r.ppe_missing as string[]) ?? []).join(", ") },
+            { 이름: "단서", 값: 단서.slice(0, 2).join(" · ") },
+          ].filter((f) => f.값),
+        },
+      ]);
       set공종((v) => Array.from(new Set([...v, ...((r.work_types as string[]) ?? [])])));
       set장비((v) => Array.from(new Set([...v, ...((r.equipment as string[]) ?? [])])));
     } catch (err) {
@@ -599,59 +627,12 @@ export function RiskAssessmentPanel() {
         </p>
       )}
 
-      <section className="risk-upload">
-        <button type="button" className="upload-button" onClick={() => 문서입력.current?.click()}>
-          문서 올리기 (PDF)
-        </button>
-        <button type="button" className="upload-button" onClick={() => 사진입력.current?.click()}>
-          사진 올리기
-        </button>
-        <button type="button" className="upload-button is-camera" onClick={() => 카메라입력.current?.click()}>
-          현장 촬영
-        </button>
-        <input
-          ref={문서입력}
-          className="sr-only"
-          type="file"
-          accept="application/pdf,image/*"
-          multiple
-          onChange={(e) => {
-            void 문서올리기(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <input
-          ref={사진입력}
-          className="sr-only"
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={(e) => {
-            void 사진올리기(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        {/* 휴대폰에서 카메라가 바로 열린다. 데스크톱에서는 파일 선택으로 떨어진다. */}
-        <input
-          ref={카메라입력}
-          className="sr-only"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={(e) => {
-            void 사진올리기(e.target.files);
-            e.target.value = "";
-          }}
-        />
-      </section>
-
-      {패널들.length > 0 ? (
-        <section className="risk-agents">
-          {패널들.map((p) => (
-            <AgentPanel key={p.키} {...p} />
-          ))}
-        </section>
-      ) : null}
+      <RiskComposer
+        대화={대화}
+        분석중={패널들.some((p) => p.상태 === "실행중")}
+        문서올리기={(f) => void 문서올리기(f)}
+        사진올리기={(f) => void 사진올리기(f)}
+      />
 
       <section className="risk-inputs">
         <label>
@@ -681,29 +662,17 @@ export function RiskAssessmentPanel() {
       </section>
 
       <section className="risk-chips">
-        {[
-          { 라벨: "공종", 값: 공종, set: set공종 },
-          { 라벨: "장비", 값: 장비, set: set장비 },
-          { 라벨: "자재", 값: 자재, set: set자재 },
-        ].map(({ 라벨, 값, set }) => (
-          <div key={라벨}>
-            <span className="eyebrow">{라벨}</span>
-            {값.length === 0 ? (
-              <p className="risk-chip-empty">아직 없습니다. 문서를 올리면 채워집니다.</p>
-            ) : (
-              <ul>
-                {값.map((v) => (
-                  <li key={v}>
-                    {v}
-                    <button type="button" aria-label={`${v} 빼기`} onClick={() => set(값.filter((x) => x !== v))}>
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
+        {/* 문서에서 채워진 값 위에 **더할 수 있어야** 한다. 어휘는 장비 78·자재 50 종이라
+            통째로 펼치는 대신 검색으로 좁힌다. 목록에 없는 현장 용어도 직접 넣게 둔다. */}
+        <VocabPicker
+          라벨="공종"
+          선택된={공종}
+          후보={어휘.work_types}
+          바꾸기={set공종}
+          안내="예: 철근콘크리트공사"
+        />
+        <VocabPicker 라벨="장비" 선택된={장비} 후보={어휘.equipment} 바꾸기={set장비} 안내="예: 이동식크레인" />
+        <VocabPicker 라벨="자재" 선택된={자재} 후보={어휘.materials} 바꾸기={set자재} 안내="예: 레미콘" />
       </section>
 
       <div className="risk-actions">

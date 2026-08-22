@@ -114,6 +114,8 @@ export type 사진분석 = {
 /** 드롭다운의 단일 출처. 실패하면 화면이 내장 목록으로 버틴다. */
 export type 어휘 = {
   industries: { value: string; label: string; badge?: string; disabled?: boolean }[];
+  /** 공종. 표준 분류가 아니라 **실제로 생성된 평가표에서 쓰인 것**이다. */
+  work_types: string[];
   methods: string[];
   matrices: string[];
   equipment: string[];
