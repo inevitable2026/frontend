@@ -518,6 +518,9 @@ export function createPgBoardStore(): BoardStore {
 
     async appendFacts(facts: SnapshotFact[]): Promise<FactDelta[]> {
       if (facts.length === 0) return [];
+      // 이웃한 listFacts·listItems 는 모두 이걸 거치는데 여기만 빠져 있었다. 그래서
+      // uuid 가 아닌 siteId 가 들어오면 400 대신 Postgres 22P02 가 500 으로 새어 나갔다.
+      for (const fact of facts) assertSiteId(fact.siteId);
       await ensureSchema();
       const sql = db();
       const deltas: FactDelta[] = [];

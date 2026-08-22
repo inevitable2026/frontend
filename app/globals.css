@@ -5983,11 +5983,121 @@ button {
 
 /* 조문은 검색으로 붙인 것만 나온다. 모델이 쓴 조문은 여기에 없다. */
 .risk-clauses li {
+  padding: 0;
+  border: 0;
+  color: var(--text-sidebar);
+  font-size: 12px;
+}
+
+/* ── 조문 칩과 본문 카드 ────────────────────────────────────────────── */
+
+.clause-chip {
   padding: 4px 10px;
   border: 1px solid var(--border-soft);
   border-radius: 999px;
+  background: #ffffff;
   color: var(--text-sidebar);
+  font: inherit;
   font-size: 12px;
+  cursor: help;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+/* 점선 밑줄로 "누르면 뭔가 있다"를 말한다. 링크가 아니므로 실선은 쓰지 않는다. */
+.clause-chip::after {
+  content: "";
+  display: block;
+  margin-top: 1px;
+  border-bottom: 1px dotted currentColor;
+  opacity: 0.45;
+}
+
+.clause-chip:hover,
+.clause-chip:focus-visible,
+.clause-chip.is-open {
+  border-color: var(--purple-primary);
+  background: #f4f3ff;
+  color: var(--purple-copy);
+  outline: none;
+}
+
+/*
+ * `position: fixed` 다. 칩이 overflow 걸린 카드 안에 있어 absolute 로는 잘린다.
+ * 좌표는 열 때마다 다시 재므로 스크롤해도 어긋나지 않는다(닫혔다 다시 열린다).
+ */
+.clause-card {
+  position: fixed;
+  z-index: 60;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(24, 22, 61, 0.16);
+  pointer-events: none; /* 카드가 마우스를 가로채 깜빡이는 것을 막는다 */
+  animation: clause-in 0.12s ease-out;
+}
+
+@keyframes clause-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.clause-card.is-above {
+  transform-origin: bottom;
+}
+
+.clause-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0 0 7px;
+  line-height: 1.35;
+}
+
+.clause-card-head b {
+  color: var(--purple-copy);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.clause-card-head span {
+  color: var(--text-default);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.clause-card-body {
+  margin: 0;
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  line-height: 1.65;
+  /* 한글 본문은 어절 단위로 끊는 편이 읽기 쉽다. */
+  word-break: keep-all;
+}
+
+.clause-card-body.is-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.clause-card-foot {
+  margin: 9px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clause-card {
+    animation: none;
+  }
 }
 
 .risk-row-check {
@@ -6773,14 +6883,50 @@ button {
 
 .risk-chip button:hover { background: var(--border-soft); }
 
-/* `.risk-chips` 가 grid 라 목록이 그 트랙 안에서 눌린다. 목록 항목은 한 줄이어야 한다 —
-   실제로 "무한궤도식 크레인" 이 글자마다 줄바꿈돼 세로로 깨졌다. */
-.risk-picker-list li { display: block; }
+/*
+ * 자동완성 목록은 `.risk-chips` 안에 있지만 **칩이 아니다.**
+ *
+ * main 이 선택된 칩을 `.risk-chips li` · `.risk-chips li button` 으로 꾸미는데, 그건
+ * 자손 선택자라 이 드롭다운의 `li`·`button` 에도 그대로 걸린다. 그 결과 목록 항목이
+ * 지름 22px 짜리 **원**이 되어 "가스"·"갈탄" 이 첫 글자만 남고 잘렸다 — 목록이
+ * 한글 자모만 늘어선 것처럼 보였다.
+ *
+ * 그래서 `.risk-chips` 를 앞에 붙여 특정도를 올린다(0,1,2 대 0,2,2). main 의 칩
+ * 모양은 건드리지 않으면서 목록만 되찾는 가장 좁은 수정이다.
+ *
+ * `white-space: nowrap` 은 그 전부터 필요했다. `.risk-chips` 가 grid 라 목록이 트랙
+ * 안에서 눌리면서 "무한궤도식 크레인" 이 글자마다 줄바꿈돼 세로로 깨졌었다.
+ */
+.risk-chips .risk-picker-list {
+  display: block;
+  width: auto;
+}
 
-.risk-picker-list button {
+.risk-chips .risk-picker-list li {
+  display: block;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.risk-chips .risk-picker-list li button {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.risk-chips .risk-picker-list li button:hover {
+  background: var(--sidebar-surface);
 }
 
 .risk-picker-list {
@@ -6817,4 +6963,920 @@ button {
 
 @media (max-width: 1023px) {
   .risk-chips { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ══ 평가서 서랍 ══════════════════════════════════════════════════════
+   카드를 눌렀을 때 페이지를 갈아치우지 않고 오른쪽에서 밀려 나온다.
+   대기열이 뒤에 남아 있어야 "몇 건 남았는지" 를 잃지 않는다. */
+
+.risk-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(24, 22, 61, 0.28);
+  animation: drawer-fade 0.16s ease-out;
+}
+
+@keyframes drawer-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.risk-drawer {
+  position: fixed;
+  z-index: 41;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100vw);
+  height: 100dvh;
+  padding: 22px 24px 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-soft);
+  background: #ffffff;
+  box-shadow: -18px 0 44px rgba(24, 22, 61, 0.14);
+  animation: drawer-in 0.2s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+}
+
+.risk-drawer:focus {
+  outline: none;
+}
+
+.risk-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.risk-drawer-head h2 {
+  margin: 3px 0 0;
+  font-size: 19px;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+.risk-drawer-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.risk-drawer-eyebrow b {
+  color: var(--purple-copy);
+  font-weight: 600;
+}
+
+.risk-drawer-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.risk-drawer-close:hover {
+  border-color: var(--purple-primary);
+  color: var(--purple-copy);
+}
+
+.risk-drawer-why {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.risk-drawer-why b {
+  color: var(--purple-copy);
+}
+
+.risk-drawer-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 14px 0 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.risk-drawer-tabs button {
+  padding: 9px 13px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.risk-drawer-tabs button.is-on {
+  border-bottom-color: var(--purple-primary);
+  color: var(--purple-copy);
+  font-weight: 600;
+}
+
+.risk-drawer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 13px 0 0;
+  font-size: 12px;
+}
+
+.risk-drawer-count b {
+  color: var(--purple-copy);
+  font-size: 14px;
+}
+
+.risk-drawer-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-sidebar);
+  cursor: pointer;
+}
+
+.risk-drawer-error {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #f4c7c7;
+  border-radius: 9px;
+  background: #fff6f6;
+  color: #a33;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.risk-drawer-empty {
+  margin: 24px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* ── 신규 제안 행 ── 기존 문서의 행과 섞이면 안 된다. */
+.risk-drawer-draft {
+  margin: 14px 0 0;
+  padding: 12px 13px;
+  border: 1px dashed var(--purple-primary);
+  border-radius: 11px;
+  background: #f8f7ff;
+}
+
+.risk-drawer-draft h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.risk-drawer-draft h3 b {
+  color: var(--purple-copy);
+}
+
+.risk-drawer-draft-note {
+  margin: 4px 0 9px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  word-break: keep-all;
+}
+
+.risk-drawer-draft ol {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-drawer-draft li {
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+/* ── 행 목록 ── */
+.risk-drawer-rows {
+  display: grid;
+  gap: 11px;
+  margin: 13px 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-drawer-row {
+  padding: 13px 14px;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--border-soft);
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+/*
+ * 색띠는 위험도가 아니라 **이행확인 여부**를 말한다.
+ *
+ * 위험도로 칠하려면 등급이 필요한데, riskAssessmentRow 팩트에는 매트릭스가 없고
+ * 시나리오는 4×3 과 5×4 를 섞어 쓴다. 같은 12 가 행마다 다른 등급이라 색으로
+ * 단정할 수 없다. 게다가 이 화면의 질문은 "무엇이 결재 상신을 막는가" 이지
+ * "무엇이 제일 위험한가" 가 아니다.
+ */
+.risk-drawer-row.is-open {
+  border-left-color: #e29a3d;
+}
+
+/* 이행확인이 끝난 행은 물러난다. 남은 일이 눈에 먼저 들어와야 한다. */
+.risk-drawer-row.is-done {
+  background: var(--sidebar-surface);
+  opacity: 0.72;
+}
+
+.risk-drawer-row-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.risk-drawer-rowid {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-weight: 600;
+}
+
+.risk-drawer-class {
+  color: var(--text-muted);
+}
+
+.risk-drawer-owner {
+  margin-left: auto;
+  color: var(--purple-copy);
+}
+
+.risk-drawer-work {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.risk-drawer-hazard {
+  margin: 4px 0 0;
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.risk-drawer-scores {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 9px 0 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.risk-drawer-score {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+}
+
+.risk-drawer-score b {
+  color: var(--text-default);
+  font-size: 13px;
+}
+
+.risk-drawer-acc {
+  margin-left: auto;
+}
+
+.risk-drawer-controls {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.risk-drawer-controls li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.risk-drawer-controls li button {
+  flex: none;
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.risk-drawer-controls li button:hover {
+  color: #b4372f;
+}
+
+.risk-drawer-nocontrol {
+  margin: 10px 0 0;
+  color: #b4372f;
+  font-size: 12px;
+}
+
+.risk-drawer-addbtn,
+.risk-drawer-add button {
+  margin: 8px 0 0;
+  padding: 5px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.risk-drawer-addbtn:hover {
+  border-color: var(--purple-primary);
+  color: var(--purple-copy);
+}
+
+.risk-drawer-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.risk-drawer-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.risk-drawer-add input:focus {
+  border-color: var(--purple-primary);
+  outline: none;
+}
+
+.risk-drawer-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 11px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.risk-drawer-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-sidebar);
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.risk-drawer-check b {
+  color: var(--text-default);
+}
+
+.risk-drawer-saving {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* ── 챗봇 갈래 ── */
+.risk-rowchat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 340px;
+  margin-top: 13px;
+}
+
+.risk-rowchat-thread {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+  align-content: start;
+  padding-bottom: 12px;
+}
+
+.risk-rowchat-note {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.risk-rowchat-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 7px;
+  padding: 11px 0 16px;
+  background: #ffffff;
+}
+
+.risk-rowchat-bar input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.risk-rowchat-bar input:focus {
+  border-color: var(--purple-primary);
+  outline: none;
+}
+
+.risk-rowchat-bar button {
+  flex: none;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.risk-rowchat-bar button:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* 제안 카드. 여기서 「적용」을 눌러야 팩트가 바뀐다 — 모델이 직접 쓰지 않는다. */
+.risk-proposal {
+  margin: 9px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.risk-proposal.is-applied {
+  border-color: #b9dcc3;
+  background: #f4faf5;
+}
+
+.risk-proposal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.risk-proposal-head b {
+  color: var(--purple-copy);
+}
+
+.risk-proposal-head span {
+  color: var(--text-sidebar);
+}
+
+.risk-proposal-why {
+  margin: 5px 0 7px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.risk-proposal-line {
+  margin: 3px 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.risk-proposal-line.is-add {
+  background: #eef7f0;
+  color: #2f6b3e;
+}
+
+.risk-proposal-line.is-del {
+  background: #fdeceb;
+  color: #a3382f;
+  text-decoration: line-through;
+}
+
+.risk-proposal button {
+  margin-top: 8px;
+  padding: 5px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.risk-proposal button:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .risk-drawer,
+  .risk-drawer-scrim {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .risk-drawer {
+    padding: 18px 16px 0;
+  }
+}
+
+/* 연 평가서에 조건이 안 붙어 있을 때. 경고지 오류가 아니라 노란 계열을 쓴다. */
+.risk-warn {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #f0d9a8;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #7a5a1a;
+  font-size: 12.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.risk-warn b {
+  color: #5e4412;
+}
+
+/*
+ * 이행확인 불일치 — 표시는 되어 있는데 실제로는 실행되지 않은 것으로 판정된 행.
+ *
+ * 빈칸보다 **무겁다.** 빈칸은 아직 안 한 일이지만 불일치는 이미 했다고 적어 놓은
+ * 거짓말이고, 이 제품이 존재하는 이유가 그것을 찾아내는 것이다. 그래서 빈칸의
+ * 주황이 아니라 붉은 계열을 쓰고 목록에서도 맨 위로 올린다.
+ */
+.risk-drawer-row.is-forged {
+  border-color: #f0c2bd;
+  border-left-color: #c0392b;
+  background: #fffaf9;
+}
+
+.risk-drawer-forged {
+  margin: 11px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f0c2bd;
+  border-radius: 10px;
+  background: #fff5f4;
+  color: #8c2f24;
+  font-size: 12.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.risk-drawer-forged b {
+  color: #7a231a;
+}
+
+.risk-drawer-forged-box {
+  margin: 11px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #f0c2bd;
+}
+
+.risk-drawer-forged-box p {
+  margin: 0 0 8px;
+  color: #8c2f24;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.risk-drawer-forged-box p b {
+  color: #7a231a;
+}
+
+.risk-drawer-forged-box em {
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.risk-drawer-forged-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.risk-drawer-forged-acts button {
+  padding: 6px 11px;
+  border: 1px solid #e6b0a9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #8c2f24;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.risk-drawer-forged-acts button:hover:not(:disabled) {
+  border-color: #c0392b;
+  background: #fff0ee;
+}
+
+.risk-drawer-forged-acts button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ══ 맥락 검색 ═══════════════════════════════════════════════════════
+   문서마다 임베딩을 돌려 pgvector 를 채우면서 그걸 읽는 화면이 없었다.
+   여기가 그 입구다. */
+
+.context-search {
+  margin: 26px 0 0;
+  padding: 18px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--sidebar-surface);
+}
+
+.context-search > header {
+  margin-bottom: 12px;
+}
+
+.context-search h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.context-search-note {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.context-search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.context-search-bar input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 9px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.context-search-bar input:focus {
+  border-color: var(--purple-primary);
+  outline: none;
+}
+
+.context-search-bar select {
+  padding: 9px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.context-search-bar button {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.context-search-bar button:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.context-search-error {
+  margin: 11px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #f4c7c7;
+  border-radius: 9px;
+  background: #fff6f6;
+  color: #a33;
+  font-size: 12.5px;
+}
+
+/* 실측 그대로. 지어낸 숫자가 아니라는 것이 이 줄의 존재 이유다. */
+.context-search-meta {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.context-hits {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.context-hits li {
+  padding: 11px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.context-hit-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.context-hit-head b {
+  color: var(--text-default);
+  font-size: 13px;
+}
+
+.context-hit-kind {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+}
+
+.context-hit-page {
+  color: var(--text-muted);
+}
+
+.context-hit-score {
+  margin-left: auto;
+  color: var(--purple-copy);
+  font-weight: 600;
+}
+
+.context-hit-text {
+  margin: 0;
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.context-hit-text mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #fff0a8;
+  color: inherit;
+}
+
+/* 초안 반영 — 카드를 끝낼 수 있는 유일한 자리다. */
+.risk-drawer-draft-acts {
+  display: grid;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--purple-primary);
+}
+
+.risk-drawer-draft-acts button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  cursor: pointer;
+  word-break: keep-all;
+}
+
+.risk-drawer-draft-acts button:disabled {
+  background: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.risk-drawer-draft-acts span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+/*
+ * 서랍 안의 말풍선.
+ *
+ * `.risk-bubble` 은 새 평가 화면(어두운 바탕)에서 쓰라고 만든 것이라 그대로 가져오면
+ * 흰 서랍 위에 흰 글씨가 된다. 서랍 안에서만 바탕과 글자를 되돌린다.
+ */
+.risk-rowchat .risk-bubble {
+  padding: 10px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+}
+
+.risk-rowchat .risk-bubble.is-me {
+  margin-left: auto;
+  max-width: 85%;
+  border-color: var(--purple-primary);
+  background: #f4f3ff;
+  color: var(--purple-copy);
+}
+
+.risk-rowchat .risk-bubble.is-error {
+  border-color: #f4c7c7;
+  background: #fff6f6;
+  color: #a33;
+}
+
+.risk-rowchat .risk-bubble p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+/* `.risk-bubble p { margin: 0 }` 이 자손 선택자라 제안 카드 안의 문단 여백까지 0 으로
+   덮었다. 제안 카드는 자기 여백을 되찾는다. */
+.risk-rowchat .risk-bubble .risk-proposal p {
+  margin: 3px 0;
+}
+
+.risk-rowchat .risk-bubble .risk-proposal-head {
+  margin: 0;
+}
+
+.risk-rowchat .risk-bubble .risk-proposal-why {
+  margin: 5px 0 7px;
 }

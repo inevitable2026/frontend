@@ -30,3 +30,9 @@ pnpm-debug.log*
 
 # playwright mcp 산출물
 .playwright-mcp/
+
+# JSON 보드 저장소의 실행 중 사본.
+# seed-*.json 이 정본이고, 이 둘은 카드를 옮기거나 팩트를 덧붙일 때 쓰이는 작업 파일이다.
+# 커밋하면 각자의 데모 조작이 시드로 굳어져 다음 사람이 다른 화면을 본다.
+data/board/facts.json
+data/board/items.json

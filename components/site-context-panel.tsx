@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import ContextSearch from "@/components/context-search";
 import { DocumentViewer } from "@/components/document-viewer";
 import { MailAttachmentViewer } from "@/components/mail-attachment-viewer";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
@@ -262,7 +263,9 @@ export function SiteContextPanel() {
       setUpstageCalls(event.upstageCalls);
       setRecommendation(event.추천);
       setExecution(details);
-      if (event.추천) setChosenSiteId(event.추천.siteId);
+      // 확신이 임계값을 넘었을 때만 대신 고른다. 그러지 않으면 화면이 "직접 고르세요"
+      // 라고 적으면서 동시에 골라 둔 채로 저장 버튼을 열어 두게 된다.
+      if (event.추천?.충분함) setChosenSiteId(event.추천.siteId);
       return;
     }
     setPhase("failed");
@@ -430,6 +433,9 @@ export function SiteContextPanel() {
                 </div>
               ))}
           </dl>
+
+          {/* 실행 증거는 main 의 `execution`(provenance·metrics)이 훨씬 자세히 적는다.
+              내가 붙였던 한 줄짜리 요약은 그쪽에 흡수되어 지웠다. */}
           {chunkPreview ? <p className="context-note">청크 {chunkPreview.청크수}개로 나눴습니다.</p> : null}
         </section>
       ) : null}
@@ -610,6 +616,9 @@ export function SiteContextPanel() {
           )}
         </section>
       ) : null}
+
+      {/* 문서함 바로 위에 둔다. 적재한 것을 "무엇으로 쓸 수 있는지"가 목록보다 먼저 와야 한다. */}
+      <ContextSearch sites={sites} />
 
       <section className="context-library">
         <header>
