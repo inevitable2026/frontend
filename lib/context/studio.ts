@@ -280,6 +280,32 @@ async function deleteFile(fileId: string, options: Required<Pick<StudioWorkflowO
   }
 }
 
+/**
+ * 원격 파일 하나를 지운다 — **삭제만 한다.**
+ *
+ * `runStudioWorkflow` 의 `finally` 는 자기가 만든 파일을 자기가 지운다. 그런데 그 요청이
+ * 죽으면 지울 사람이 사라진다. 회수하는 쪽(`lib/context/sweeper.ts`)은 그 고아를 지워야
+ * 하는데, 워크플로 전체를 다시 돌릴 수는 없다 — 다시 돌리면 **파일을 새로 만들게 된다.**
+ *
+ * 그래서 삭제 한 조각만 따로 내보낸다. 이것이 `cleanup-only-v1` 이라는 이름의 내용이다:
+ * 회수기는 이 함수 하나만 부르므로 파일도 응답도 만들 수 없고, 멈춘 응답을 이어받지도
+ * 않는다. 재시도·백오프는 `deleteFile` 이 하던 그대로 쓴다 — 회수 경로만 따로 규칙을
+ * 만들면 그 규칙이 언젠가 본 경로와 어긋난다.
+ */
+export async function deleteStudioFileForCleanup(
+  fileId: string,
+  supplied: Pick<StudioWorkflowOptions, "fetch" | "now" | "sleep"> = {},
+  cleanupDeadline?: number,
+): Promise<{ status: StudioCleanupStatus; attempts: number }> {
+  const options = {
+    fetch: supplied.fetch ?? fetch,
+    now: supplied.now ?? Date.now,
+    sleep: supplied.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))),
+  };
+  const deadline = cleanupDeadline ?? options.now() + 30_000;
+  return deleteFile(fileId, options, deadline, new StudioRunMetrics(options.now));
+}
+
 export async function runStudioWorkflow(kind: DocumentKind, bytes: Uint8Array, filename: string, mime: string, supplied: StudioWorkflowOptions): Promise<StudioWorkflowResult> {
   const options = { fetch: supplied.fetch ?? fetch, now: supplied.now ?? Date.now, sleep: supplied.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))) };
   if (
