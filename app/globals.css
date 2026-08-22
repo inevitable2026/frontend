@@ -3784,122 +3784,6 @@ button {
   border-radius: 999px;
   background: rgba(92, 82, 255, 0.1);
   color: var(--purple-primary);
-/* ===========================================================================
-   위험성평가 (risk-*)
-   형제 탭(.context-*)과 같은 뼈대를 쓴다. 같은 콘솔 안에서 탭마다 다르게 생기면
-   쓰는 사람이 매번 다시 배워야 한다.
-
-   2-pane 을 쓰지 않는 이유 — .context-panel 이 max-width 960px 이고, 여기를 좌우로
-   나누면 표 쪽이 460px 남는다. 위험요인·빈도·강도·위험도·대책·조문 6개가 들어갈 폭이
-   아니다. 넓은 화면에서도 한 컬럼으로 두고 행을 카드로 그린다.
-   =========================================================================== */
-
-:root {
-  --risk-high: #e5484d;
-  --risk-mid: #f5a524;
-  --risk-low: #12a594;
-}
-
-.risk-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  width: 100%;
-  max-width: 960px;
-  padding: 48px 40px 80px;
-  overflow-y: auto;
-}
-
-.risk-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.risk-head h1 {
-  margin: 6px 0 8px;
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.risk-sub {
-  margin: 0;
-  max-width: 62ch;
-  color: var(--text-muted);
-  font-size: 15px;
-}
-
-.risk-demo-note {
-  margin: 0;
-  padding: 14px 18px;
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  background: var(--sidebar-surface);
-  color: var(--text-sidebar);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.risk-demo-note.is-live {
-  border-color: color-mix(in srgb, var(--purple-primary) 32%, transparent);
-  background: color-mix(in srgb, var(--purple-primary) 6%, transparent);
-}
-
-/* --- 업로드 ------------------------------------------------------------- */
-
-.risk-upload {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 20px;
-  border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  background: var(--sidebar-surface);
-}
-
-/* 현장에서 장갑 낀 손으로 누른다. 44px 아래로 내리지 않는다. */
-.risk-upload .upload-button {
-  min-height: 44px;
-}
-
-/* --- 에이전트 패널 ------------------------------------------------------ */
-
-.risk-agents {
-  display: grid;
-  gap: 14px;
-}
-
-.risk-agent {
-  overflow: hidden;
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  background: #ffffff;
-}
-
-.risk-agent-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--sidebar-surface);
-}
-
-.risk-agent-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.risk-agent-engine {
-  flex-shrink: 0;
-  color: var(--text-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -4029,6 +3913,128 @@ button {
   width: 12px;
   height: 12px;
   border-radius: 3px;
+}
+
+/* ===========================================================================
+   위험성평가 (risk-*)
+   형제 탭(.context-*)과 같은 뼈대를 쓴다. 같은 콘솔 안에서 탭마다 다르게 생기면
+   쓰는 사람이 매번 다시 배워야 한다.
+
+   2-pane 을 쓰지 않는 이유 — .context-panel 이 max-width 960px 이고, 여기를 좌우로
+   나누면 표 쪽이 460px 남는다. 위험요인·빈도·강도·위험도·대책·조문 6개가 들어갈 폭이
+   아니다. 넓은 화면에서도 한 컬럼으로 두고 행을 카드로 그린다.
+   =========================================================================== */
+
+:root {
+  --risk-high: #e5484d;
+  --risk-mid: #f5a524;
+  --risk-low: #12a594;
+}
+
+.risk-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 960px;
+  padding: 48px 40px 80px;
+  overflow-y: auto;
+}
+
+.risk-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.risk-head h1 {
+  margin: 6px 0 8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.risk-sub {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.risk-demo-note {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.risk-demo-note.is-live {
+  border-color: color-mix(in srgb, var(--purple-primary) 32%, transparent);
+  background: color-mix(in srgb, var(--purple-primary) 6%, transparent);
+}
+
+/* --- 업로드 ------------------------------------------------------------- */
+
+.risk-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--sidebar-surface);
+}
+
+/* 현장에서 장갑 낀 손으로 누른다. 44px 아래로 내리지 않는다. */
+.risk-upload .upload-button {
+  min-height: 44px;
+}
+
+/* --- 에이전트 패널 ------------------------------------------------------ */
+
+.risk-agents {
+  display: grid;
+  gap: 14px;
+}
+
+.risk-agent {
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.risk-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--sidebar-surface);
+}
+
+.risk-agent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-agent-engine {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .risk-badge {
   padding: 3px 9px;
   border-radius: 999px;
