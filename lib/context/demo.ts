@@ -82,7 +82,11 @@ export async function* replayDemo(
 ): AsyncGenerator<IngestEvent, void> {
   const definition = demoFixture(kind);
   if (!definition) {
-    yield { 종류: "실패", 단계: "필드추출", 사유: `${kind} 데모 픽스처가 없어 재생하지 않았습니다.` };
+    yield {
+      종류: "실패",
+      단계: "필드추출",
+      사유: `${kind} 예시 자료가 없어 시연을 시작하지 못했습니다. 다른 문서 종류를 골라 주세요.`,
+    };
     return;
   }
   for (const event of demoStages(definition)) {

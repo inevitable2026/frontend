@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
+    "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
     "noEmitOnError": true,
@@ -20,6 +21,7 @@
   "include": [
     "../lib/context/chunk.ts",
     "../lib/context/types.ts",
+    "../lib/context/stage-label.ts",
     "../lib/context/studio.ts",
     "../lib/context/studio-parser.ts",
     "../lib/context/studio-metrics.ts",
@@ -34,6 +36,10 @@
     "../lib/context/demo.ts",
     "../lib/context/upstage-doc.ts",
     "../lib/risk/rows.ts",
-    "../lib/risk/vocab.ts"
+    "../lib/risk/doc-label.ts",
+    "../lib/risk/vocab.ts",
+    "../lib/board/types.ts",
+    "../components/chat/parse.ts",
+    "../app/api/chat/route.ts"
   ]
 }

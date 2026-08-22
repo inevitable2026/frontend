@@ -104,7 +104,7 @@ export function RejectDialog({ card, onCancel, onConfirm }: RejectDialogProps): 
           aria-label="기각 사유"
           aria-invalid={showError}
           aria-describedby={showError ? "board-reject-error" : undefined}
-          placeholder="어디가 어떻게 잘못되었는지 적어 주십시오."
+          placeholder="어디가 어떻게 잘못되었는지 적어 주세요."
           onChange={(event) => {
             setReason(event.target.value);
             if (showError && event.target.value.trim() !== "") setShowError(false);
@@ -112,7 +112,7 @@ export function RejectDialog({ card, onCancel, onConfirm }: RejectDialogProps): 
         />
         {showError ? (
           <p className="board-dialog-error" id="board-reject-error" role="alert">
-            기각 사유를 적어 주십시오.
+            기각 사유를 적어 주세요.
           </p>
         ) : null}
         <div className="board-dialog-actions">

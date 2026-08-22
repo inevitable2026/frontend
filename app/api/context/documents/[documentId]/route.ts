@@ -10,7 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function GET(_req: Request, ctx: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await ctx.params;
   if (!UUID.test(documentId)) {
-    return Response.json({ error: "documentId 가 올바르지 않습니다." }, { status: 400, headers: HEADERS });
+    return Response.json({ error: "문서 주소가 올바르지 않습니다. 문서함에서 다시 열어 주세요." }, { status: 400, headers: HEADERS });
   }
 
   const sql = db();
@@ -36,7 +36,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ documentId: st
      where d.id = ${documentId}
      limit 1
   `;
-  if (!doc) return Response.json({ error: "그런 문서가 없습니다." }, { status: 404, headers: HEADERS });
+  if (!doc) return Response.json({ error: "문서를 찾지 못했습니다. 문서함을 새로 고친 뒤 다시 열어 주세요." }, { status: 404, headers: HEADERS });
 
   // 원본 파일은 적재 시점에 job 으로 먼저 들어오고 저장할 때 document_id 가 채워진다.
   // 그 연결이 끊긴 옛 문서도 있으므로, 없으면 null 로 두고 화면에서 안내한다.

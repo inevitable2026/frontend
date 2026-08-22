@@ -24,6 +24,14 @@ export const INGEST_DOCUMENT_KINDS = DOCUMENT_KINDS.filter(
 
 export type IngestDocumentKind = (typeof INGEST_DOCUMENT_KINDS)[number];
 
+/**
+ * 진행 단계 이름.
+ *
+ * 저장된 진행 이벤트의 키다. 값을 바꾸면 이미 기록된 작업의 단계가 사라지므로 그대로 둔다.
+ * 화면에 적을 이름은 `lib/context/stage-label.ts` 의 `단계이름` 이 정한다.
+ * (`프로젝트판정` 도 나머지 화면과 같이 "현장 맞추기" 로 나간다. 화면에서 부르는 말은
+ * 어디서나 "현장" 이고, 여기 남은 `프로젝트` 는 저장된 값일 뿐이다.)
+ */
 export type StageName =
   | "수신"
   | "레이아웃분석"
@@ -196,7 +204,31 @@ export type SiteRecommendation = {
   reason: string;
 };
 
+/**
+ * 이 내용이 어디에서 온 것인지.
+ *
+ * 값은 저장·비교에 쓰이므로 그대로 두고, 화면에 적을 말은 `출처등급표시` 가 정한다.
+ */
 export type SourceGrade = "실데이터" | "합성" | "고정";
+
+/**
+ * 출처 등급 → 화면에 적을 이름.
+ *
+ * 세 등급은 뜻이 서로 다르다. 올린 문서에서 읽은 것인지, 시연을 위해 만든 것인지,
+ * 화면에 미리 적어 둔 것인지를 합치면 없는 사실을 말하게 되므로 구분을 유지한다.
+ */
+export const 출처등급표시: Record<SourceGrade, string> = {
+  실데이터: "실제 문서",
+  합성: "만들어 낸 예시",
+  고정: "고정해 둔 예시",
+};
+
+/** 배지만으로 부족할 때 붙일 한 줄 설명. */
+export const 출처등급설명: Record<SourceGrade, string> = {
+  실데이터: "올린 문서에서 읽은 내용입니다.",
+  합성: "시연을 위해 만들어 둔 예시 내용입니다.",
+  고정: "화면에 미리 적어 둔 예시 내용입니다.",
+};
 
 export type Citation = {
   documentId: string;

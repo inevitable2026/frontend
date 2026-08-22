@@ -344,3 +344,59 @@ test("rejects a sweeper receipt that could resume persisted Studio responses", (
     null,
   );
 });
+
+// 실패 사유는 관리자 화면에 그대로 렌더된다(`components/site-context-panel.tsx` 의
+// `stage-error` · `context-message`). 열 가지 원인은 서로 다른 조치를 뜻하므로 문구를
+// 하나로 뭉치면 안 되고, 내부 이름·환경변수·영문 코드는 `detail` 로만 나가야 한다.
+test("every disabled reason is admin-readable, distinct, and keeps its cause in a separate field", () => {
+  const LOCAL = {
+    STUDIO_LIVE_INGEST_ENABLED: "true",
+    STUDIO_LIVE_READINESS_RECEIPT_JSON: JSON.stringify(receipt()),
+    STUDIO_REQUIRED_CLEANUP_MIGRATION: "studio-cleanup-control-v1",
+    STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED: "true",
+    STUDIO_EXPECTED_PROJECT_ID: undefined,
+    NODE_ENV: "development",
+    UPSTAGE_API_KEY: KEY,
+  };
+  const production = receipt({
+    scope: "production-project",
+    accountId: "project-1",
+    credentialScope: undefined,
+    projectIdentity: { scheme: "api-project-id/v1", projectId: "project-1", endpoint: "https://api.upstage.ai/v2/projects/me", observedAt: "2026-08-22T11:55:00.000Z" },
+  });
+
+  const causes = [
+    ["flag off", { ...LOCAL, STUDIO_LIVE_INGEST_ENABLED: undefined }, NOW],
+    ["receipt absent", { ...LOCAL, STUDIO_LIVE_READINESS_RECEIPT_JSON: undefined }, NOW],
+    ["receipt unreadable", { ...LOCAL, STUDIO_LIVE_READINESS_RECEIPT_JSON: "{}" }, NOW],
+    ["manifest mismatch", { ...LOCAL, STUDIO_LIVE_READINESS_RECEIPT_JSON: JSON.stringify(receipt({ manifestSha: "other-manifest" })) }, NOW],
+    ["required migration unpinned", { ...LOCAL, STUDIO_REQUIRED_CLEANUP_MIGRATION: undefined }, NOW],
+    ["project mismatch", { ...LOCAL, STUDIO_LIVE_READINESS_RECEIPT_JSON: JSON.stringify(production), STUDIO_EXPECTED_PROJECT_ID: "other-project", STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED: undefined, NODE_ENV: "production" }, NOW],
+    ["local scope in production", { ...LOCAL, NODE_ENV: "production" }, NOW],
+    ["key fingerprint mismatch", { ...LOCAL, UPSTAGE_API_KEY: "rotated-upstage-key" }, NOW],
+    ["cleanup migration mismatch", { ...LOCAL, STUDIO_REQUIRED_CLEANUP_MIGRATION: "studio-cleanup-control-v2" }, NOW],
+    ["receipt expired", LOCAL, NOW + 3 * 60 * 60_000],
+  ];
+
+  const reasons = new Map();
+  const details = new Map();
+  for (const [label, env, at] of causes) {
+    withEnv(env, () => {
+      const readiness = getStudioLiveReadiness(at);
+      assert.equal(readiness.enabled, false, `${label} should stay disabled`);
+      if (readiness.enabled) return;
+
+      // 관리자 문장에는 내부 이름·환경변수·영문 코드가 없다.
+      assert.doesNotMatch(readiness.reason, /[A-Za-z]/, `${label} leaks an internal name`);
+      assert.match(readiness.reason, /(습니다|주세요)\.$/, `${label} must end in 합쇼체`);
+      // 개발자용 원인은 별도 필드에만 남는다.
+      assert.match(readiness.detail, /[A-Za-z]/, `${label} must keep a developer detail`);
+
+      assert.equal(reasons.has(readiness.reason), false, `${label} reuses the reason of ${reasons.get(readiness.reason)}`);
+      assert.equal(details.has(readiness.detail), false, `${label} reuses the detail of ${details.get(readiness.detail)}`);
+      reasons.set(readiness.reason, label);
+      details.set(readiness.detail, label);
+    });
+  }
+  assert.equal(reasons.size, causes.length);
+});

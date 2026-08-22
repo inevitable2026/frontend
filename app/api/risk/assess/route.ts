@@ -21,14 +21,26 @@ const 본문_상한 = 256 * 1024;
 export async function POST(req: Request) {
   const 길이 = Number(req.headers.get("content-length") ?? 0);
   if (길이 > 본문_상한) {
-    return Response.json({ error: "요청이 너무 큽니다." }, { status: 413, headers: HEADERS });
+    return Response.json(
+      {
+        error: "평가표를 만들지 못했습니다. 입력한 내용이 너무 깁니다. 내용을 줄여 다시 시도해 주세요.",
+        code: "body_too_large",
+      },
+      { status: 413, headers: HEADERS },
+    );
   }
 
   let 요청: (생성입력 & { 모드?: string }) | null;
   try {
     요청 = (await req.json()) as 생성입력 & { 모드?: string };
   } catch {
-    return Response.json({ error: "요청 형식을 읽지 못했습니다." }, { status: 400, headers: HEADERS });
+    return Response.json(
+      {
+        error: "평가표를 만들지 못했습니다. 보낸 내용을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+        code: "body_not_json",
+      },
+      { status: 400, headers: HEADERS },
+    );
   }
 
   const 모드: 생성모드 = 요청?.모드 === "라이브" ? "라이브" : "데모";
@@ -43,7 +55,11 @@ export async function POST(req: Request) {
     Boolean(요청?.description);
   if (모드 === "라이브" && !입력있음) {
     return Response.json(
-      { error: "라이브 생성은 공종·장비·자재 중 하나가 필요합니다." },
+      {
+        error:
+          "평가표를 만들지 못했습니다. 라이브 생성에는 공종·장비·자재 가운데 하나 이상이 필요합니다. 하나 이상 골라 주세요.",
+        code: "live_input_required",
+      },
       { status: 400, headers: HEADERS },
     );
   }
@@ -52,9 +68,13 @@ export async function POST(req: Request) {
     const assessment = await 평가생성(모드, 요청 ?? {});
     return Response.json({ assessment }, { headers: HEADERS });
   } catch (err) {
-    const 사유 = (err as Error).message || "생성 실패";
     // 실패를 표로 덮지 않는다. 라이브가 실패했는데 시드표가 나가면 그 표의 근거를
     // 아무도 답할 수 없다 — 조용한 폴백은 이 화면에서 가장 위험한 종류의 버그다.
-    return Response.json({ error: 사유 }, { status: 502, headers: HEADERS });
+    // 원인은 서버 로그로 내린다. 화면에는 상태 코드가 아니라 다음에 할 일을 적는다.
+    console.error("[risk/assess]", 모드, err);
+    return Response.json(
+      { error: "평가표를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.", code: "assess_failed" },
+      { status: 502, headers: HEADERS },
+    );
   }
 }

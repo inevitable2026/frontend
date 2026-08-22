@@ -1,4 +1,6 @@
 import { BOARD_STORE_ERROR_STATUS, boardStore, isBoardStoreError } from "@/lib/board/store";
+import { 문서표시 } from "@/lib/risk/doc-label";
+import { 그때상태, 기준시각, type 판본 } from "@/lib/risk/diff";
 import { 위험도표시, 이행상태읽기, 최신만, 행정렬, 회사표시, type 행팩트 } from "@/lib/risk/rows";
 
 export const runtime = "nodejs";
@@ -26,8 +28,9 @@ function 칸(값: unknown): string {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** 열 이름은 내려받은 파일을 여는 사람이 읽는다. 저장소 필드명이 아니라 사람 말로 적는다. */
 const 머리 = [
-  "행id",
+  "항목 번호",
   "공종분류",
   "단위작업",
   "위험요인",
@@ -37,31 +40,59 @@ const 머리 = [
   "대책",
   "담당사",
   "이행확인",
-  "표시값",
-  "실제실행",
-  "근거",
+  "평가서 표시",
+  "실제 실행",
+  "판정 근거",
 ] as const;
 
-function fail(message: string, status: number) {
-  return Response.json({ error: message }, { status, headers: HEADERS });
+function fail(message: string, status: number, code?: string) {
+  return Response.json(code ? { error: message, code } : { error: message }, {
+    status,
+    headers: HEADERS,
+  });
 }
 
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
 
   const siteId = params.get("siteId")?.trim();
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
+  if (!siteId) {
+    return fail("평가서를 내려받지 못했습니다. 현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "siteId_required");
+  }
 
   const docId = params.get("docId")?.trim();
-  if (!docId) return fail("docId 가 필요합니다.", 400);
+  if (!docId) {
+    return fail("평가서를 내려받지 못했습니다. 문서가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "docId_required");
+  }
+
+  /**
+   * 어느 판본을 낼 것인가.
+   *
+   * `원본` 은 재평가 전, 즉 문서의 가장 오래된 팩트 시점의 상태다. 둘을 나란히 받아야
+   * 무엇이 바뀌었는지 눈으로 견줄 수 있다.
+   */
+  const 판본요청 = params.get("판본")?.trim() === "원본" ? "원본" : "최신";
 
   try {
     const all = await boardStore().listFacts(siteId, "riskAssessmentRow");
-    const 행들 = 행정렬(최신만(all.filter((f) => f.key.startsWith(`${docId}#`))) as 행팩트[]);
+    const 이력 = all.filter((f) => f.key.startsWith(`${docId}#`));
+
+    let 행들;
+    if (판본요청 === "원본") {
+      const 기준 = 기준시각(이력 as 판본[]);
+      // 기준시각이 없다는 것은 팩트가 하나도 없다는 뜻이라 아래 0행 처리로 떨어진다.
+      const 그때 = 기준 ? 그때상태(이력 as 판본[], 기준) : new Map();
+      행들 = [...그때.values()].sort((a, b) =>
+        a.행id.localeCompare(b.행id, "en", { numeric: true }),
+      );
+    } else {
+      행들 = 행정렬(최신만(이력) as 행팩트[]);
+    }
 
     if (행들.length === 0) {
       // 빈 파일을 내려보내지 않는다. 받는 사람이 "행이 없는 평가서" 로 읽는다.
-      return fail(`${docId} 에서 행을 한 건도 찾지 못했습니다.`, 404);
+      // 조회는 성공했고 건수가 0 이다. "읽지 못했습니다" 와 합치지 않는다.
+      return fail(`${문서표시(docId)} 에 평가 항목이 없습니다. 내려받을 내용이 없습니다.`, 404, "no_rows");
     }
 
     const 줄 = [
@@ -88,7 +119,8 @@ export async function GET(req: Request) {
       ),
     ].join("\r\n");
 
-    const 파일명 = `${docId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    // 파일 이름으로 두 판본을 가른다. 같은 이름이면 내려받은 폴더에서 뒤섞인다.
+    const 파일명 = `${docId}-${판본요청}-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new Response(`﻿${줄}`, {
       headers: {

@@ -18,15 +18,24 @@ const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
  * 써야 숫자가 어긋나지 않아서 한곳에 둔다.
  */
 
-function fail(message: string, status: number) {
-  return Response.json({ error: message }, { status, headers: HEADERS });
+/**
+ * 실패 응답. `error` 는 화면에 그대로 렌더되므로 관리자가 읽는 문장만 담고,
+ * 개발자용 원인은 `code` 로 따로 붙인다(`docs/board-contract.md:156` 의 봉투는 그대로).
+ */
+function fail(message: string, status: number, code?: string) {
+  return Response.json(code ? { error: message, code } : { error: message }, {
+    status,
+    headers: HEADERS,
+  });
 }
 
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
 
   const siteId = params.get("siteId")?.trim();
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
+  if (!siteId) {
+    return fail("자료를 읽지 못했습니다. 현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "siteId_required");
+  }
 
   /*
    * `factType` 을 **필수**로 받는다.
@@ -37,9 +46,12 @@ export async function GET(req: Request) {
    * 부른다 — 안 정하고 부르는 쪽이 없다.
    */
   const factType = params.get("factType")?.trim();
-  if (!factType) return fail("factType 이 필요합니다.", 400);
+  if (!factType) {
+    return fail("자료를 읽지 못했습니다. 읽을 자료 종류가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "factType_required");
+  }
   if (!FACT_TYPES.includes(factType as FactType)) {
-    return fail(`factType 이 ${FACT_TYPES.join(" · ")} 가운데 하나여야 합니다.`, 400);
+    console.error("[board/facts] 다루지 않는 factType:", factType);
+    return fail("자료를 읽지 못했습니다. 이 화면에서 다루지 않는 자료 종류입니다. 화면을 새로 고쳐 주세요.", 400, "factType_unsupported");
   }
 
   // 문서 하나로 좁힌다. 평가행 key 는 `문서id#행id` 라 접두사로 고를 수 있다.
@@ -142,40 +154,56 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return fail("본문이 JSON 이 아닙니다.", 400);
+    return fail("저장하지 못했습니다. 보낸 내용을 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.", 400, "body_not_json");
   }
-  if (!body || typeof body !== "object" || Array.isArray(body)) return fail("본문이 객체여야 합니다.", 400);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return fail("저장하지 못했습니다. 보낸 내용의 형식이 올바르지 않습니다. 잠시 뒤 다시 시도해 주세요.", 400, "body_not_object");
+  }
 
   const b = body as Record<string, unknown>;
   const siteId = typeof b.siteId === "string" ? b.siteId.trim() : "";
   const factType = typeof b.factType === "string" ? b.factType.trim() : "";
   const key = typeof b.key === "string" ? b.key.trim() : "";
 
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
-  if (!쓰기허용.includes(factType as 쓰기종류)) {
-    return fail(`이 경로로는 ${쓰기허용.join(" · ")} 만 쓸 수 있습니다.`, 400);
+  if (!siteId) {
+    return fail("저장하지 못했습니다. 현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "siteId_required");
   }
-  if (!key) return fail("key 가 필요합니다.", 400);
+  if (!쓰기허용.includes(factType as 쓰기종류)) {
+    console.error("[board/facts] 쓰기를 허용하지 않는 factType:", factType);
+    return fail("저장하지 못했습니다. 이 화면에서 고칠 수 없는 자료입니다. 화면을 새로 고쳐 주세요.", 400, "factType_not_writable");
+  }
+  if (!key) {
+    return fail("저장하지 못했습니다. 어느 항목인지 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "key_required");
+  }
 
   // 종류마다 값 모양을 따로 본다. 한쪽 검사를 다른 쪽에 쓰면 검사를 안 하는 것과 같다.
   let sourceDocId: string;
   if (factType === "riskAssessmentRow") {
     if (!평가행인가(b.value)) {
+      console.error("[board/facts] 평가행 모양이 아닌 value:", String(JSON.stringify(b.value)).slice(0, 300));
       return fail(
-        'value 가 평가행 모양이 아닙니다. 회의록·행id 가 필요하고 이행확인은 true·false·"불일치" 중 하나여야 합니다.',
+        "저장하지 못했습니다. 평가 항목의 내용이 올바르지 않습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.",
         400,
+        "value_not_risk_row",
       );
     }
     // key 는 `문서id#행id` 다. 값과 어긋나면 다른 문서의 행을 덮어쓰게 된다.
     if (key !== `${b.value.회의록}#${b.value.행id}`) {
-      return fail(`key 가 값과 어긋납니다. "${b.value.회의록}#${b.value.행id}" 여야 합니다.`, 400);
+      console.error("[board/facts] key 불일치:", key, "≠", `${b.value.회의록}#${b.value.행id}`);
+      return fail(
+        "저장하지 못했습니다. 고치려는 항목이 평가서와 맞지 않습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.",
+        400,
+        "key_value_mismatch",
+      );
     }
     sourceDocId = String(b.value.회의록);
   } else {
     if (!결재상태인가(b.value)) {
+      console.error("[board/facts] 결재 상태 모양이 아닌 value:", String(JSON.stringify(b.value)).slice(0, 300));
       return fail(
-        `value 가 결재 상태 모양이 아닙니다. 문서·제출가능(불리언)이 필요하고 상태는 ${결재상태값.join(" · ")} 중 하나여야 합니다.`,
+        `저장하지 못했습니다. 결재 상태 내용이 올바르지 않습니다. 상태는 ${결재상태값.join(" · ")} 중 하나여야 합니다.`,
         400,
+        "value_not_approval_state",
       );
     }
     // 결재 상태의 key 는 문서 id 그 자체다.

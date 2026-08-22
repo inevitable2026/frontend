@@ -15,9 +15,10 @@ import { DOCUMENT_KINDS, type DocumentKind } from "@/lib/context/types";
  * 여기가 그 입구다. 이 화면이 있어야 *"우리 회사 문서로 답한다"* 가 말이 아니라
  * 눌러 볼 수 있는 것이 된다.
  *
- * **점수를 지어내지 않는다.** 서버가 준 코사인 유사도(1 - distance)를 그대로 보이고,
- * 임베딩·질의 소요시간도 실측을 그대로 적는다. 벡터 검색은 언제나 무언가를 돌려주므로
- * (가장 가까운 것이 있기만 하면) 점수를 안 보이면 관련 없는 결과가 근거처럼 보인다.
+ * **점수를 지어내지 않는다.** 서버가 준 코사인 유사도(1 - distance)를 관련도로 그대로
+ * 보인다. 벡터 검색은 언제나 무언가를 돌려주므로 (가장 가까운 것이 있기만 하면)
+ * 점수를 안 보이면 관련 없는 결과가 근거처럼 보인다.
+ * 소요시간(latencyMs)은 받아 두되 화면에는 적지 않는다 — 관리자의 판단에 쓰이지 않는다.
  */
 
 type 검색결과 = {
@@ -90,11 +91,15 @@ export default function ContextSearch({
         }),
       });
       const body = (await res.json()) as 응답;
-      if (!res.ok) throw new Error(body.error ?? `검색 실패 (${res.status})`);
+      if (!res.ok) {
+        console.error("맥락 검색 실패", res.status, body.error);
+        throw new Error("검색하지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+      }
       set답(body);
     } catch (e) {
       // 빈 결과로 두지 않는다. 못 찾은 것과 검색이 실패한 것은 다른 사실이다.
-      set오류(e instanceof Error ? e.message : "검색하지 못했습니다.");
+      console.error("맥락 검색 실패", e);
+      set오류("검색하지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
       set답(null);
     } finally {
       set찾는중(false);
@@ -106,7 +111,7 @@ export default function ContextSearch({
       <header>
         <h2>맥락 검색</h2>
         <p className="context-search-note">
-          적재한 문서의 청크를 의미로 찾습니다. 글자가 안 겹쳐도 뜻이 가까우면 나옵니다.
+          문서함에 저장한 문서를 뜻으로 찾습니다. 글자가 안 겹쳐도 뜻이 가까우면 나옵니다.
         </p>
       </header>
 
@@ -147,14 +152,12 @@ export default function ContextSearch({
 
       {답 ? (
         <>
-          <p className="context-search-meta">
-            {답.found}건 · 임베딩 {답.latencyMs.embed}ms · 질의 {답.latencyMs.search}ms
-          </p>
+          <p className="context-search-meta">검색 결과 {답.found}건</p>
 
           {답.found === 0 ? (
             <p className="context-empty">
-              맞는 청크가 없습니다. 문서를 아직 문서함에 저장하지 않았다면 검색 대상이 아닙니다 —
-              적재만 하고 저장하지 않은 청크는 현장이 정해지지 않아 제외됩니다.
+              찾은 내용이 없습니다. 문서함에 저장된 문서만 검색됩니다. 올린 문서를 저장까지
+              마쳤는지 확인해 주세요.
             </p>
           ) : (
             <ol className="context-hits">
@@ -165,9 +168,11 @@ export default function ContextSearch({
                     <span className="context-hit-kind">{r.kind}</span>
                     <span>{r.siteName}</span>
                     <span className="context-hit-page">{r.page}쪽</span>
-                    {/* 유사도를 그대로 보인다. 벡터 검색은 항상 무언가를 돌려주므로
+                    {/* 점수를 그대로 보인다. 벡터 검색은 항상 무언가를 돌려주므로
                         점수 없이 보이면 먼 결과가 근거처럼 읽힌다. */}
-                    <span className="context-hit-score">유사도 {(r.score * 100).toFixed(0)}%</span>
+                    <span className="context-hit-score">
+                      질문과 {(r.score * 100).toFixed(0)}% 관련
+                    </span>
                   </p>
                   <p className="context-hit-text">{강조(r.text, 답.q)}</p>
                 </li>

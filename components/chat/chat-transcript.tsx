@@ -9,6 +9,15 @@ import { citationSources } from "./parse";
 import { TOOL_LABELS, type ToolCall } from "./types";
 
 /**
+ * 출처 줄의 문구. 도구 이름 하나(`search_official_law`)를 박아 두던 자리인데 도구가
+ * 7개로 늘면서 법령 아닌 검색이 전부 "인용 가능" 으로 잘못 표시됐다. 인용 규약은
+ * 도구 종류가 아니라 **검색이냐 읽기냐**로 갈리므로 접두사로 판정한다.
+ */
+function sourcesLabel(toolName: string): string {
+  return toolName.startsWith("search_") ? "검색 후보 · 아직 인용 불가" : "확인한 원문 · 인용 가능";
+}
+
+/**
  * 질문 한 건과 그 답. 챗봇 탭과 보드의 AI 사이드바가 같은 마크업을 쓴다 — 도구 실행
  * 과정을 접었다 펴는 형태와 인용 표시 규칙이 두 곳에서 갈리면 안 된다.
  *
@@ -56,7 +65,7 @@ export function ChatTranscript({
           const body = <>
             {tool.input !== undefined ? <div className="tool-card-section"><span>입력</span><JsonViewer label={`${TOOL_LABELS[tool.name] ?? tool.name} 입력 JSON`} value={tool.input} /></div> : null}
             {tool.output !== undefined ? <div className="tool-card-section"><span>출력</span><JsonViewer label={`${TOOL_LABELS[tool.name] ?? tool.name} 출력 JSON`} value={tool.output} /></div> : null}
-            {tool.sources.length > 0 ? <div className="tool-card-section tool-sources"><span>{tool.name === "search_official_law" ? "검색 후보 · 아직 법적 인용 불가" : "확인한 공식 원문 · 인용 가능"}</span>{tool.sources.map((source) => <a href={source.url} key={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}</div> : null}
+            {tool.sources.length > 0 ? <div className="tool-card-section tool-sources"><span>{sourcesLabel(tool.name)}</span>{tool.sources.map((source) => <a href={source.url} key={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}</div> : null}
           </>;
 
           return (
