@@ -58,7 +58,7 @@ function companyRead(documentId = DOC_ID, seq = 3) {
     title: "고촌 물류센터 하도급계약서",
     kind: "하도급계약서",
     siteName: "김포 고촌 물류센터",
-    page: 2,
+    pages: [2, 3],
     seq,
     text: "제12조 안전관리비는 계약금액과 별도로 계상하며 목적 외 사용을 금한다.",
     source: "합성",
@@ -91,6 +91,7 @@ function assessmentRead(assessmentId = ASSESSMENT_ID, seq = 0) {
     seq,
     text: "1행 · 공종 철거·해체 · 위험요인 잔재물 낙하 · 대책 하부 출입통제",
     source: "합성",
+    현장소속: "확인되지 않음",
     url: `/api/risk/${assessmentId}`,
     citable: true,
   };
@@ -379,4 +380,7 @@ test("평가표 읽기가 성공하면 위험성평가 근거로 갈라 담긴�
   assert.equal(payload.companyEvidence[0].근거종류, "위험성평가");
   assert.equal(payload.companyEvidence[0].근거.url, `/api/risk/${ASSESSMENT_ID}`);
   assert.equal(payload.companyEvidence[0].근거.source, "합성");
+  // 색인에는 남이 만든 평가도 섞인다. 소유자를 말하지 않으면 종합 단계가 그것을
+  // "우리 현장에서는 이미 식별했습니다" 로 쓴다.
+  assert.equal(payload.companyEvidence[0].근거.현장소속, "확인되지 않음");
 });

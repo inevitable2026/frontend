@@ -44,6 +44,11 @@ import { DOCUMENT_KINDS, type DocumentKind } from "@/lib/context/types";
  */
 
 export const runtime = "nodejs";
+// LLM 을 부르는 다른 라우트(app/api/board/assistant·briefing·detect …)와 같은 관례다.
+// 도구 계열이 넷이 되면서 한 요청의 Upstage 왕복이 최대 7회(조사 6턴 + 종합 1회)가 됐다.
+// 선언이 없으면 플랫폼 기본 상한에서 함수가 잘리고, 그때는 아래 Response.json 도 catch 의
+// 504 안내도 나가지 못해 이미 읽어 둔 법령 원문과 사내 근거가 통째로 버려진다.
+export const maxDuration = 300;
 
 const UPSTAGE_URL = "https://api.upstage.ai/v1/chat/completions";
 const UPSTAGE_TIMEOUT_MS = 20_000;
@@ -53,6 +58,11 @@ const MAX_QUESTION_LENGTH = 2_000;
 // 함께 필요하다. 상한을 없애지는 않는다 — 도구 실패가 반복될 때 왕복이 무한히 늘어난다.
 const MAX_UPSTAGE_TURNS = 6;
 const MAX_TOOL_CALLS = 10;
+// 조사 루프에 허용하는 시간. 왕복 상한만으로는 시간이 안 잡힌다 — Upstage 한 번이 재시도
+// 포함 40초, law.go.kr 검색 한 번이 최대 80초라 6턴이면 maxDuration 을 넘길 수 있다.
+// 예산을 넘기면 502 로 되돌리지 않고 halted 로 끊어 지금까지 모은 근거로 답한다.
+// 남긴 70초는 종합 한 번(재시도 포함 40초)과 응답 직렬화 몫이다.
+const INVESTIGATION_BUDGET_MS = 230_000;
 
 const NO_EVIDENCE_MESSAGE = "확인한 근거가 없어 답변을 드릴 수 없습니다. 법령 질문이면 국가법령정보센터의 해당 법령·행정규칙 본문을, 사내 자료 질문이면 업로드된 문서를 확인한 뒤 질문 범위를 좁혀 다시 문의해 주세요.";
 const LIMIT_MESSAGE = "자료를 확인하는 과정이 조회 한도 안에 끝나지 않았습니다. 현재 결과만으로 판단을 안내하지 않으며, 질문 범위를 좁혀 다시 시도해 주세요.";
@@ -108,7 +118,7 @@ const searchTool = { type: "function", function: { name: "search_official_law", 
 const readTool = { type: "function", function: { name: "read_official_law", description: "같은 요청에서 search_official_law가 반환한 ref만 읽습니다. 가장 관련성 높은 후보를 반드시 하나 선택하세요. 조문 번호가 확실할 때만 JO로 지정합니다.", parameters: { type: "object", properties: { ref: { type: "string", description: "search 결과의 ref" }, provision: { type: "string", pattern: "^[0-9]{6}$", description: "선택: 확실히 알고 있는 6자리 조문번호" } }, required: ["ref"], additionalProperties: false } } } as const;
 const companySearchTool = { type: "function", function: { name: "search_company_context", description: "우리 회사가 업로드한 사내 서류(하도급계약서·위험성평가표·TBM회의록·작업표준·순회점검일지 등)의 본문을 의미로 검색합니다. 계약 조건, 현장에서 실제로 무엇을 했는지, 어떤 서류가 있고 없는지 확인할 때 부르세요. 결과는 후보일 뿐이므로 인용하기 전에 read_company_document로 본문을 읽어야 합니다.", parameters: { type: "object", properties: { query: { type: "string", description: "검색할 한국어 키워드" }, kind: { type: "string", enum: DOCUMENT_KINDS, description: "선택: 찾는 서류 종류가 확실할 때만 지정" } }, required: ["query"], additionalProperties: false } } } as const;
 const companyReadTool = { type: "function", function: { name: "read_company_document", description: "같은 요청에서 search_company_context가 반환한 ref만 읽습니다. 인용할 수 있는 것은 이렇게 읽은 본문뿐입니다. 앞뒤 청크가 함께 붙어 나옵니다.", parameters: { type: "object", properties: { ref: { type: "string", description: "search_company_context 결과의 ref" } }, required: ["ref"], additionalProperties: false } } } as const;
-const assessmentSearchTool = { type: "function", function: { name: "search_assessments", description: "우리 현장의 위험성평가표 행(공종·단위작업·사고분류·위험요인·대책·개선 전후 위험도·법적근거)을 의미로 검색합니다. 어떤 위험을 이미 식별했고 무슨 대책을 세웠는지 확인할 때 부르세요. 결과는 후보일 뿐이므로 인용하기 전에 read_assessment로 읽어야 합니다.", parameters: { type: "object", properties: { query: { type: "string", description: "검색할 한국어 키워드. 공종이나 위험요인으로 찾으세요" } }, required: ["query"], additionalProperties: false } } } as const;
+const assessmentSearchTool = { type: "function", function: { name: "search_assessments", description: "SAFEGRID 에 등록된 위험성평가표 행(공종·단위작업·사고분류·위험요인·대책·개선 전후 위험도·법적근거)을 의미로 검색합니다. 이 색인에는 다른 사람이 만든 평가도 섞여 있어 현장 소속이 확인되지 않으므로 '우리 현장의 기록' 이라고 말하면 안 됩니다. 어떤 위험이 이미 식별되어 있고 무슨 대책이 적혀 있는지 볼 때 부르세요. 결과는 후보일 뿐이므로 인용하기 전에 read_assessment로 읽어야 합니다.", parameters: { type: "object", properties: { query: { type: "string", description: "검색할 한국어 키워드. 공종이나 위험요인으로 찾으세요" } }, required: ["query"], additionalProperties: false } } } as const;
 const assessmentReadTool = { type: "function", function: { name: "read_assessment", description: "같은 요청에서 search_assessments가 반환한 ref만 읽습니다. 평가표 한 행이 그대로 나오며, 이 본문만 인용할 수 있습니다.", parameters: { type: "object", properties: { ref: { type: "string", description: "search_assessments 결과의 ref" } }, required: ["ref"], additionalProperties: false } } } as const;
 const factsTool = { type: "function", function: { name: "read_site_facts", description: "현장에서 관측된 사실을 최신순으로 바로 읽습니다. 날씨·공정·TBM 기록·문서 승인 상태처럼 오늘 현장이 어떤 상태인지 물을 때 부르세요. 검색 단계가 없으며 이 도구의 결과는 관측 시각과 함께 인용합니다.", parameters: { type: "object", properties: { factType: { type: "string", enum: FACT_TYPES, description: "선택: 한 종류만 볼 때 지정. 비우면 모든 종류를 최신순으로 봅니다" }, limit: { type: "integer", minimum: 1, maximum: 100, description: "선택: 가져올 사실 수. 기본 20" } }, required: [], additionalProperties: false } } } as const;
 
@@ -246,7 +256,7 @@ async function synthesizeGroundedAnswer(
     messages: [
       {
         role: "system",
-        content: "당신은 한국 건설현장 정보 답변 편집자입니다. 제공된 근거만 사용해 한국어로 답하세요. 법적 주장·의무·기준·처벌은 officialEvidence 의 공식 원문에서만 인용하고, 각 설명 문장이나 목록 항목 바로 뒤에 법령명·시행일과 제38조제1항처럼 정확한 조문, 그리고 서버가 준 국가법령정보센터 URL 을 적으세요. 사내 문서나 위험성평가표로 법적 판단을 하지 마세요. officialEvidence 가 비어 있으면 법령 원문을 확인하지 않았으므로 법적 판단은 하지 않았다는 점을 반드시 밝히고 의무를 단정하지 마세요. 현장에서 실제로 무엇이 있었는지는 companyEvidence 와 factEvidence 에서만 말하고, 인용할 때마다 문서 제목·현장명·쪽 번호를 밝히세요. source 가 '합성' 인 근거를 인용할 때는 시연을 위해 만든 합성 문서라는 점을 그 문장 안에 반드시 적으세요. factEvidence 를 인용할 때는 observedAt 의 관측 시각과 source 를 함께 적으세요. 근거에 없는 것을 지어내지 말고, 확인되지 않은 것은 근거가 없다고 답하세요. 현장 조건이 부족하면 확정하지 말고 필요한 추가 정보를 질문하세요. 답변은 마크다운으로 작성하고 점검 항목은 하이픈 목록으로 구분하세요. 검색이나 도구를 요청할 수 없으며 call:, result:, 첨부: 또는 tool_call 같은 내부 표현을 절대 출력하지 마세요. 답변은 일반 정보이고 최신 공식 법령 및 전문가 확인이 필요하다는 점을 마지막에 알리세요.",
+        content: "당신은 한국 건설현장 정보 답변 편집자입니다. 제공된 근거만 사용해 한국어로 답하세요. 법적 주장·의무·기준·처벌은 officialEvidence 의 공식 원문에서만 인용하고, 각 설명 문장이나 목록 항목 바로 뒤에 법령명·시행일과 제38조제1항처럼 정확한 조문, 그리고 서버가 준 국가법령정보센터 URL 을 적으세요. 사내 문서나 위험성평가표로 법적 판단을 하지 마세요. officialEvidence 가 비어 있으면 법령 원문을 확인하지 않았으므로 법적 판단은 하지 않았다는 점을 반드시 밝히고 의무를 단정하지 마세요. 현장에서 실제로 무엇이 있었는지는 companyEvidence 와 factEvidence 에서만 말하고, 인용할 때마다 문서 제목·현장명·쪽 번호를 밝히세요. 사내 문서의 쪽 번호는 근거의 pages 에 있는 값만 쓰고, 여러 쪽이면 '2~3쪽' 처럼 범위로 적으며, pages 가 비어 있으면 쪽 번호를 지어내지 말고 쪽 정보가 없다고 적으세요. 근거종류가 '위험성평가' 인 것은 SAFEGRID 에 등록된 평가이고 현장소속이 확인되지 않았으므로 '우리 현장의 기록' 이라고 쓰지 말고 소속이 확인되지 않은 평가라는 점을 밝히세요. source 가 '합성' 인 근거를 인용할 때는 시연을 위해 만든 합성 문서라는 점을 그 문장 안에 반드시 적으세요. factEvidence 를 인용할 때는 observedAt 의 관측 시각과 source 를 함께 적으세요. 근거에 없는 것을 지어내지 말고, 확인되지 않은 것은 근거가 없다고 답하세요. 현장 조건이 부족하면 확정하지 말고 필요한 추가 정보를 질문하세요. 답변은 마크다운으로 작성하고 점검 항목은 하이픈 목록으로 구분하세요. 검색이나 도구를 요청할 수 없으며 call:, result:, 첨부: 또는 tool_call 같은 내부 표현을 절대 출력하지 마세요. 답변은 일반 정보이고 최신 공식 법령 및 전문가 확인이 필요하다는 점을 마지막에 알리세요.",
       },
       {
         role: "user",
@@ -306,6 +316,7 @@ function failureMessage(name: ToolName): string {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   let body: unknown;
   try { body = await request.json(); } catch { return jsonError("JSON 형식의 요청 본문이 필요합니다.", 400); }
   const question = parseQuestion(body);
@@ -336,6 +347,10 @@ export async function POST(request: Request) {
   try {
     let turn = 0;
     for (; turn < MAX_UPSTAGE_TURNS; turn += 1) {
+      // 시간 예산도 도구 호출 예산과 똑같이 halted 로 끊는다. 여기서 한 왕복을 더 시작하면
+      // 함수가 플랫폼 상한에 잘려 모아 둔 근거가 통째로 사라진다.
+      if (Date.now() - startedAt > INVESTIGATION_BUDGET_MS) { halted = true; break; }
+
       // 검색 도구와 현장 사실은 언제나 열어 둔다. 읽기 도구는 그 계열의 검색이 ref 를
       // 만들었을 때만 연다 — 열려 있지 않은 도구는 지어낸 ref 로도 부를 수 없다.
       const availableTools = [
@@ -410,7 +425,7 @@ export async function POST(request: Request) {
             const result = await searchAssessments(input.query);
             result.references.forEach((value, key) => assessmentRefs.set(key, value));
             events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, instruction: "후보는 근거가 아닙니다. 인용하려면 read_assessment 로 해당 행을 읽으세요. 평가표 문장은 모델이 만든 합성 자료이며 그 사실을 답변에 밝혀야 합니다." }) });
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, instruction: "후보는 근거가 아닙니다. 인용하려면 read_assessment 로 해당 행을 읽으세요. 평가표 문장은 모델이 만든 합성 자료이며 그 사실을 답변에 밝혀야 합니다. 이 색인은 SAFEGRID 인스턴스 전체이고 현장 소속이 확인되지 않으므로 '우리 현장의 기록' 이라고 쓰지 마세요." }) });
           } else if (name === "read_assessment") {
             const input = validRefInput(args);
             const reference = input && assessmentRefs.get(input.ref);

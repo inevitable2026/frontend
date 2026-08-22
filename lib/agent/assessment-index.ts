@@ -58,6 +58,13 @@ export type AssessmentReadResult = {
   seq: number;
   text: string;
   source: SourceGrade;
+  /**
+   * 이 평가가 우리 현장 것인지. 값은 늘 "확인되지 않음" 이다 — 위의 "현장 필터가 없다"
+   * 를 근거 JSON 이 스스로 말하게 하는 자리다. 이 말이 없으면 종합 단계가 남이 만든
+   * 평가를 "우리 현장에서는 이미 식별했습니다" 로 쓴다. source("합성")는 "진짜
+   * 데이터냐" 에만 답하고 "누구의 기록이냐" 에는 답하지 못한다.
+   */
+  현장소속: "확인되지 않음";
   url: string;
   citable: true;
 };
@@ -289,6 +296,7 @@ export async function readAssessment(reference: AssessmentReference): Promise<As
     seq: row.seq,
     text: row.text,
     source: SOURCE,
+    현장소속: "확인되지 않음",
     // 원본을 사람이 직접 확인하는 자리. 이 경로는 SAFEGRID 의 평가 1건 조회를 감싼다
     // (app/api/risk/[id]/route.ts). 색인이 아니라 원본을 보여 주는 것이 목적이다.
     url: `/api/risk/${reference.assessmentId}`,

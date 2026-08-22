@@ -41,7 +41,15 @@ export type CompanyReadResult = {
   title: string;
   kind: DocumentKind;
   siteName: string;
-  page: number | null;
+  /**
+   * 이어 붙인 본문이 걸쳐 있는 쪽들. 후보(CompanyCandidate)와 달리 쪽이 하나가 아니다.
+   *
+   * anchor 의 page 하나만 실으면 안 된다. 청크의 page 는 버퍼 첫 요소의 쪽이고
+   * (lib/context/chunk.ts) 청크 하나가 쪽 경계를 넘기도 해서, seq 가 2쪽이고 seq+1 이
+   * 3쪽인 문서를 읽으면 3쪽 문장이 섞인 본문에 "2쪽" 이 붙는다. 종합 프롬프트가 인용마다
+   * 쪽 번호를 밝히게 하고 있어 그 틀린 쪽이 그대로 답변에 남는다.
+   */
+  pages: number[];
   seq: number;
   text: string;
   source: SourceGrade;
@@ -167,14 +175,20 @@ export async function readCompanyDocument(reference: CompanyReference): Promise<
   const anchor = rows.find((row) => row.seq === reference.seq);
   if (!anchor) throw new Error("COMPANY_CHUNK_NOT_FOUND");
 
+  // 본문에 실제로 들어간 청크의 쪽만 센다. 빈 청크는 붙지 않으므로 쪽도 따라오지 않는다.
+  const used = rows.filter((row) => row.text.trim());
+  const pages = [...new Set(used.map((row) => row.page))]
+    .filter((page): page is number => page !== null)
+    .sort((a, b) => a - b);
+
   return {
     documentId: anchor.document_id,
     title: anchor.title,
     kind: anchor.kind,
     siteName: anchor.site_name,
-    page: anchor.page,
+    pages,
     seq: anchor.seq,
-    text: rows.map((row) => row.text.trim()).filter(Boolean).join("\n\n"),
+    text: used.map((row) => row.text.trim()).join("\n\n"),
     source: SOURCE_GRADE,
     url: `/api/context/documents/${anchor.document_id}`,
     citable: true,
