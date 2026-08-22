@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:build": "node scripts/test/build.mjs",
-    "test": "npm run test:build && node --test tests/*.test.mjs",
+    "test": "npm run test:build && node --test \"tests/*.test.mjs\"",
     "test:chunk": "npm run test:build && node --test tests/chunk.test.mjs"
   },
   "dependencies": {

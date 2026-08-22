@@ -1,4 +1,5 @@
 import { BOARD_STORE_ERROR_STATUS, boardStore, isBoardStoreError } from "@/lib/board/store";
+import { 최신만 } from "@/lib/risk/rows";
 import { FACT_TYPES, type FactType, type SnapshotFact } from "@/lib/board/types";
 
 export const runtime = "nodejs";
@@ -11,27 +12,11 @@ const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
  *
  * `/api/board/snapshot` 에 얹지 않고 따로 둔 이유는 **양** 때문이다. 팩트는 이 현장 하나에만
  * 86건이고 위험성평가 행이 그 대부분인데, 첫 화면은 그 가운데 한 건도 쓰지 않는다.
- * 스냅샷에 넣으면 보드를 열 때마다 아무도 안 보는 평가행을 통째로 실어 나르게 된다.
  * 카드를 눌러 평가서를 펼칠 때만 부른다.
  *
- * ## 같은 key 가 여러 번 나오는 것
- *
- * `data/board/seed-facts.json` 의 「키규칙」은 *"같은 (factType, key) 의 앞뒤 두 항목이 곧
- * 델타의 before · after"* 라고 말한다. 즉 **중복은 이력이지 오류가 아니다.** 지금 화면이
- * 물어보는 것은 "지금 상태"이므로 key 마다 **가장 나중 것 하나**로 접는다.
- *
- * 이걸 접지 않으면 실제로 숫자가 어긋난다. `ra_2026_08_regular` 의 이행확인이 빈 행은
- * 접으면 **9행**(카드가 말하는 수)이지만, 접지 않으면 `RI-11` 이 두 번 세어져 **10행**이 된다.
+ * 같은 key 를 접는 규칙은 `lib/risk/rows.ts` 의 `최신만` 에 있다 — 화면과 같은 규칙을
+ * 써야 숫자가 어긋나지 않아서 한곳에 둔다.
  */
-function 최신만(facts: SnapshotFact[]): SnapshotFact[] {
-  const 최신 = new Map<string, SnapshotFact>();
-  for (const f of facts) {
-    const 이전 = 최신.get(f.key);
-    // observedAt 이 같으면 나중에 온 것을 쓴다. 배열 순서가 곧 기록 순서다.
-    if (!이전 || 이전.observedAt <= f.observedAt) 최신.set(f.key, f);
-  }
-  return [...최신.values()];
-}
 
 function fail(message: string, status: number) {
   return Response.json({ error: message }, { status, headers: HEADERS });

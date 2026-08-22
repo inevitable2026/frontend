@@ -73,6 +73,26 @@ export function 불일치행(rows: 평가행[]): 평가행[] {
   return rows.filter((r) => 이행상태읽기(r) === "불일치");
 }
 
+/**
+ * 같은 key 의 팩트를 **가장 나중 것 하나**로 접는다.
+ *
+ * `data/board/seed-facts.json` 의 「키규칙」은 *"같은 (factType, key) 의 앞뒤 두 항목이
+ * 곧 델타의 before · after"* 라고 말한다. 즉 중복은 이력이지 오류가 아니다. 화면이
+ * 묻는 것은 "지금 상태" 이므로 접어야 한다.
+ *
+ * 접지 않으면 실제로 숫자가 어긋난다. `ra_2026_08_regular` 의 이행확인이 빈 행은
+ * 접으면 **9행**(카드가 말하는 수)이지만, 접지 않으면 `RI-11` 이 두 번 세어져 10행이 된다.
+ */
+export function 최신만<T extends { key: string; observedAt: string }>(facts: T[]): T[] {
+  const 최신 = new Map<string, T>();
+  for (const f of facts) {
+    const 이전 = 최신.get(f.key);
+    // observedAt 이 같으면 나중에 온 것을 쓴다. 배열 순서가 곧 기록 순서다.
+    if (!이전 || 이전.observedAt <= f.observedAt) 최신.set(f.key, f);
+  }
+  return [...최신.values()];
+}
+
 /** 팩트 배열에서 행만 골라 행id 순으로 세운다. */
 export function 행정렬(facts: 행팩트[]): 평가행[] {
   return facts

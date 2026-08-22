@@ -12,7 +12,9 @@
     "rootDir": "..",
     "baseUrl": "..",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -30,6 +32,8 @@
     "../lib/context/extracted-display.ts",
     "../lib/context/stream-terminal.ts",
     "../lib/context/demo.ts",
-    "../lib/context/upstage-doc.ts"
+    "../lib/context/upstage-doc.ts",
+    "../lib/risk/rows.ts",
+    "../lib/risk/vocab.ts"
   ]
 }
