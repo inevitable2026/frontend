@@ -3,6 +3,8 @@ import { generateObject } from "ai";
 import type { Detection } from "@/lib/board/types";
 import { dayKey, shiftDay } from "@/lib/detect/engine";
 import { GENERATION_PROVIDER_OPTIONS, GENERATION_RETRIES, GENERATION_MAX_TOKENS, generationModel } from "./model";
+import { 끝맺기 } from "./repair";
+import { 사람시각 } from "./format";
 import { cardPlanListSchema, type CardPlan } from "./schemas";
 
 // 감지 한 건을 받아 "그래서 누가 무엇을 해야 하는가" 를 정한다.
@@ -19,17 +21,23 @@ const SYSTEM = [
   "감지된 조건 하나를 받아 담당자가 실제로 해야 할 일을 카드로 나눕니다.",
   "",
   "카드를 나누는 기준은 진행 단계가 아니라 **지금 이 일을 움직일 수 있는 주체** 입니다.",
-  "- todo: 사람이 현장에서 몸을 움직이거나 눈으로 확인해야 하는 일. 미리 써 둘 수 있는 초안이 없습니다.",
-  "- approval: 문서 초안을 미리 써 두고 담당자가 검토해 승인하면 끝나는 일.",
+  "- todo: 사람이 현장에 가서 몸을 움직이거나 눈으로 봐야만 하는 일. 사진을 찍거나, 설치 상태를 확인하거나, 사람을 만나야 하는 일입니다.",
+  "- approval: 문서를 만들어 내는 일. 초안을 미리 써 두고 담당자가 읽고 고쳐 승인하면 끝납니다.",
   "- done: 사람의 판단이 전혀 필요 없어 이미 처리된 일. 문서를 읽어 근거로 등록하는 단계가 여기 해당합니다.",
   "",
+  "**문서를 만들어 내는 일이면 반드시 approval 이고 draftForm 을 정합니다.**",
+  "회의록·공문·회의자료·TBM자료·점검표를 '작성' 하거나 '준비' 하거나 '초안을 만드는' 일은 전부 여기 해당합니다.",
+  "그 문서를 사람이 확정해야 한다는 사실은 todo 로 보낼 이유가 되지 못합니다 — 확정은 승인 열에서 하는 일이고, 그것이 승인 열이 있는 이유입니다.",
+  "초안을 미리 써 두지 않고 todo 로 보내면 담당자는 빈 화면 앞에서 처음부터 직접 쓰게 됩니다.",
+  "draftForm 을 null 로 두어도 되는 것은 현장에서 보고 적어야 해서 미리 쓸 수 없는 기록뿐입니다.",
+  "",
   "서식 여섯 가지가 각각 무엇을 요구하는 판단인지:",
-  "- 회의록: 위험성평가 회의록입니다. 위험도 숫자를 매기는 일이라 반드시 사람이 확정해야 하고, 남에게 넘길 수 없습니다(delegable=false). 기한은 결재 일정이 정하므로 임의로 못 박지 말고 null 로 두십시오.",
+  "- 회의록: 위험성평가 회의록입니다. 위험도 숫자를 매기는 일이라 남에게 넘길 수 없습니다(delegable=false). 사람이 확정한다는 것이 초안을 쓰지 말라는 뜻은 아니므로 status 는 approval 이고 draftForm 은 회의록입니다. 기한은 결재 일정이 정하므로 임의로 못 박지 말고 null 로 두십시오.",
   "- 공문: 반입 보류처럼 계약상 효력이 따라오는 문서입니다. 수신처를 근거에서 확인하지 못했으면 to 를 null 로 두고 사람이 채우게 하십시오.",
   "- 회의자료: 협의체나 회의에 올릴 안건 자료입니다.",
   "- TBM자료: 작업 전 팀별로 공유하는 자료입니다. 같은 조건에서 회의록이 함께 만들어진다면 회의록이 확정되어야 내용이 정해지므로 blockedByKeys 로 묶으십시오. 기한은 다음 날 이른 아침 TBM 전입니다.",
   "- 점검표: 작업 착수 전에 짚을 것을 적은 표입니다. 기한은 해당 작업 착수 전입니다.",
-  "- 기록: 현장에서 직접 보고 적어야 하는 것입니다. 미리 쓸 수 없으므로 status 는 todo 이고 draftForm 은 null 입니다.",
+  "- 기록: 현장에서 직접 보고 적어야 하는 것입니다. 미리 쓸 수 없으므로 status 는 todo 이고 draftForm 은 null 입니다. 이것만이 초안 없이 todo 로 가는 서식입니다.",
   "",
   "지켜야 할 것:",
   "- 근거에 있는 사실만 씁니다. 근거에 없는 자재명·업체명·수치·날짜를 지어내지 마십시오.",
@@ -43,7 +51,7 @@ function 근거블록(detection: Detection): string {
   return detection.evidence
     .map((e) => {
       const 출처 = e.sourceDocId ? ` · 출처 ${e.sourceDocId}` : "";
-      return `- [${e.factType}] ${e.excerpt} (관측 ${e.observedAt}${출처})`;
+      return `- [${e.factType}] ${e.excerpt} (관측 ${사람시각(e.observedAt)}${출처})`;
     })
     .join("\n");
 }
@@ -102,6 +110,7 @@ export async function planCardsWithModel(input: PlanCardsInput): Promise<CardPla
     maxRetries: GENERATION_RETRIES,
     maxOutputTokens: GENERATION_MAX_TOKENS,
     providerOptions: GENERATION_PROVIDER_OPTIONS,
+    repairText: 끝맺기,
   });
 
   return 정리(object.cards);
