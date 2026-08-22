@@ -1626,3 +1626,170 @@ button {
 .context-demo-note b {
   color: var(--purple-primary);
 }
+
+/* 파싱 영역 오버레이 */
+
+.context-analysis {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-rows: min-content;
+}
+
+.context-regions {
+  grid-column: 1 / -1;
+  padding: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+}
+
+.context-regions h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.context-role {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.stage-agent {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(92, 82, 255, 0.1);
+  color: var(--purple-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.overlay-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.overlay-agent {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--purple-primary);
+  color: #ffffff;
+}
+
+.overlay-count {
+  color: var(--text-muted);
+}
+
+.overlay-pages {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.overlay-pages button {
+  padding: 3px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.overlay-pages button.is-active {
+  border-color: var(--purple-primary);
+  color: var(--purple-primary);
+}
+
+/* A4 비율. 좌표가 0~1 로 정규화돼 오므로 지면 크기를 몰라도 상자를 칠 수 있다. */
+.overlay-sheet {
+  position: relative;
+  aspect-ratio: 1 / 1.414;
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--sidebar-surface);
+  overflow: hidden;
+}
+
+.region {
+  position: absolute;
+  padding: 0;
+  border: 1.5px solid var(--purple-primary);
+  border-radius: 3px;
+  background: rgba(92, 82, 255, 0.08);
+  overflow: hidden;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.region span {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  color: var(--purple-primary);
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.region:hover,
+.region.is-active {
+  background: rgba(92, 82, 255, 0.22);
+  box-shadow: 0 0 0 2px rgba(92, 82, 255, 0.35);
+}
+
+.region--table {
+  border-color: #0f9d76;
+  background: rgba(15, 157, 118, 0.1);
+}
+.region--table span { color: #0f9d76; }
+.region--table:hover,
+.region--table.is-active {
+  background: rgba(15, 157, 118, 0.24);
+  box-shadow: 0 0 0 2px rgba(15, 157, 118, 0.35);
+}
+
+.region--heading1,
+.region--header {
+  border-color: #d9822b;
+  background: rgba(217, 130, 43, 0.12);
+}
+.region--heading1 span,
+.region--header span { color: #d9822b; }
+
+.region--footnote,
+.region--list {
+  border-color: #8a899f;
+  background: rgba(138, 137, 159, 0.1);
+}
+.region--footnote span,
+.region--list span { color: #8a899f; }
+
+.overlay-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.overlay-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
