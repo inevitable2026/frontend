@@ -8867,3 +8867,927 @@ button {
     padding: 12px 16px 16px;
   }
 }
+
+/* ---------------- 위험성평가 이슈 (보드 맨 위 섹션) ---------------- */
+
+/* 섹션 껍데기는 브리핑과 같은 자리 문법을 쓴다. 카드 자체도 .board-brief-card 재사용. */
+.board-issue {
+  flex: none;
+  padding: 16px var(--board-pad-inline) 0;
+}
+
+.board-issue-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--board-alert-surface);
+  color: var(--board-alert-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: -0.35px;
+}
+
+.board-issue-pill i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.board-issue-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 16px 0;
+  color: var(--board-strong-ink);
+  font-size: 13.5px;
+  letter-spacing: -0.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.board-issue-lede p {
+  margin: 0;
+}
+
+.board-issue-lede p + p {
+  color: var(--board-body-ink);
+}
+
+/* ── 근거 3장: 원본 파일 뷰인뷰 ── */
+
+.board-issue-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 16px 0;
+}
+
+.board-issue-evidence {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+/* 근거 칩을 눌러 여기로 왔을 때 잠깐 빛난다 */
+@keyframes board-issue-flash {
+  0% { box-shadow: 0 0 0 3px var(--purple-primary); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+.board-issue-evidence.is-flash {
+  animation: board-issue-flash 1.6s ease-out 1;
+}
+
+.board-issue-evidence-kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 13px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--board-chip-ink);
+  letter-spacing: -0.3px;
+}
+
+.board-issue-evidence-kind em {
+  font-style: normal;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--board-chip-surface);
+}
+
+.board-issue-evidence-no {
+  margin-left: auto;
+  font-family: var(--board-numeral);
+  color: var(--purple-copy);
+  font-weight: 600;
+}
+
+/* 파일 크롬 — 무슨 파일을 열어 둔 것인지 */
+.board-issue-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  border-top: 1px solid var(--board-hairline);
+  border-bottom: 1px solid var(--board-hairline);
+  background: #fbfcfe;
+  font-size: 11px;
+  color: var(--text-sidebar);
+  letter-spacing: -0.2px;
+}
+
+.board-issue-ext {
+  flex: none;
+  padding: 1.5px 6px;
+  border-radius: 5px;
+  font-family: var(--board-numeral);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #ffffff;
+}
+
+.board-issue-ext.is-eml { background: #d93025; }
+.board-issue-ext.is-law { background: #345d96; }
+.board-issue-ext.is-hwp { background: #1367e0; }
+
+.board-issue-filename {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--board-numeral);
+  letter-spacing: 0;
+}
+
+/* 종이를 놓는 회색 캔버스. 문서함 뷰어와 같은 문법이다. */
+.board-issue-canvas {
+  height: 330px;
+  overflow-y: auto;
+  background: #e7ebf1;
+  padding: 12px 11px 16px;
+}
+
+.board-issue-canvas::-webkit-scrollbar { width: 8px; }
+.board-issue-canvas::-webkit-scrollbar-thumb {
+  background: #c4cbd7;
+  border-radius: 8px;
+  border: 2px solid #e7ebf1;
+}
+
+.board-issue-paper {
+  min-height: 100%;
+  background: #ffffff;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(29, 74, 141, 0.18), 0 6px 18px -8px rgba(29, 74, 141, 0.22);
+}
+
+/* ── ① 메일 원문 ── */
+
+.board-issue-mail {
+  padding: 13px 14px 16px;
+  font-size: 12px;
+  letter-spacing: -0.2px;
+}
+
+.board-issue-mail-subject {
+  margin: 0 0 11px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.board-issue-mail-sender {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.board-issue-mail-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 999px;
+  background: #f29900;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.board-issue-mail-who {
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.45;
+}
+
+.board-issue-mail-who b {
+  font-size: 12.5px;
+  letter-spacing: -0.35px;
+}
+
+.board-issue-mail-who i {
+  font-style: normal;
+  color: #5f6368;
+  font-size: 11px;
+  font-family: var(--board-numeral);
+  letter-spacing: 0;
+}
+
+.board-issue-mail-who > span {
+  display: block;
+  color: #5f6368;
+  font-size: 11px;
+}
+
+.board-issue-mail-sender time {
+  flex: none;
+  color: #5f6368;
+  font-size: 10.5px;
+  font-family: var(--board-numeral);
+}
+
+.board-issue-mail-body {
+  margin: 11px 0 0 39px;
+  color: #202124;
+  font-size: 12px;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.board-issue-mail-body p {
+  margin: 0 0 9px;
+}
+
+.board-issue-mail-attach {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 3px 0 0 39px;
+  padding: 8px 10px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+}
+
+.board-issue-mail-pdf {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 34px;
+  flex: none;
+  border-radius: 4px;
+  background: #b30b00;
+  color: #ffffff;
+  font-family: var(--board-numeral);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.board-issue-mail-attach-name {
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.board-issue-mail-attach-name span {
+  display: block;
+  color: #5f6368;
+  font-size: 10.5px;
+  font-family: var(--board-numeral);
+  letter-spacing: 0;
+}
+
+/* 첨부 첫 쪽의 제원 표 */
+.board-issue-mail-spec {
+  margin: 9px 0 0 39px;
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--board-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 11px;
+}
+
+.board-issue-mail-spec > div {
+  display: flex;
+  gap: 8px;
+  padding: 5px 9px;
+  border-top: 1px solid var(--board-hairline-2);
+}
+
+.board-issue-mail-spec > div:first-child { border-top: 0; }
+
+.board-issue-mail-spec dt {
+  flex: none;
+  width: 96px;
+  color: var(--text-muted);
+}
+
+.board-issue-mail-spec dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-sidebar);
+  font-family: var(--board-numeral);
+  letter-spacing: 0;
+}
+
+/* ── ② 법령 원문 종이 ── */
+
+.board-issue-law {
+  padding: 18px 16px 20px;
+  font-family: "AppleMyungjo", "Batang", "Nanum Myeongjo", serif;
+  color: #1a1a1a;
+}
+
+.board-issue-law-title {
+  margin: 0;
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.board-issue-law-meta {
+  margin: 6px 0 0;
+  text-align: center;
+  color: #555555;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.board-issue-law-rule {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1.5px solid #1a1a1a;
+}
+
+.board-issue-law-article {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0b57d0;
+}
+
+.board-issue-law-clause {
+  margin: 0 0 7px;
+  font-size: 11.5px;
+  line-height: 1.85;
+  text-align: justify;
+  word-break: keep-all;
+}
+
+.board-issue-law-clause b {
+  color: #0b57d0;
+  font-weight: 700;
+}
+
+.board-issue-law-clause mark {
+  background: #fff3a6;
+  color: inherit;
+  padding: 0 1px;
+}
+
+.board-issue-law-foot {
+  margin: 14px 0 0;
+  color: #888888;
+  font-size: 9.5px;
+  text-align: center;
+}
+
+/* ── ③ 회사 양식(HWP) 종이 ── */
+
+.board-issue-form {
+  padding: 16px 14px 20px;
+  font-family: "AppleMyungjo", "Batang", "Nanum Myeongjo", serif;
+  color: #111111;
+}
+
+.board-issue-form-approval {
+  margin-left: auto;
+  margin-bottom: 10px;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.board-issue-form-approval th,
+.board-issue-form-approval td {
+  border: 1px solid #222222;
+  text-align: center;
+}
+
+.board-issue-form-approval th {
+  width: 44px;
+  padding: 2.5px 0;
+  font-weight: 500;
+  background: #f2f2ee;
+}
+
+.board-issue-form-approval td {
+  height: 32px;
+}
+
+.board-issue-form-rank {
+  width: 16px;
+  background: #f2f2ee;
+  font-weight: 500;
+}
+
+.board-issue-form-title {
+  margin: 4px 0 12px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  text-indent: 8px;
+  border-bottom: 3px double #222222;
+  padding-bottom: 8px;
+}
+
+.board-issue-form-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.board-issue-form-table th,
+.board-issue-form-table td {
+  border: 1px solid #222222;
+  padding: 5px 7px;
+  line-height: 1.5;
+}
+
+.board-issue-form-table th {
+  width: 64px;
+  background: #f2f2ee;
+  font-weight: 500;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.board-issue-form-table td {
+  word-break: keep-all;
+}
+
+.board-issue-form-note {
+  margin: 10px 2px 0;
+  font-size: 10px;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.board-issue-form-docno {
+  margin: 12px 2px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #666666;
+  font-size: 9px;
+}
+
+/* ── 제안 머리 문장 ── */
+
+.board-issue-ask {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 16px 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--board-hairline-2);
+  font-size: 13px;
+  letter-spacing: -0.45px;
+  color: var(--board-strong-ink);
+  word-break: keep-all;
+}
+
+.board-issue-ask b {
+  font-family: var(--board-numeral);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.board-issue-ask-count {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--board-numeral);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--purple-copy);
+  letter-spacing: 0;
+}
+
+/* ── 행 카드 + split diff ── */
+
+.board-issue-rows {
+  display: grid;
+  gap: 11px;
+  margin: 12px 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-issue-row {
+  padding: 12px 13px;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid #e29a3d;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.board-issue-row-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.board-issue-rowid {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-sidebar);
+  font-weight: 600;
+  font-family: var(--board-numeral);
+}
+
+.board-issue-rowclass {
+  color: var(--text-muted);
+}
+
+.board-issue-mode {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--board-ai-surface);
+  color: var(--purple-primary);
+  font-weight: 600;
+}
+
+.board-issue-mode.is-new {
+  background: var(--board-ok-surface);
+  color: var(--board-ok-ink);
+}
+
+.board-issue-rowowner {
+  margin-left: auto;
+  color: var(--purple-copy);
+}
+
+.board-issue-diffwrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 10px;
+  align-items: stretch;
+  margin-top: 8px;
+}
+
+.board-issue-dscroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.board-issue-dtable {
+  min-width: 640px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+/* 한 줄 = [변경 전 | 근거 | 변경 후]. 필드끼리 같은 줄에 서야 눈이 좌우로만 움직인다. */
+.board-issue-dline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+  border-top: 1px solid var(--board-hairline-2);
+}
+
+.board-issue-dline:first-child { border-top: 0; }
+
+.board-issue-dcell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 2.5px 8px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+  word-break: keep-all;
+}
+
+.board-issue-dcell.is-del { background: var(--board-alert-surface); }
+.board-issue-dcell.is-add { background: var(--board-ok-surface); }
+
+/* 반대편에 대응 줄이 없을 때 — 빗금 빈 칸 */
+.board-issue-dcell.is-empty {
+  background: repeating-linear-gradient(-45deg, #fbfcfe 0 5px, var(--board-hairline-3) 5px 10px);
+}
+
+.board-issue-dmid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 1px 2px;
+  border-left: 1px solid var(--board-hairline-2);
+  border-right: 1px solid var(--board-hairline-2);
+  background: #fbfcfe;
+}
+
+.board-issue-gut {
+  flex: none;
+  width: 11px;
+  font-family: var(--board-numeral);
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+
+.board-issue-dcell.is-del .board-issue-gut { color: var(--board-alert-ink); }
+.board-issue-dcell.is-add .board-issue-gut { color: var(--board-ok-ink); }
+
+.board-issue-fld {
+  flex: none;
+  width: 46px;
+  padding-top: 1px;
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: -0.2px;
+}
+
+.board-issue-dtext {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 낱말 단위 강조 */
+.board-issue-wdel {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #ffd7d1;
+  text-decoration: line-through;
+  text-decoration-color: rgba(180, 35, 24, 0.55);
+}
+
+.board-issue-wadd {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #c9ecd8;
+  font-weight: 600;
+}
+
+/* 표 머리줄 */
+.board-issue-dhead .board-issue-dcell,
+.board-issue-dhead .board-issue-dmid {
+  background: var(--sidebar-surface);
+  padding-top: 5px;
+  padding-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.board-issue-dhead-del { color: var(--board-alert-ink); font-family: var(--board-numeral); }
+.board-issue-dhead-add { color: var(--board-ok-ink); font-family: var(--board-numeral); }
+
+/* ── 행별 반영 토글 ── */
+
+.board-issue-decide {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.board-issue-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+}
+
+.board-issue-switch-track {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #cfd5e1;
+  box-shadow: inset 0 1px 2px rgba(29, 74, 141, 0.18);
+  transition: background 0.18s ease;
+}
+
+.board-issue-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: left 0.18s ease;
+}
+
+.board-issue-switch.is-on .board-issue-switch-track { background: var(--board-ok-ink); }
+.board-issue-switch.is-on .board-issue-switch-knob { left: 23px; }
+
+.board-issue-switch-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text-muted);
+}
+
+.board-issue-switch.is-on .board-issue-switch-label { color: var(--board-ok-ink); }
+
+.board-issue-switch:focus-visible .board-issue-switch-track {
+  outline: 2px solid var(--purple-primary);
+  outline-offset: 2px;
+}
+
+/* ── 액션 바 · 오류 · 완료 ── */
+
+.board-issue-error {
+  margin: 12px 16px 0;
+  color: var(--board-alert-ink);
+  font-size: 12px;
+  letter-spacing: -0.35px;
+  word-break: keep-all;
+}
+
+.board-issue-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 16px 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--board-hairline-2);
+}
+
+.board-issue-apply {
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--purple-primary);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.board-issue-apply:hover { background: var(--purple-secondary); }
+
+.board-issue-apply:disabled {
+  background: var(--board-chip-surface);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.board-issue-note {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  letter-spacing: -0.3px;
+  word-break: keep-all;
+}
+
+.board-issue-done {
+  padding: 16px;
+  color: var(--board-ok-ink);
+  font-size: 13px;
+  letter-spacing: -0.4px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.board-issue-done b { font-weight: 600; }
+
+/* ── 근거 칩 팝오버 ── */
+
+.board-issue-refchip {
+  display: inline-block;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--board-ai-surface);
+  color: var(--purple-copy);
+  font-family: var(--board-numeral);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.board-issue-refchip:hover {
+  background: var(--purple-primary);
+  color: #ffffff;
+}
+
+.board-issue-pop {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: 270px;
+  padding: 11px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px -14px rgba(29, 74, 141, 0.35);
+  font-size: 11.5px;
+  line-height: 1.6;
+  letter-spacing: -0.3px;
+  color: var(--text-sidebar);
+  word-break: keep-all;
+}
+
+.board-issue-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.board-issue-pop-kind {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--board-chip-surface);
+  color: var(--board-chip-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.board-issue-pop-no {
+  margin-left: auto;
+  font-family: var(--board-numeral);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--purple-copy);
+}
+
+.board-issue-pop-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--board-strong-ink);
+}
+
+.board-issue-pop-meta {
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+.board-issue-pop-sum {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--board-mono-surface);
+  color: var(--board-note-ink);
+  font-size: 11px;
+}
+
+.board-issue-pop-hint {
+  margin-top: 6px;
+  color: var(--purple-copy);
+  font-size: 10px;
+}
+
+/* ── 반응형 ── */
+
+@media (max-width: 1280px) {
+  .board-issue-evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .board-issue-diffwrap {
+    grid-template-columns: 1fr;
+  }
+
+  .board-issue-decide {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .board-issue-switch {
+    flex-direction: row;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-issue-evidence.is-flash {
+    animation: none;
+    outline: 2px solid var(--purple-primary);
+  }
+
+  .board-issue-switch-track,
+  .board-issue-switch-knob {
+    transition: none;
+  }
+}

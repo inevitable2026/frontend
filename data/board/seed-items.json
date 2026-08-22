@@ -722,15 +722,16 @@
       "itemId": "card_reeval_crane_radius",
       "siteId": "site_gimpo_gochon_01",
       "timing": "trigger",
-      "status": "todo",
+      "status": "approval",
       "origin": "machine",
-      "title": "이동식크레인 작업반경 축소 재평가",
-      "summary": "인접 부지 경계가 물러나며 크레인 작업반경이 좁아졌습니다. 선회 구간 출입통제 범위를 다시 정합니다.",
+      "title": "이동식크레인 50톤 대체 투입 재평가",
+      "summary": "9월 2일 배차가 25톤에서 50톤으로 바뀝니다. 아웃트리거 접지압이 커져 양중 관련 행의 전제가 무너졌습니다. 위험도 점수는 제품이 확정하지 않습니다.",
       "trigger": {
         "ruleId": "T-03",
-        "condition": "이동식크레인 설치 위치가 바뀌어 선회반경이 18m 에서 12m 로 줄었고, 등재된 출입통제 범위가 18m 기준입니다.",
+        "condition": "대한크레인 배차 메일에서 25톤 장비가 50톤으로 대체 투입된다는 통보를 읽었고, 등재된 양중 행은 25톤 제원 기준입니다.",
         "sourceDocRefs": [
-          "doc_5_p8w2zzt1"
+          "mail_20260819_crane_01",
+          "file_crane_0819"
         ],
         "confidence": 0.9,
         "requiresHumanConfirmation": true
@@ -739,7 +740,7 @@
         {
           "docId": "ra_2026_08_regular",
           "scope": "양중 관련 행 2건",
-          "reason": "선회반경이 바뀌어 등재된 출입금지 구역 치수가 현장과 맞지 않습니다."
+          "reason": "장비가 50톤으로 바뀌어 등재된 작업반경·인양하중 기준이 현장과 맞지 않습니다."
         }
       ],
       "produces": [
@@ -749,7 +750,118 @@
           "into": "ra_2026_08_regular"
         }
       ],
-      "draft": null,
+      "draft": {
+        "form": "회의록",
+        "제목": "수시 위험성평가 회의록 (초안) — 50톤 크레인 대체 투입",
+        "supersedes": null,
+        "rows": [
+          {
+            "itemId": "RI-10",
+            "process": "인양 구간 신호수 배치",
+            "hazard": "신호 불일치로 인양물과 구조물 사이에 끼임 — 50톤 전환으로 작업반경과 인양하중이 커져 통제 범위가 넓어집니다",
+            "hazardClass": "끼임",
+            "currentControl": "전담 신호수 배치와 무전 채널 단일화가 25톤 작업반경 기준으로 등재되어 있습니다.",
+            "risk": {
+              "likelihood": 4,
+              "severity": 3,
+              "score": 12,
+              "level": "높음"
+            },
+            "measures": [
+              {
+                "measureId": "M-10-1",
+                "text": "전담 신호수를 배치하고 무전 채널을 단일화합니다.",
+                "type": "관리적",
+                "owner": "sub_jungang",
+                "dueDate": "2026-09-01",
+                "status": "open"
+              },
+              {
+                "measureId": "M-10-2",
+                "text": "50톤 제원표 기준 작업반경·인양하중표를 운전원과 신호수에게 교부합니다.",
+                "type": "관리적",
+                "owner": "user_park",
+                "dueDate": "2026-09-01",
+                "status": "open"
+              }
+            ],
+            "residualRisk": {
+              "likelihood": 2,
+              "severity": 3,
+              "score": 6,
+              "level": "보통"
+            },
+            "legalReferences": [
+              {
+                "ref": "law_38_pre_survey",
+                "citable": true,
+                "note": "차량계 건설기계 작업계획서 작성 의무의 근거로 조회한 원문입니다."
+              }
+            ],
+            "derivedFrom": {
+              "evidenceIds": [
+                "ev_20260819_crane"
+              ],
+              "contextDocRefs": [
+                "file_crane_0819"
+              ]
+            }
+          },
+          {
+            "itemId": "RI-22",
+            "process": "50톤 크레인 반입 전 지반 지내력 검토",
+            "hazard": "지내력을 확인하지 않은 지반에 아웃트리거를 설치하면 국부 침하로 장비가 전도됩니다 — 제원표 기준 패드당 접지압 약 21톤",
+            "hazardClass": "전도·붕괴",
+            "currentControl": "25톤은 사내 기준(EQ-07) 적용 대상이 아니어서 별도 지침이 없습니다.",
+            "risk": {
+              "likelihood": 4,
+              "severity": 4,
+              "score": 16,
+              "level": "높음"
+            },
+            "measures": [
+              {
+                "measureId": "M-22-1",
+                "text": "반입 전 지반 지내력 검토서와 아웃트리거 배치도를 수령하고 원청 공무팀이 검토합니다.",
+                "type": "관리적",
+                "owner": "user_park",
+                "dueDate": "2026-09-01",
+                "status": "open"
+              },
+              {
+                "measureId": "M-22-2",
+                "text": "아웃트리거 하부에 철판을 2겹 펴고 설치 후 사진으로 기록합니다.",
+                "type": "공학적",
+                "owner": "sub_jungang",
+                "dueDate": "2026-09-02",
+                "status": "open"
+              }
+            ],
+            "residualRisk": {
+              "likelihood": 2,
+              "severity": 4,
+              "score": 8,
+              "level": "보통"
+            },
+            "legalReferences": [
+              {
+                "ref": "law_38_pre_survey",
+                "citable": true,
+                "note": "사전조사 및 작업계획서 작성 의무의 근거로 조회한 원문입니다."
+              }
+            ],
+            "derivedFrom": {
+              "evidenceIds": [
+                "ev_20260819_crane"
+              ],
+              "contextDocRefs": [
+                "file_crane_0819",
+                "form_eq07_equipment"
+              ]
+            }
+          }
+        ]
+      },
       "confirmedBy": null,
       "confirmedAt": null,
       "dueBy": "2026-08-21T14:00:00+09:00",

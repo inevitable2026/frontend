@@ -25,6 +25,7 @@ import { KanbanBoard } from "./kanban-board";
 import { CONSOLE_ACTOR } from "./presentation";
 import { ReferenceProvider } from "./reference-chip";
 import { RejectDialog } from "./reject-dialog";
+import { RiskIssueSection } from "./risk-issue-section";
 import { 확정자이름 } from "./view-model";
 import { WeekCalendar } from "./week-calendar";
 import type {
@@ -845,6 +846,10 @@ export function TaskBoard({
     <ReferenceProvider references={snapshot.references}>
     <div className={assistantOpen ? "board-shell is-assistant-open" : "board-shell"}>
       <BoardHeader boardDate={boardDate} cards={cards} site={snapshot.site} />
+
+      {/* 메일에서 감지된 변경이 기존 평가서를 무너뜨렸을 때만 뜬다. 이슈가 없으면 아무것도
+          그리지 않으므로 아래 브리핑이 그 자리를 그대로 이어받는다. */}
+      <RiskIssueSection siteId={SITE_ID} />
 
       <DailyBriefingPanel
         briefing={snapshot.briefing}
