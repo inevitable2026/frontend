@@ -149,82 +149,119 @@ export function RiskAssessmentPanel() {
   }, []);
 
   /**
-   * 대기열을 채운다. **감지는 여기서 하지 않는다** — 태스크 보드가 이미 만들어 둔
-   * 카드를 현장별로 읽어 위험성평가에 해당하는 것만 고른다. 출처가 하나여야
-   * 두 화면이 서로 다른 말을 하지 않는다.
+   * 대기열을 읽는다. 보드가 이미 만들어 둔 카드를 현장별로 읽어 위험성평가에 해당하는
+   * 것만 고른다. 출처가 하나여야 두 화면이 서로 다른 말을 하지 않는다.
    *
    * 보드 API 는 `siteId` 를 필수로 요구한다(다른 현장 카드가 섞이면 담당자 이름과
    * 하도급사 상호가 그대로 노출되기 때문이다). 그래서 현장을 먼저 읽고 현장마다 부른다.
+   *
+   * **효과 밖으로 뺀 이유:** 예전에는 이 코드가 `useEffect(..., [])` 안에 갇혀 있어
+   * 마운트할 때 딱 한 번만 돌았다. 그래서 카드를 확정하거나 감지를 돌려도 화면이
+   * 그대로였다 — 서버는 바뀌었는데 사람이 보기엔 아무 일도 안 일어난 것과 같았다.
+   * 낙관적으로 배열에서 빼는 대신 **서버가 말하는 사실**로 다시 그린다.
    */
-  useEffect(() => {
-    let 살아있음 = true;
+  const 대기열읽기 = useCallback(async () => {
+    try {
+      // 현장 목록은 Postgres 에서 온다. 조회 실패가 대기열을 통째로 비우면 안 된다 —
+      // 실제로 그렇게 만들었다가 "손볼 것 없음"이 거짓으로 떴다.
+      const sites = await fetch("/api/context/sites")
+        .then((r) => (r.ok ? (r.json() as Promise<{ sites: Array<{ id: string; name: string }> }>) : null))
+        .then((v) => v?.sites ?? [])
+        .catch(() => []);
 
-    (async () => {
-      try {
-        // 현장 목록은 Postgres 에서 온다. 그런데 태스크 보드는 지금 JSON 저장소로 돌아서
-        // DB 가 없어도 카드가 있다. 현장 조회 실패가 대기열을 통째로 비우면 안 된다 —
-        // 실제로 그렇게 만들었다가 "손볼 것 없음"이 거짓으로 떴다.
-        const sites = await fetch("/api/context/sites")
-          .then((r) => (r.ok ? (r.json() as Promise<{ sites: Array<{ id: string; name: string }> }>) : null))
-          .then((v) => v?.sites ?? [])
-          .catch(() => []);
-        if (!살아있음) return;
+      const 목록 = sites.length > 0 ? sites : 보드기본현장;
+      set현장이름(new Map(목록.map((s) => [s.id, s.name])));
 
-        const 목록 = sites.length > 0 ? sites : 보드기본현장;
-        set현장이름(new Map(목록.map((s) => [s.id, s.name])));
-
-        // 한 현장이 실패해도 나머지 대기열은 보여야 한다.
-        const 결과 = await Promise.allSettled(
-          목록.map((s) =>
-            fetch(`/api/board/items?siteId=${encodeURIComponent(s.id)}`).then((r) =>
-              r.ok ? (r.json() as Promise<BoardPage>) : Promise.reject(new Error(String(r.status))),
-            ),
+      // 한 현장이 실패해도 나머지 대기열은 보여야 한다.
+      const 결과 = await Promise.allSettled(
+        목록.map((s) =>
+          fetch(`/api/board/items?siteId=${encodeURIComponent(s.id)}`, { cache: "no-store" }).then((r) =>
+            r.ok ? (r.json() as Promise<BoardPage>) : Promise.reject(new Error(String(r.status))),
           ),
-        );
-        if (!살아있음) return;
+        ),
+      );
 
-        const 카드 = 결과
-          .filter((r): r is PromiseFulfilledResult<BoardPage> => r.status === "fulfilled")
-          .flatMap((r) => r.value.items)
-          .filter(위험성평가카드인가);
-        set대기열(카드);
-        set기준시각(Date.now());
-      } catch {
-        // 대기열을 못 읽는 것과 대기열이 비어 있는 것은 다르다. 빈 목록으로 두고
-        // 새 평가 경로는 계속 열어 둔다.
-        if (살아있음) set대기열([]);
-      } finally {
-        if (살아있음) set대기열로딩(false);
-      }
-    })();
-
-    return () => {
-      살아있음 = false;
-    };
+      const 카드 = 결과
+        .filter((r): r is PromiseFulfilledResult<BoardPage> => r.status === "fulfilled")
+        .flatMap((r) => r.value.items)
+        .filter(위험성평가카드인가);
+      set대기열(카드);
+      set기준시각(Date.now());
+    } catch {
+      // 대기열을 못 읽는 것과 대기열이 비어 있는 것은 다르다. 빈 목록으로 두고
+      // 새 평가 경로는 계속 열어 둔다.
+      set대기열([]);
+    } finally {
+      set대기열로딩(false);
+    }
   }, []);
 
   /**
    * 지금까지 만든 평가서 목록. **보드 카드와 다른 곳에 있다** —
    * 감지 카드는 보드 저장소에, 만든 평가서는 SAFEGRID 자체 DB 에 있다.
-   * 탭이 "기록 목록"을 표방하므로 둘 다 보여야 한다.
+   *
+   * 이것도 효과 밖으로 뺀다. `set기록` 을 부르는 곳이 지금까지 **하나도 없어서**,
+   * 「위험성평가표 만들기」로 실제로 만든 평가서조차 새로고침 전에는 목록에 안 떴다.
    */
-  useEffect(() => {
-    let 살아있음 = true;
-    fetch("/api/risk/list")
-      .then((r) => (r.ok ? (r.json() as Promise<{ days: 평가일자[] }>) : null))
-      .then((v) => {
-        if (살아있음 && v?.days) set기록(v.days);
-      })
-      .catch(() => {
-        /* 기록을 못 읽어도 대기열과 새 평가는 계속 쓸 수 있어야 한다. */
-      })
-      .finally(() => {
-        if (살아있음) set기록로딩(false);
-      });
-    return () => {
-      살아있음 = false;
-    };
+  const 기록읽기 = useCallback(async () => {
+    try {
+      const v = await fetch("/api/risk/list", { cache: "no-store" }).then((r) =>
+        r.ok ? (r.json() as Promise<{ days: 평가일자[] }>) : null,
+      );
+      if (v?.days) set기록(v.days);
+    } catch {
+      /* 기록을 못 읽어도 대기열과 새 평가는 계속 쓸 수 있어야 한다. */
+    } finally {
+      set기록로딩(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void 대기열읽기();
+  }, [대기열읽기]);
+
+  useEffect(() => {
+    void 기록읽기();
+  }, [기록읽기]);
+
+  /**
+   * 감지를 실제로 돌린다.
+   *
+   * 이 앱에서 `POST /api/board/detect` 를 부르는 **유일한 자리**다. 지금까지 감지 엔진은
+   * 완성돼 있고 검증기도 통과하는데 부르는 사람이 없어서, 화면의 "재평가 필요"는
+   * 감지 결과가 아니라 시드가 넣어 둔 카드였다.
+   *
+   * 실패해도 숫자를 지어내지 않는다 — 사유를 문자열로 돌려주고 화면이 그대로 적는다.
+   */
+  const 감지돌리기 = useCallback(async (): Promise<{ 감지: number; 생성: number } | string> => {
+    const 현장들 = [...현장이름.keys()];
+    const 대상 = 현장들.length > 0 ? 현장들 : [BOARD_SITE_ID];
+    let 감지수 = 0;
+    let 생성수 = 0;
+
+    for (const id of 대상) {
+      try {
+        const res = await fetch("/api/board/detect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ siteId: id }),
+        });
+        const body = (await res.json()) as {
+          run?: { detections?: unknown[]; created?: unknown[] };
+          error?: string;
+        };
+        if (!res.ok) return body.error ?? `감지 실패 (${res.status})`;
+        감지수 += body.run?.detections?.length ?? 0;
+        생성수 += body.run?.created?.length ?? 0;
+      } catch (e) {
+        return e instanceof Error ? e.message : "감지에 실패했습니다.";
+      }
+    }
+
+    // 돌린 뒤 목록을 다시 읽는다. 안 그러면 서버는 카드를 만들었는데 화면은 그대로다.
+    await 대기열읽기();
+    return { 감지: 감지수, 생성: 생성수 };
+  }, [현장이름, 대기열읽기]);
 
   /**
    * 빈 종이에서 시작한다.
@@ -460,6 +497,9 @@ export function RiskAssessmentPanel() {
       const 만든것 = body.assessment as Assessment;
       setAssessment(만든것);
       마지막저장본.current = 만든것;
+      // 방금 만든 평가서가 아래 목록에 뜨게 한다. 이걸 안 부르면 새로고침 전까지
+      // 진짜로 만든 것조차 안 보인다.
+      void 기록읽기();
     } catch (err) {
       set오류((err as Error).message);
     } finally {
@@ -562,7 +602,9 @@ export function RiskAssessmentPanel() {
         siteId={고른카드.siteId}
         현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
         닫기={() => set고른카드(null)}
-        카드끝남={(itemId) => set대기열((v) => v.filter((i) => i.itemId !== itemId))}
+        // 낙관적으로 빼지 않는다. 서버가 확정한 뒤 다시 읽어야 새로고침해도 같은
+        // 화면이 나온다 — 예전에는 배열에서만 빠져서 새로고침하면 카드가 돌아왔다.
+        카드끝남={() => void 대기열읽기()}
       />
     ) : null;
 
@@ -631,6 +673,7 @@ export function RiskAssessmentPanel() {
           기준시각={기준시각}
           // 대기열은 그대로 두고 오른쪽에 평가서가 열린다. 다음 카드로 바로 넘어갈 수 있다.
           선택={(item) => set고른카드(item)}
+          감지={감지돌리기}
         />
 
         {/* 감지 카드와 만든 평가서는 **다른 곳에 산다.** 탭이 "기록 목록"을 표방하므로

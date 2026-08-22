@@ -1,6 +1,8 @@
 "use client";
 
 import { 급함색, 기한문구, 종류라벨 } from "@/components/risk/derive";
+import { useState } from "react";
+
 import type { WorkItem } from "@/lib/board/types";
 
 /**
@@ -41,13 +43,100 @@ type 묶음 = "재평가" | "작성중" | "최신";
  * 그 숫자가 실제와 어긋나면 배지가 거짓말이 된다. 여기서는 대기열이 실제로 고른 것을 센다.
  */
 export function 재평가건수(항목들: WorkItem[]): number {
-  return 항목들.filter((i) => 위험성평가카드인가(i) && i.invalidates.length > 0).length;
+  return 항목들.filter((i) => 위험성평가카드인가(i) && 묶음판정(i) === "재평가").length;
 }
 
+/**
+ * 카드가 어느 열로 가는가.
+ *
+ * **끝난 카드가 먼저다.** 예전에는 `invalidates.length > 0` 만 보고 `status` 를 무시해서,
+ * 확정된 카드가 영원히 "재평가 필요"에 남았다 — `invalidates` 는 카드가 왜 올라왔는지를
+ * 적어 둔 것이라 카드를 끝내도 사라지지 않기 때문이다. 실제로 production 카드 37장 중
+ * 8장이 `done` 인데 그중 넷이 이 열에 앉아 있었고, 사람이 보기엔 아무리 처리해도 목록이
+ * 안 줄어드는 것과 같았다.
+ *
+ * `confirmedAt` 도 함께 본다. 잠금의 기준이 그것이기 때문이다
+ * (`lib/board/transition.ts:185`).
+ */
 function 묶음판정(item: WorkItem): 묶음 {
+  if (item.status === "done" || item.confirmedAt !== null) return "최신";
   if (item.invalidates.length > 0) return "재평가";
-  if (item.draft && item.status !== "done") return "작성중";
+  if (item.draft) return "작성중";
   return "최신";
+}
+
+
+/**
+ * 「지금 감지」 — 규칙 여덟 개를 실제로 돌린다.
+ *
+ * **누르기 전에 무슨 일이 일어나는지 먼저 말한다.** `scripts/seed-board.mjs:40-43` 이
+ * 명시적으로 경고한다 — *"이 현장에 POST /api/board/detect 를 부르면 안 된다. 부르는
+ * 순간 카드가 31장이 된다."* 시드로 준비한 시나리오 위에 생성 카드가 얹히기 때문이다.
+ * 데모 직전에 무심코 누르면 준비한 목록이 달라진다.
+ *
+ * 그래서 한 번 누르면 경고를 보이고, 한 번 더 눌러야 돈다.
+ *
+ * 이름만 영문이다 — `react-hooks/rules-of-hooks` 가 컴포넌트를 대문자로 시작하는 이름으로
+ * 알아본다. 이 파일의 `RiskQueue`·`RowCard` 와 같은 관례다.
+ *
+ * **반복은 안전하다.** `itemId` 가 (현장·규칙·근거서명)으로 결정적이라 같은 조건을 두 번
+ * 감지해도 저장소가 같은 행을 덮는다(`app/api/board/detect/route.ts:107` 주석).
+ * 카드가 두 장 생기지 않는 근거가 거기 있다.
+ */
+function DetectBar({
+  위험카드수,
+  감지,
+}: {
+  위험카드수: number;
+  감지: () => Promise<{ 감지: number; 생성: number } | string>;
+}) {
+  const [단계, set단계] = useState<"쉼" | "확인" | "도는중">("쉼");
+  const [결과, set결과] = useState<string | null>(null);
+
+  async function 돌리기() {
+    set단계("도는중");
+    set결과(null);
+    const r = await 감지();
+    // 문자열이면 실패 사유다. 숫자를 지어내지 않는다.
+    set결과(
+      typeof r === "string"
+        ? r
+        : `조건 ${r.감지}건을 찾아 카드 ${r.생성}장을 올렸습니다.`,
+    );
+    set단계("쉼");
+  }
+
+  return (
+    <div className="risk-detect">
+      <div className="risk-detect-bar">
+        <span>지금 보이는 위험성평가 카드 {위험카드수}장은 이미 감지된 것입니다.</span>
+        {단계 === "확인" ? (
+          <>
+            <button type="button" className="is-danger" onClick={() => void 돌리기()}>
+              그래도 돌린다
+            </button>
+            <button type="button" onClick={() => set단계("쉼")}>
+              취소
+            </button>
+          </>
+        ) : (
+          <button type="button" disabled={단계 === "도는중"} onClick={() => set단계("확인")}>
+            {단계 === "도는중" ? "감지 중…" : "지금 감지"}
+          </button>
+        )}
+      </div>
+
+      {단계 === "확인" ? (
+        <p className="risk-detect-warn">
+          규칙 여덟 개를 지금 시각으로 다시 돌립니다. 조건에 해당하는 카드가 <b>새로
+          올라와</b> 준비한 시나리오 목록이 달라집니다. 같은 조건을 다시 감지해도 카드가
+          늘지는 않습니다.
+        </p>
+      ) : null}
+
+      {결과 ? <p className="risk-detect-result">{결과}</p> : null}
+    </div>
+  );
 }
 
 const 묶음표시: Record<묶음, { 기호: string; 라벨: string }> = {
@@ -63,6 +152,7 @@ export default function RiskQueue({
   현장이름,
   선택,
   불러오는중,
+  감지,
   기준시각,
 }: {
   항목들: WorkItem[];
@@ -70,6 +160,8 @@ export default function RiskQueue({
   현장이름: Map<string, string>;
   선택: (item: WorkItem) => void;
   불러오는중: boolean;
+  /** 감지를 돌린다. 안 넘기면 버튼이 안 뜬다. */
+  감지?: () => Promise<{ 감지: number; 생성: number } | string>;
   /**
    * 기한 판정("16:30 지남")의 기준. **부모가 넘긴다.**
    * 렌더 중에 `Date.now()` 를 부르면 리렌더마다 판정이 달라져 화면이 스스로 흔들린다
@@ -96,6 +188,7 @@ export default function RiskQueue({
 
   return (
     <div className="risk-queue">
+      {감지 ? <DetectBar 위험카드수={위험카드.length} 감지={감지} /> : null}
       {순서.map((묶음이름) => {
         const 목록 = 묶인것.get(묶음이름)!;
         if (목록.length === 0) return null;
