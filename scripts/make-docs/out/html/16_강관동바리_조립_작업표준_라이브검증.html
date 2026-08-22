@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>강관동바리 조립 작업표준</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-WS-20260822</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)서진건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사 &nbsp;|&nbsp; 작업 단계 근거 문서</div>
+<h1>강관동바리 조립 작업표준</h1>
+
+<table class="doc-meta"><tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>문서번호</th><td>GGC-01-WS-20260822</td></tr>
+<tr><th>작 업 명</th><td>4층 슬래브 강관동바리 조립</td><th>적용 공종</th><td>골조공사 · 가설공사</td></tr>
+<tr><th>작성 업체</th><td>(주)서진건설</td><th>작업일자</th><td>2026-08-22</td></tr>
+<tr><th>적용 장비</th><td>체인블록, 수평계, 다림추</td><th>적용 자재</th><td>강관동바리, 수평연결재, 가새, U-Head</td></tr></table>
+
+<h2>1. 작업 전 확인사항</h2>
+<table class="grid "><colgroup><col style="width:28%"><col style="width:52%"><col style="width:20%"></colgroup><thead><tr><th>확인 항목</th><th>확인 기준</th><th>확인</th></tr></thead><tbody><tr><td class="c">작업구간 통제</td><td class="">출입금지 표지와 작업반경 통제를 설치하고 관계자에게 작업 범위를 알린다.</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">자재 상태</td><td class="">강관, 클램프, 받침, 가새의 변형·균열·누락 여부를 확인한다.</td><td class="c"><span class="blank sm"></span></td></tr>
+<tr><td class="c">작업발판</td><td class="">개구부 덮개와 안전난간을 확인하고 발판의 미끄럼·파손이 없음을 확인한다.</td><td class="c"><span class="blank sm"></span></td></tr></tbody></table>
+
+<h2>2. 작업 단계별 표준</h2>
+<p><b>추출 기준:</b> 각 행의 단계 ID·순서·작업내용·위험요인·안전조치·보호구는 같은 작업 단계의 정보다.</p>
+<table class="grid "><colgroup><col style="width:10%"><col style="width:6%"><col style="width:20%"><col style="width:22%"><col style="width:30%"><col style="width:12%"></colgroup><thead><tr><th>단계 ID</th><th>순서</th><th>작업내용</th><th>위험요인</th><th>안전조치</th><th>보호구</th></tr></thead><tbody><tr><td class="c">STEP-01</td><td class="c">1</td><td class="">작업구간 확인 및 작업 전 안전점검</td><td class="">작업발판 개구부·난간 미확인으로 인한 추락</td><td class="">작업구간 출입 전 개구부 덮개와 안전난간 설치 상태를 확인하고 이상 시 작업을 중지한다.</td><td class="">안전모, 안전화</td></tr>
+<tr><td class="c">STEP-02</td><td class="c">2</td><td class="">강관동바리 자재 운반 및 지정 적치</td><td class="">중량 자재 운반 중 끼임·전도 및 통로 장애</td><td class="">2인 1조로 운반하고 지정 적치선 안에 적치한다. 통로 폭 1.2m 이상을 유지한다.</td><td class="">안전모, 안전화, 작업장갑</td></tr>
+<tr><td class="c">STEP-03</td><td class="c">3</td><td class="">수직재·수평연결재 조립 및 가새 설치</td><td class="">조립 중 부재 낙하·전도 및 고소작업 추락</td><td class="">조립 순서도에 따라 수평연결재와 가새를 즉시 설치한다. 고소작업자는 안전대 걸이를 사용한다.</td><td class="">안전모, 안전대, 안전화, 작업장갑</td></tr>
+<tr><td class="c">STEP-04</td><td class="c">4</td><td class="">수직도·체결상태·받침부 최종 확인</td><td class="">체결 불량 또는 편심으로 인한 동바리 붕괴</td><td class="">작업반장과 안전관리자가 볼트 체결, 수직도 1/200 이내, 받침부 편심 여부를 합동 점검한다.</td><td class="">안전모, 안전화, 작업장갑</td></tr></tbody></table>
+<div class="legend">단계 ID는 작업표준 내에서 고유하며, 순서는 STEP-01부터 STEP-04까지 오름차순으로 적용한다.</div>
+
+<h2>3. 작업 중지 및 재개 기준</h2>
+<table class="grid "><colgroup><col style="width:34%"><col style="width:42%"><col style="width:24%"></colgroup><thead><tr><th>중지 사유</th><th>즉시 조치</th><th>재개 확인자</th></tr></thead><tbody><tr><td class="c">강풍·강우 또는 작업발판 미확보</td><td class="">작업을 중지하고 자재를 결속한 뒤 작업구간을 통제한다.</td><td class="c">현장소장 · 안전관리자</td></tr>
+<tr><td class="c">수직재 변형 또는 체결 불량 발견</td><td class="">불량 부재를 교체하고 재조립 후 수직도와 체결상태를 재점검한다.</td><td class="c">작업반장 · 안전관리자</td></tr></tbody></table>
+
+<h3>작업표준 확인 · 서명</h3><table class="sign-table"><tr><th>(주)서진건설 작성</th><th>(주)서진건설 작업반장</th><th>(주)한신종합건설 안전관리자</th><th>(주)한신종합건설 현장소장</th></tr><tr><td class="sign-cell"><span class="who">권상열</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">이재훈</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">박정우</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-WS-20260822
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

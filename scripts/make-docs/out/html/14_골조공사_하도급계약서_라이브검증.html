@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>건설공사 하도급계약서</title>
+<style>
+@page { size: A4; margin: 14mm 13mm 18mm 13mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Apple SD Gothic Neo", "AppleSDGothicNeo-Regular", "Malgun Gothic",
+               "Nanum Gothic", "Noto Sans KR", sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #111;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+h1 { font-size: 17pt; letter-spacing: 0.06em; text-align: center; margin: 2mm 0 1mm; }
+h2 { font-size: 11pt; margin: 6mm 0 2mm; padding-left: 2mm; border-left: 3px solid #111; }
+h3 { font-size: 9.8pt; margin: 4mm 0 1.5mm; color: #333; }
+p  { margin: 0 0 2mm; }
+small { font-size: 8pt; color: #555; }
+
+/* ── 고지 ───────────────────────────────────────────── */
+/* 쪽마다 반복시키려고 바깥 표의 thead 에 넣는다.
+   Chrome 의 --print-to-pdf 는 position:fixed 를 본문 상자 밖으로 밀면 잘라 버리는데,
+   display:table-header-group 은 매 쪽 위에 다시 그려 준다. 실측으로 확인했다 —
+   40mm 짜리 머리를 thead 에 넣으면 쪽수가 늘고, tbody 에 넣으면 늘지 않는다. */
+table.pageframe { width: 100%; border-collapse: collapse; }
+table.pageframe > thead { display: table-header-group; }
+table.pageframe > thead > tr > td { padding: 0 0 3mm 0; border: 0; }
+table.pageframe > tbody > tr > td { padding: 0; border: 0; }
+.notice-bar {
+  border: 1.2px solid #b00; color: #b00; background: #fff5f5;
+  font-size: 7.8pt; font-weight: 700; padding: 1.3mm 2mm; letter-spacing: 0.02em;
+  display: flex; justify-content: space-between; gap: 4mm;
+}
+.notice-bar .no { color: #888; font-weight: 400; white-space: nowrap; }
+
+/* ── 문서 머리 ───────────────────────────────────────── */
+.doc-meta { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; }
+.doc-meta th, .doc-meta td { border: 0.8px solid #444; padding: 1.4mm 2mm; font-size: 8.8pt; }
+.doc-meta th { background: #f0f0f0; width: 22mm; font-weight: 600; text-align: center; white-space: nowrap; }
+
+/* ── 일반 표 ─────────────────────────────────────────── */
+table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.grid th, table.grid td {
+  border: 0.7px solid #555; padding: 1.1mm 1.4mm; font-size: 8.1pt;
+  vertical-align: top; word-break: break-all; overflow-wrap: anywhere;
+}
+table.grid thead th { background: #e8e8e8; text-align: center; font-weight: 700; font-size: 8.1pt; word-break: keep-all; }
+table.grid thead { display: table-header-group; }
+table.grid tr { break-inside: avoid; }
+table.grid td.c { text-align: center; }
+table.grid td.r { text-align: right; }
+table.grid td.num, table.grid th.num { text-align: center; }
+tr.hi td { background: #fff8e1; }
+
+.blank {
+  display: inline-block; min-width: 14mm; height: 3.4mm;
+  border-bottom: 0.7px dotted #b0b0b0; vertical-align: middle;
+}
+.blank.sm { min-width: 6mm; }
+.chk { font-weight: 700; }
+
+/* ── 서명 · 도장 ─────────────────────────────────────── */
+.sign-table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+.sign-table th, .sign-table td { border: 0.7px solid #555; font-size: 8pt; padding: 0; }
+.sign-table th { background: #eee; padding: 1.2mm; text-align: center; white-space: nowrap; }
+.sign-cell { height: 13mm; position: relative; padding: 1.2mm !important; }
+.sign-cell .who { font-size: 8pt; }
+.sign-cell .rule {
+  position: absolute; left: 3mm; right: 10mm; bottom: 2.5mm;
+  border-bottom: 0.7px solid #999;
+}
+.sign-cell .seal {
+  position: absolute; right: 2mm; bottom: 1.5mm;
+  width: 9mm; height: 9mm; border: 0.8px dashed #c00; border-radius: 50%;
+  color: #c88; font-size: 5.6pt; text-align: center; line-height: 9mm;
+}
+.approval { border-collapse: collapse; float: right; margin: 0 0 2mm 3mm; }
+.approval th, .approval td { border: 0.7px solid #444; text-align: center; font-size: 7.4pt; }
+.approval th { background: #f0f0f0; padding: 1mm 2mm; white-space: nowrap; }
+.approval td { width: 17mm; height: 15mm; vertical-align: bottom; padding-bottom: 1mm; color: #999; font-size: 6.6pt; }
+
+/* ── 기타 ────────────────────────────────────────────── */
+.note { border: 0.7px solid #999; background: #fafafa; padding: 2mm 2.5mm; font-size: 8pt; margin: 2.5mm 0; }
+.note b { color: #b00; }
+.page-break { break-before: page; }
+ul.tight { margin: 0 0 2mm; padding-left: 5mm; }
+ul.tight li { margin-bottom: 0.6mm; font-size: 8.6pt; }
+.legend { font-size: 7.6pt; color: #666; margin-top: 1.5mm; }
+.stamp-recv {
+  float: right; width: 30mm; border: 0.8px solid #555; font-size: 7pt; text-align: center;
+  margin-left: 3mm;
+}
+.stamp-recv .hd { background: #eee; border-bottom: 0.8px solid #555; padding: 0.8mm; }
+.stamp-recv .bd { height: 14mm; color: #aaa; line-height: 14mm; }
+.clear { clear: both; }
+</style>
+</head><body>
+<table class="pageframe">
+<thead><tr><td>
+  <div class="notice-bar"><span>가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</span><span class="no">GGC-01-SUB-2026-014</span></div>
+</td></tr></thead>
+<tbody><tr><td>
+<div style="font-size:8.6pt;color:#444">(주)한신종합건설 &nbsp;|&nbsp; 김포 고촌 물류센터 신축공사</div>
+<h1>건설공사 하도급계약서</h1>
+
+<table class="doc-meta"><tr><th>계약번호</th><td>GGC-01-SUB-2026-014</td><th>계약일자</th><td>2026-08-20</td></tr>
+<tr><th>현 장 명</th><td>김포 고촌 물류센터 신축공사</td><th>하도급 업체명</th><td>(주)서진건설</td></tr>
+<tr><th>계약 공종</th><td>골조공사 · 철근콘크리트공사</td><th>공사기간</th><td>2026-08-24 ~ 2026-12-31</td></tr>
+<tr><th>계약금액</th><td>금 1,250,000,000원 (부가세 별도)</td><th>발주자</th><td>(주)한신종합건설</td></tr></table>
+
+<h2>1. 계약 대상 공사</h2>
+<table class="grid "><colgroup><col style="width:18%"><col style="width:42%"><col style="width:20%"><col style="width:20%"></colgroup><thead><tr><th>구분</th><th>계약 내용</th><th>장비</th><th>주요 자재</th></tr></thead><tbody><tr><td class="c">공종 1</td><td class="">철근 가공·조립 및 콘크리트 타설</td><td class="">타워크레인, 콘크리트 펌프카</td><td class="">철근, 레미콘</td></tr>
+<tr><td class="c">공종 2</td><td class="">거푸집 및 강관동바리 설치·해체</td><td class="">고소작업대</td><td class="">합판 거푸집, 강관동바리</td></tr></tbody></table>
+
+<h2>2. 계약 조건</h2>
+<table class="grid "><colgroup><col style="width:24%"><col style="width:76%"></colgroup><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td class="c">계약금액</td><td class="">금 1,250,000,000원 (부가세 별도)</td></tr>
+<tr><td class="c">공사기간</td><td class="">착공 2026-08-24 · 준공 2026-12-31</td></tr>
+<tr><td class="c">안전관리</td><td class="">현장 안전관리계획과 작업표준을 준수하고 TBM 및 순회점검에 참여한다.</td></tr>
+<tr><td class="c">계약 현장</td><td class="">김포 고촌 물류센터 신축공사 (GGC-01)</td></tr></tbody></table>
+
+<h3>계약 당사자 확인</h3><table class="sign-table"><tr><th>(주)한신종합건설 발주자</th><th>(주)서진건설 수급사업자</th></tr><tr><td class="sign-cell"><span class="who">황인철</span><span class="rule"></span><span class="seal">(서명)</span></td><td class="sign-cell"><span class="who">권상열</span><span class="rule"></span><span class="seal">(서명)</span></td></tr></table>
+
+<div style="margin-top:6mm;border-top:0.6px solid #999;padding-top:1.5mm;font-size:7.4pt;color:#666">
+  <b style="color:#b00">가상 시나리오이며 등장하는 회사와 인물과 문서와 금액은 모두 허구입니다.</b> 법적 근거는 조문 번호와 제목까지만 적는다. 조문 본문은 공식 원문 조회 결과로만 채운다. &nbsp;·&nbsp; 문서번호 GGC-01-SUB-2026-014
+</div>
+</td></tr></tbody>
+</table>
+</body></html>

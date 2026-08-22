@@ -12,6 +12,9 @@ import weather from "./weather-log.mjs";
 import nearMiss from "./near-miss.mjs";
 import notice from "./labor-notice.mjs";
 import ledger from "./approval-ledger.mjs";
+import liveSubcontract from "./live-subcontract.mjs";
+import livePatrol from "./live-patrol.mjs";
+import liveWorkStandard from "./live-work-standard.mjs";
 
 /** @type {Array<{id:string, 파일명:string, kind:string, 제목:string, 먹이는조건:string[], html:()=>string}>} */
 export const 문서목록 = [
@@ -27,6 +30,9 @@ export const 문서목록 = [
   nearMiss,
   notice,
   ledger,
+  liveSubcontract,
+  livePatrol,
+  liveWorkStandard,
 ];
 
 export default 문서목록;

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 for (const line of readFileSync(".env.local", "utf8").split("\n")) {
   const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
@@ -6,21 +6,26 @@ for (const line of readFileSync(".env.local", "utf8").split("\n")) {
 }
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
-const OUT = "lib/context/demo-fixture.json";
+const OUT = "lib/context/demo-fixtures.json";
 const pdfPath = process.argv[2];
 const kind = process.argv[3] ?? "하도급계약서";
 
 if (!pdfPath) {
-  console.error("사용법: node scripts/record-demo.mjs <문서.pdf> [종류]");
+  console.error("사용법: node scripts/record-demo.mjs <문서.pdf> [하도급계약서|위험성평가표|TBM회의록|작업표준|순회점검일지|기타]");
+  process.exit(1);
+}
+if (process.env.STUDIO_LIVE_INGEST_ENABLED !== "true") {
+  console.error("라이브 데모 녹화는 Gate B/C 완료 후 STUDIO_LIVE_INGEST_ENABLED=true 환경에서만 실행합니다.");
   process.exit(1);
 }
 
 const form = new FormData();
 form.append("file", new Blob([readFileSync(pdfPath)], { type: "application/pdf" }), pdfPath.split("/").pop());
-form.append("kind", kind);
-form.append("mode", "live");
 
-const created = await fetch(`${BASE}/api/context/ingest`, { method: "POST", body: form });
+const ingestUrl = new URL("/api/context/ingest", BASE);
+ingestUrl.searchParams.set("kind", kind);
+ingestUrl.searchParams.set("mode", "live");
+const created = await fetch(ingestUrl, { method: "POST", body: form });
 const job = await created.json();
 if (!created.ok) {
   console.error("업로드 실패", job);
@@ -56,17 +61,37 @@ if (!finished) {
   process.exit(1);
 }
 
-const fixture = {
-  recordedAt: new Date().toISOString(),
-  kind,
-  sourceFilename: pdfPath.split("/").pop(),
-  events: events.map((event) =>
-    event.종류 === "완료" ? { ...event, jobId: "", upstageCalls: 0 } : event,
-  ),
-};
+const provenance = finished.execution ?? finished.provenance;
+const mode = provenance?.mode;
+const cleanup = provenance?.cleanup ?? provenance?.cleanupStatus;
+const studioSteps = provenance?.steps ?? provenance?.studioSteps;
+const normalizedSteps = Array.isArray(studioSteps)
+  ? studioSteps.map((step) => String(step).toLowerCase())
+  : [];
+const hasGraph = ["parse", "extract_", "validate_", "review_"].every((prefix) =>
+  normalizedSteps.some((step) => step === prefix || step.startsWith(prefix)),
+);
+if (mode !== "studio" || !["success", "deleted"].includes(cleanup) || !hasGraph) {
+  console.error("완전한 Studio 워크플로만 녹화할 수 있습니다. Parse/Extract/Validate/Review, Studio 모드, cleanup=deleted 증명이 필요합니다.");
+  process.exit(1);
+}
+const extracted = events.find((e) => e.종류 === "단계" && e.단계.이름 === "필드추출")?.단계.산출;
+if (!extracted || typeof extracted !== "object" || Array.isArray(extracted)) {
+  console.error("종류별 추출 계약이 없어 녹화하지 않습니다.");
+  process.exit(1);
+}
 
-writeFileSync(OUT, JSON.stringify(fixture, null, 2) + "\n", "utf8");
-console.log(`\n${OUT} 에 이벤트 ${fixture.events.length}개 저장`);
+const existing = existsSync(OUT) ? JSON.parse(readFileSync(OUT, "utf8")) : { version: 1, fixtures: {} };
+const fixture = {
+  source: "recorded",
+  recordedAt: new Date().toISOString(),
+  recording: { agent: provenance.agent ?? "unknown", config: provenance.config ?? provenance.fingerprint ?? "unknown" },
+  extracted,
+  events: events.map((event) => event.종류 === "완료" ? { ...event, jobId: "", upstageCalls: 0 } : event),
+};
+existing.fixtures = { ...existing.fixtures, [kind]: fixture };
+writeFileSync(OUT, JSON.stringify(existing, null, 2) + "\n", "utf8");
+console.log(`\n${OUT} 에 ${kind} 이벤트 ${fixture.events.length}개 저장`);
 console.log("이 잡은 라이브로 돌았으므로 저장하지 않고 지웁니다.");
 
 const postgres = (await import("postgres")).default;

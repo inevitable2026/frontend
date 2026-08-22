@@ -30,6 +30,23 @@ function label(category: string): string {
   return CATEGORY_LABEL[category?.toLowerCase()] ?? category;
 }
 
+export function validatedRegions(regions: ParsedRegion[]): ParsedRegion[] {
+  return regions.flatMap((region) => {
+    if (!Number.isInteger(region.page) || region.page < 1 || !region.coordinates || region.coordinates.length < 3) {
+      return [];
+    }
+    const coordinates = region.coordinates.map(({ x, y }) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+    });
+    if (coordinates.some((point) => point === null)) return [];
+    const points = coordinates as Array<{ x: number; y: number }>;
+    const width = Math.max(...points.map((point) => point.x)) - Math.min(...points.map((point) => point.x));
+    const height = Math.max(...points.map((point) => point.y)) - Math.min(...points.map((point) => point.y));
+    return width > 0 && height > 0 ? [{ ...region, coordinates: points }] : [];
+  });
+}
+
 /**
  * 에이전트가 읽어낸 영역을 문서 지면 비율 그대로 그린다.
  *
@@ -40,16 +57,17 @@ function label(category: string): string {
  * pdf.js 를 들이지 않아도 된다.
  */
 export function ParseOverlay({ regions, agent, activeId, onHover }: Props) {
+  const safeRegions = useMemo(() => validatedRegions(regions), [regions]);
   const pages = useMemo(() => {
     const byPage = new Map<number, ParsedRegion[]>();
-    for (const region of regions) {
+    for (const region of safeRegions) {
       if (!region.coordinates?.length) continue;
       const list = byPage.get(region.page) ?? [];
       list.push(region);
       byPage.set(region.page, list);
     }
     return [...byPage.entries()].sort((a, b) => a[0] - b[0]);
-  }, [regions]);
+  }, [safeRegions]);
 
   const [page, setPage] = useState(1);
   const current = pages.find(([p]) => p === page) ?? pages[0];
@@ -64,7 +82,7 @@ export function ParseOverlay({ regions, agent, activeId, onHover }: Props) {
     <div className="overlay">
       <div className="overlay-head">
         <span className="overlay-agent">{agent ?? "에이전트"}</span>
-        <span className="overlay-count">영역 {regions.length}개</span>
+        <span className="overlay-count">유효 영역 {safeRegions.length}개</span>
         {pages.length > 1 ? (
           <div className="overlay-pages">
             {pages.map(([p]) => (
@@ -80,6 +98,10 @@ export function ParseOverlay({ regions, agent, activeId, onHover }: Props) {
           </div>
         ) : null}
       </div>
+
+      <p role="note" style={{ margin: "0 0 0.75rem" }}>
+        도식 레이아웃 — PDF 위에 겹쳐진 것이 아닙니다. (schematic layout—not overlaid on the PDF)
+      </p>
 
       <div className="overlay-sheet">
         {items.map((region) => {

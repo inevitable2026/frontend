@@ -1,0 +1,687 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "09c5c29978e8c8bc718e51f7ec07341cee0215f4f494d0cccd811fda35607a95",
+  "environment": "gate-a",
+  "release": "2026-08-22",
+  "ownership": {
+    "prefix": "sitectx-gatea-20260822",
+    "marker": "sitectx.studio.manifest/v1",
+    "noAdoption": true
+  },
+  "outputEnvelopeVersion": "studio-document-envelope/v1",
+  "responseParserVersion": "studio-response-parser/v2",
+  "runtimeOwnership": {
+    "studio": ["document-parse", "information-extract"],
+    "application": ["validation", "review"]
+  },
+  "fallbackPolicy": {
+    "default": "disabled",
+    "allowedReasons": ["documented_node_unavailable"]
+  },
+  "remoteRetention": {
+    "deleteOnTerminal": [
+      "success",
+      "failure",
+      "timeout",
+      "parse_error",
+      "fallback"
+    ]
+  },
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "baseDelayMs": 250,
+    "maxDelayMs": 2000,
+    "totalDeadlineMs": 60000
+  },
+  "commonFields": {
+    "업체명": {
+      "type": "string",
+      "description": "문서에 명시된 업체명",
+      "evidenceRequiredWhenPresent": true
+    },
+    "현장명": {
+      "type": "string",
+      "description": "문서에 명시된 현장명",
+      "evidenceRequiredWhenPresent": true
+    },
+    "공종": {
+      "type": "array",
+      "description": "문서에 언급된 공종",
+      "items": "string",
+      "unique": true
+    },
+    "장비": {
+      "type": "array",
+      "description": "문서에 언급된 장비",
+      "items": "string",
+      "unique": true
+    },
+    "자재": {
+      "type": "array",
+      "description": "문서에 언급된 자재",
+      "items": "string",
+      "unique": true
+    }
+  },
+  "contracts": [
+    {
+      "kind": "하도급계약서",
+      "agentLogicalName": "sitectx-gatea-20260822-contract",
+      "description": "하도급계약서 Parse, Extract; application validates and reviews",
+      "expectedConfigFingerprint": null,
+      "expectedConfigExternalId": null,
+      "steps": [
+        {
+          "logicalName": "parse",
+          "physicalStepId": null,
+          "type": "document-parse",
+          "is_first": true,
+          "data": { "output_formats": ["html", "markdown"] },
+          "next_steps": [{ "step_name": "extract_하도급계약서" }]
+        },
+        {
+          "logicalName": "extract_하도급계약서",
+          "physicalStepId": null,
+          "type": "information-extract",
+          "is_first": false,
+          "data": {
+            "model": "default",
+            "mode": "enhanced",
+            "confidence": true,
+            "location": true,
+            "location_granularity": "element",
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "subcontract_extract",
+                "schema": {
+                  "type": "object",
+                  "description": "하도급계약서에서 읽은 계약 맥락",
+                  "additionalProperties": false,
+                  "properties": {
+                    "업체명": {
+                      "type": "string",
+                      "description": "계약 당사 업체명"
+                    },
+                    "현장명": {
+                      "type": "string",
+                      "description": "계약 대상 현장명"
+                    },
+                    "공종": {
+                      "type": "array",
+                      "description": "계약 공종",
+                      "items": { "type": "string", "description": "공종명" }
+                    },
+                    "장비": {
+                      "type": "array",
+                      "description": "계약에 언급된 장비",
+                      "items": { "type": "string", "description": "장비명" }
+                    },
+                    "자재": {
+                      "type": "array",
+                      "description": "계약에 언급된 자재",
+                      "items": { "type": "string", "description": "자재명" }
+                    },
+                    "계약금액": {
+                      "type": "string",
+                      "description": "계약 금액 또는 금액 표현"
+                    },
+                    "공사기간": {
+                      "type": "string",
+                      "description": "계약 공사 기간"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "kind": "위험성평가표",
+      "agentLogicalName": "sitectx-gatea-20260822-assessment",
+      "description": "위험성평가표 Parse, Extract; application validates and reviews",
+      "expectedConfigFingerprint": null,
+      "expectedConfigExternalId": null,
+      "steps": [
+        {
+          "logicalName": "parse",
+          "physicalStepId": null,
+          "type": "document-parse",
+          "is_first": true,
+          "data": { "output_formats": ["html", "markdown"] },
+          "next_steps": [{ "step_name": "extract_위험성평가표" }]
+        },
+        {
+          "logicalName": "extract_위험성평가표",
+          "physicalStepId": null,
+          "type": "information-extract",
+          "is_first": false,
+          "data": {
+            "model": "default",
+            "mode": "enhanced",
+            "confidence": true,
+            "location": true,
+            "location_granularity": "element",
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "risk_assessment_extract",
+                "schema": {
+                  "type": "object",
+                  "description": "위험성평가표에서 읽은 위험과 저감조치",
+                  "additionalProperties": false,
+                  "properties": {
+                    "업체명": {
+                      "type": "string",
+                      "description": "평가 업체명"
+                    },
+                    "현장명": {
+                      "type": "string",
+                      "description": "평가 현장명"
+                    },
+                    "공종": {
+                      "type": "array",
+                      "description": "평가 공종",
+                      "items": { "type": "string", "description": "공종명" }
+                    },
+                    "장비": {
+                      "type": "array",
+                      "description": "평가 장비",
+                      "items": { "type": "string", "description": "장비명" }
+                    },
+                    "자재": {
+                      "type": "array",
+                      "description": "평가 자재",
+                      "items": { "type": "string", "description": "자재명" }
+                    },
+                    "평가항목ID": {
+                      "type": "array",
+                      "description": "위험 평가 항목 식별자 열; 같은 인덱스의 위험요인·위험도·저감조치 IDs와 한 행",
+                      "items": {
+                        "type": "string",
+                        "description": "평가 항목 식별자"
+                      }
+                    },
+                    "위험요인": {
+                      "type": "array",
+                      "description": "평가항목ID와 같은 인덱스의 위험 요인",
+                      "items": { "type": "string", "description": "위험 요인" }
+                    },
+                    "위험도": {
+                      "type": "array",
+                      "description": "평가항목ID와 같은 인덱스의 위험도; 없으면 빈 문자열",
+                      "items": {
+                        "type": "string",
+                        "description": "위험도 또는 빈 문자열"
+                      }
+                    },
+                    "평가항목저감조치IDs": {
+                      "type": "array",
+                      "description": "평가항목ID와 같은 인덱스의 저감조치 식별자 배열을 JSON 문자열로 직렬화한 값",
+                      "items": {
+                        "type": "string",
+                        "description": "저감조치 식별자 JSON 배열"
+                      }
+                    },
+                    "저감조치ID": {
+                      "type": "array",
+                      "description": "위험 저감조치 식별자 열; 같은 인덱스의 평가항목 IDs·내용·상태와 한 행",
+                      "items": {
+                        "type": "string",
+                        "description": "저감조치 식별자"
+                      }
+                    },
+                    "저감조치평가항목IDs": {
+                      "type": "array",
+                      "description": "저감조치ID와 같은 인덱스의 평가 항목 식별자 배열을 JSON 문자열로 직렬화한 값",
+                      "items": {
+                        "type": "string",
+                        "description": "평가 항목 식별자 JSON 배열"
+                      }
+                    },
+                    "저감조치내용": {
+                      "type": "array",
+                      "description": "저감조치ID와 같은 인덱스의 저감조치 내용",
+                      "items": {
+                        "type": "string",
+                        "description": "저감조치 내용"
+                      }
+                    },
+                    "저감조치상태": {
+                      "type": "array",
+                      "description": "저감조치ID와 같은 인덱스의 상태; 없으면 빈 문자열",
+                      "items": {
+                        "type": "string",
+                        "description": "저감조치 상태 또는 빈 문자열"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "kind": "TBM회의록",
+      "agentLogicalName": "sitectx-gatea-20260822-tbm",
+      "description": "TBM회의록 Parse, Extract; application validates and reviews",
+      "expectedConfigFingerprint": null,
+      "expectedConfigExternalId": null,
+      "steps": [
+        {
+          "logicalName": "parse",
+          "physicalStepId": null,
+          "type": "document-parse",
+          "is_first": true,
+          "data": { "output_formats": ["html", "markdown"] },
+          "next_steps": [{ "step_name": "extract_TBM회의록" }]
+        },
+        {
+          "logicalName": "extract_TBM회의록",
+          "physicalStepId": null,
+          "type": "information-extract",
+          "is_first": false,
+          "data": {
+            "model": "default",
+            "mode": "enhanced",
+            "confidence": true,
+            "location": true,
+            "location_granularity": "element",
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "tbm_extract",
+                "schema": {
+                  "type": "object",
+                  "description": "TBM회의록에서 읽은 회의 맥락",
+                  "additionalProperties": false,
+                  "properties": {
+                    "업체명": {
+                      "type": "string",
+                      "description": "회의 업체명"
+                    },
+                    "현장명": {
+                      "type": "string",
+                      "description": "회의 현장명"
+                    },
+                    "공종": {
+                      "type": "array",
+                      "description": "회의 공종",
+                      "items": { "type": "string", "description": "공종명" }
+                    },
+                    "장비": {
+                      "type": "array",
+                      "description": "회의에 언급된 장비",
+                      "items": { "type": "string", "description": "장비명" }
+                    },
+                    "자재": {
+                      "type": "array",
+                      "description": "회의에 언급된 자재",
+                      "items": { "type": "string", "description": "자재명" }
+                    },
+                    "일자": { "type": "string", "description": "회의 일자" },
+                    "참석자": {
+                      "type": "array",
+                      "description": "회의 참석자",
+                      "items": {
+                        "type": "string",
+                        "description": "참석자 이름 또는 역할"
+                      }
+                    },
+                    "중점위험요인": {
+                      "type": "string",
+                      "description": "회의에서 다룬 중점 위험 요인"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "kind": "작업표준",
+      "agentLogicalName": "sitectx-gatea-20260822-sop",
+      "description": "작업표준 Parse, Extract; application validates and reviews",
+      "expectedConfigFingerprint": null,
+      "expectedConfigExternalId": null,
+      "steps": [
+        {
+          "logicalName": "parse",
+          "physicalStepId": null,
+          "type": "document-parse",
+          "is_first": true,
+          "data": { "output_formats": ["html", "markdown"] },
+          "next_steps": [{ "step_name": "extract_작업표준" }]
+        },
+        {
+          "logicalName": "extract_작업표준",
+          "physicalStepId": null,
+          "type": "information-extract",
+          "is_first": false,
+          "data": {
+            "model": "default",
+            "mode": "enhanced",
+            "confidence": true,
+            "location": true,
+            "location_granularity": "element",
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "work_standard_extract",
+                "schema": {
+                  "type": "object",
+                  "description": "작업표준에서 읽은 작업 단계와 안전조치",
+                  "additionalProperties": false,
+                  "properties": {
+                    "업체명": {
+                      "type": "string",
+                      "description": "작업 업체명"
+                    },
+                    "현장명": {
+                      "type": "string",
+                      "description": "작업 현장명"
+                    },
+                    "공종": {
+                      "type": "array",
+                      "description": "작업 공종",
+                      "items": { "type": "string", "description": "공종명" }
+                    },
+                    "장비": {
+                      "type": "array",
+                      "description": "작업 장비",
+                      "items": { "type": "string", "description": "장비명" }
+                    },
+                    "자재": {
+                      "type": "array",
+                      "description": "작업 자재",
+                      "items": { "type": "string", "description": "자재명" }
+                    },
+                    "작업명": {
+                      "type": "string",
+                      "description": "표준 작업명"
+                    },
+                    "작업단계ID": {
+                      "type": "array",
+                      "description": "작업 단계 식별자 열; 모든 작업단계 병렬 열의 인덱스 기준",
+                      "items": {
+                        "type": "string",
+                        "description": "작업 단계 식별자"
+                      }
+                    },
+                    "작업순서": {
+                      "type": "array",
+                      "description": "작업단계ID와 같은 인덱스의 작업 순서 번호",
+                      "items": {
+                        "type": "string",
+                        "description": "양의 정수 작업 순서"
+                      }
+                    },
+                    "작업단계명": {
+                      "type": "array",
+                      "description": "작업단계ID와 같은 인덱스의 작업 단계명",
+                      "items": {
+                        "type": "string",
+                        "description": "작업 단계명"
+                      }
+                    },
+                    "작업단계위험요인": {
+                      "type": "array",
+                      "description": "작업단계ID와 같은 인덱스의 위험 요인; 없으면 빈 문자열",
+                      "items": {
+                        "type": "string",
+                        "description": "위험 요인 또는 빈 문자열"
+                      }
+                    },
+                    "작업단계통제조치": {
+                      "type": "array",
+                      "description": "작업단계ID와 같은 인덱스의 통제조치 배열을 JSON 문자열로 직렬화한 값",
+                      "items": {
+                        "type": "string",
+                        "description": "통제조치 JSON 배열"
+                      }
+                    },
+                    "작업단계보호구": {
+                      "type": "array",
+                      "description": "작업단계ID와 같은 인덱스의 보호구 배열을 JSON 문자열로 직렬화한 값",
+                      "items": {
+                        "type": "string",
+                        "description": "보호구 JSON 배열"
+                      }
+                    },
+                    "보호구": {
+                      "type": "array",
+                      "description": "문서 전체에 명시된 보호구",
+                      "items": { "type": "string", "description": "보호구" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "kind": "순회점검일지",
+      "agentLogicalName": "sitectx-gatea-20260822-patrol",
+      "description": "순회점검일지 Parse, Extract; application validates and reviews",
+      "expectedConfigFingerprint": null,
+      "expectedConfigExternalId": null,
+      "steps": [
+        {
+          "logicalName": "parse",
+          "physicalStepId": null,
+          "type": "document-parse",
+          "is_first": true,
+          "data": { "output_formats": ["html", "markdown"] },
+          "next_steps": [{ "step_name": "extract_순회점검일지" }]
+        },
+        {
+          "logicalName": "extract_순회점검일지",
+          "physicalStepId": null,
+          "type": "information-extract",
+          "is_first": false,
+          "data": {
+            "model": "default",
+            "mode": "enhanced",
+            "confidence": true,
+            "location": true,
+            "location_granularity": "element",
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "patrol_extract",
+                "schema": {
+                  "type": "object",
+                  "description": "순회점검일지에서 읽은 지적사항과 조치사항",
+                  "additionalProperties": false,
+                  "properties": {
+                    "업체명": {
+                      "type": "string",
+                      "description": "점검 업체명"
+                    },
+                    "현장명": {
+                      "type": "string",
+                      "description": "점검 현장명"
+                    },
+                    "공종": {
+                      "type": "array",
+                      "description": "점검 공종",
+                      "items": { "type": "string", "description": "공종명" }
+                    },
+                    "장비": {
+                      "type": "array",
+                      "description": "점검 장비",
+                      "items": { "type": "string", "description": "장비명" }
+                    },
+                    "자재": {
+                      "type": "array",
+                      "description": "점검 자재",
+                      "items": { "type": "string", "description": "자재명" }
+                    },
+                    "점검일자": {
+                      "type": "string",
+                      "description": "점검 일자"
+                    },
+                    "지적사항ID": {
+                      "type": "array",
+                      "description": "지적사항 식별자 열; 같은 인덱스의 내용·심각도·조치 IDs와 한 행",
+                      "items": {
+                        "type": "string",
+                        "description": "지적사항 식별자"
+                      }
+                    },
+                    "지적내용": {
+                      "type": "array",
+                      "description": "지적사항ID와 같은 인덱스의 지적 내용",
+                      "items": { "type": "string", "description": "지적 내용" }
+                    },
+                    "지적심각도": {
+                      "type": "array",
+                      "description": "지적사항ID와 같은 인덱스의 심각도; 없으면 빈 문자열",
+                      "items": {
+                        "type": "string",
+                        "description": "심각도 또는 빈 문자열"
+                      }
+                    },
+                    "지적사항조치IDs": {
+                      "type": "array",
+                      "description": "지적사항ID와 같은 인덱스의 조치사항 식별자 배열을 JSON 문자열로 직렬화한 값",
+                      "items": {
+                        "type": "string",
+                        "description": "조치사항 식별자 JSON 배열"
+                      }
+                    },
+                    "조치사항ID": {
+                      "type": "array",
+                      "description": "조치사항 식별자 열; 같은 인덱스의 지적 IDs·내용·상태·기한과 한 행",
+                      "items": {
+                        "type": "string",
+                        "description": "조치사항 식별자"
+                      }
+                    },
+                    "조치사항지적IDs": {
+                      "type": "array",
+                      "description": "조치사항ID와 같은 인덱스의 지적사항 식별자 배열을 JSON 문자열로 직렬화한 값",
+                      "items": {
+                        "type": "string",
+                        "description": "지적사항 식별자 JSON 배열"
+                      }
+                    },
+                    "조치내용": {
+                      "type": "array",
+                      "description": "조치사항ID와 같은 인덱스의 조치 내용",
+                      "items": { "type": "string", "description": "조치 내용" }
+                    },
+                    "조치상태": {
+                      "type": "array",
+                      "description": "조치사항ID와 같은 인덱스의 조치 상태; 없으면 빈 문자열",
+                      "items": {
+                        "type": "string",
+                        "description": "조치 상태 또는 빈 문자열"
+                      }
+                    },
+                    "조치기한": {
+                      "type": "array",
+                      "description": "조치사항ID와 같은 인덱스의 조치 기한; 없으면 빈 문자열",
+                      "items": {
+                        "type": "string",
+                        "description": "조치 기한 또는 빈 문자열"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "next_steps": []
+        }
+      ]
+    },
+    {
+      "kind": "기타",
+      "agentLogicalName": "sitectx-gatea-20260822-general",
+      "description": "기타 문서 Parse, Extract; application validates and reviews",
+      "expectedConfigFingerprint": null,
+      "expectedConfigExternalId": null,
+      "steps": [
+        {
+          "logicalName": "parse",
+          "physicalStepId": null,
+          "type": "document-parse",
+          "is_first": true,
+          "data": { "output_formats": ["html", "markdown"] },
+          "next_steps": [{ "step_name": "extract_기타" }]
+        },
+        {
+          "logicalName": "extract_기타",
+          "physicalStepId": null,
+          "type": "information-extract",
+          "is_first": false,
+          "data": {
+            "model": "default",
+            "mode": "enhanced",
+            "confidence": true,
+            "location": true,
+            "location_granularity": "element",
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "general_extract",
+                "schema": {
+                  "type": "object",
+                  "description": "기타 건설 문서에서 읽은 현장 맥락",
+                  "additionalProperties": false,
+                  "properties": {
+                    "업체명": {
+                      "type": "string",
+                      "description": "문서 업체명"
+                    },
+                    "현장명": {
+                      "type": "string",
+                      "description": "문서 현장명"
+                    },
+                    "공종": {
+                      "type": "array",
+                      "description": "문서 공종",
+                      "items": { "type": "string", "description": "공종명" }
+                    },
+                    "장비": {
+                      "type": "array",
+                      "description": "문서 장비",
+                      "items": { "type": "string", "description": "장비명" }
+                    },
+                    "자재": {
+                      "type": "array",
+                      "description": "문서 자재",
+                      "items": { "type": "string", "description": "자재명" }
+                    },
+                    "문서유형": {
+                      "type": "string",
+                      "description": "판별한 문서 유형"
+                    },
+                    "요약": {
+                      "type": "string",
+                      "description": "문서 핵심 요약"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "next_steps": []
+        }
+      ]
+    }
+  ]
+}

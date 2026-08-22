@@ -43,7 +43,7 @@ export function chunkElements(elements: LayoutElement[]): Chunk[] {
   let bufferIds: number[] = [];
 
   const flush = () => {
-    const text = buffer.trim();
+    const text = withHeading(heading, buffer.trim());
     buffer = "";
     const ids = bufferIds;
     bufferIds = [];
@@ -89,7 +89,12 @@ export function chunkElements(elements: LayoutElement[]): Chunk[] {
     bufferIds.push(element.id);
 
     while (buffer.length >= MAX_CHARS) {
-      const cut = buffer.lastIndexOf(". ", MAX_CHARS) + 1 || buffer.lastIndexOf("\n", MAX_CHARS) + 1 || MAX_CHARS;
+      const sentenceCut = buffer.lastIndexOf(". ", MAX_CHARS) + 1;
+      const newlineCut = buffer.lastIndexOf("\n", MAX_CHARS) + 1;
+      const candidate = sentenceCut || newlineCut || MAX_CHARS;
+      // The overlap must still advance the cursor. A leading punctuation/newline
+      // can otherwise yield cut=1 and slice from zero forever.
+      const cut = candidate <= OVERLAP ? MAX_CHARS : candidate;
       out.push({
         seq: out.length,
         page: bufferPage,
