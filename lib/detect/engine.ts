@@ -184,9 +184,21 @@ export function runRules(input: RunRulesInput): Detection[] {
 
 // 같은 조건이 같은 서명을 내야 두 번 돌려도 카드가 두 장 생기지 않는다. 그래서 서명에는
 // 실행 시각(now)이 들어가지 않고 근거의 좌표만 들어간다.
+//
+// 시각은 **표기가 아니라 순간** 으로 넣는다. 같은 순간이 경로에 따라 다른 글자로 오기
+// 때문이다 — 규칙이 방금 만든 근거는 저장소가 준 "2026-08-18T14:33:40+09:00" 을 들고
+// 있고, 저장했다 다시 읽은 근거는 jsonb 가 돌려준 "2026-08-18T05:33:40.000Z" 를 들고
+// 있다. 글자로 비교하면 두 서명이 갈라지고, 그러면 "이미 만든 조건인가" 를 묻는 게이트가
+// 언제나 아니라고 답해 같은 조건에 카드가 실행할 때마다 쌓인다. 실제로 그렇게 됐었다.
+/** 시각을 표기와 무관한 열쇠로 바꾼다. 파싱되지 않는 값은 글자 그대로 쓴다 */
+function 시각열쇠(observedAt: string): string {
+  const t = Date.parse(observedAt);
+  return Number.isFinite(t) ? String(t) : observedAt;
+}
+
 export function detectionSignature(detection: Detection): string {
   const evidence = detection.evidence
-    .map((item) => `${item.factType}:${item.key}:${item.observedAt}`)
+    .map((item) => `${item.factType}:${item.key}:${시각열쇠(item.observedAt)}`)
     .sort()
     .join("|");
   const invalidated = detection.invalidates
@@ -280,9 +292,23 @@ export function toWorkItems(detection: Detection, options: ToWorkItemsOptions): 
   const laneStep = options.laneStep ?? 1000;
   const laneSeq = new Map<WorkItemStatus, number>();
 
-  const idOf = (key: string) => `card_${ruleSlug(detection.ruleId)}_${key}_${signature}`;
+  /**
+   * itemId 는 (규칙 · 근거 서명 · 자리 번호)로만 짓는다.
+   *
+   * 계획의 key 를 쓰지 않는 이유가 있다. 그 값은 모델이 짓는 이름이라 같은 조건을 다시
+   * 생성하면 `minutes` 가 `ra_minutes` 가 되고 `letter` 가 `official_letter` 가 된다.
+   * itemId 가 거기 기대면 재생성이 upsert 가 아니라 **새 카드 무더기**가 되고, 조건 하나에
+   * 카드가 열네 장 쌓인 보드를 담당자가 보게 된다. 실제로 그렇게 됐었다.
+   *
+   * 자리 번호는 계획 안의 순서다. 재생성으로 카드 수가 줄면 뒷자리가 남지만, 그건 남은
+   * 카드가 보이는 것이지 같은 일이 두 장으로 갈라지는 것과는 무게가 다르다.
+   */
+  const idOf = (index: number) => `card_${ruleSlug(detection.ruleId)}_${signature}_${index}`;
 
-  return cards.map((card) => {
+  // 계획은 서로를 key 로 가리킨다. blockedBy 는 itemId 여야 하므로 여기서 자리 번호로 푼다.
+  const 자리 = new Map<string, number>(cards.map((card, index) => [card.key, index]));
+
+  return cards.map((card, index) => {
     const seq = laneSeq.get(card.status) ?? 0;
     laneSeq.set(card.status, seq + 1);
 
@@ -296,7 +322,7 @@ export function toWorkItems(detection: Detection, options: ToWorkItemsOptions): 
     };
 
     return {
-      itemId: idOf(card.key),
+      itemId: idOf(index),
       siteId: detection.siteId,
       timing: timingOf(detection.ruleId),
       status: card.status,
@@ -313,7 +339,10 @@ export function toWorkItems(detection: Detection, options: ToWorkItemsOptions): 
       estimatedMinutes: card.estimatedMinutes,
       assignee: options.assignee ?? null,
       delegable: card.delegable,
-      blockedBy: card.blockedByKeys.map(idOf),
+      blockedBy: card.blockedByKeys
+        .map((key) => 자리.get(key))
+        .filter((i): i is number => i !== undefined)
+        .map(idOf),
       laneOrder: laneStart + seq * laneStep,
       createdAt: stamp,
       updatedAt: stamp,
