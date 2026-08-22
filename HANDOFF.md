@@ -11,6 +11,8 @@ Postgres 에 넣는다.** 어느 현장 문서인지는 문서에서 뽑은 현�
 
 ```
 components/site-context-panel.tsx    탭 화면 전부
+components/parse-overlay.tsx         에이전트가 읽은 영역 상자
+lib/context/studio.ts                Studio 에이전트 호출
 lib/context/upstage-doc.ts           파싱 · 추출 · 임베딩
 lib/context/chunk.ts                 청킹
 lib/context/site-match.ts            현장 자동 판정
@@ -29,13 +31,15 @@ app/api/context/…                    ingest · ingest/[jobId]/stream · docume
 | 빌드 / 타입 / 린트 | 통과 (`npm run build`, `npm run typecheck`, `npm run lint`) |
 | 인제스트 | 실호출 통과 — 아래 "검증된 것" |
 | 저장된 문서 | **16건** (현장 4 × 종류 4 · 청크 112) |
-| 데모 모드 | **미구현.** 토글은 보이지만 `mode` 를 파이프라인이 쓰지 않는다 |
+| 데모 모드 | 동작함. Upstage 호출 0회 · 저장 차단 (아래) |
 | 인증 | **없다.** 의도된 결정이고 아래 위험에 적었다 |
 
 ### 검증된 것 (실호출, 2026-08-22)
 
 ```
-업로드 → 스트림 → 저장  8/8 단계 · 청크 11 · upstageCalls 3 · 추천 신뢰도 1.0
+라이브                  8/8 단계 26.5s · upstageCalls 3 · 저장 201
+데모                    8/8 단계 10.4s · upstageCalls 0 · 저장 409 (거부)
+                        데모 실행 후 문서함 16건 그대로 — 오염 없음
 문서 목록               4종 × 4현장 정확히 분리, siteId+kind 필터 동작
 검색                    "굴착 붕괴" → 토공사 현장 3문서 (0.517/0.496/0.493)
                         철골 현장으로 좁히면 토공사 청크 사라짐 — 현장 격리 확인
@@ -92,6 +96,58 @@ SSE 이벤트 세 가지 (`lib/context/types.ts` 의 `IngestEvent`):
 **`레이아웃분석` 산출의 `coordinates` 가 0~1 로 정규화된 네 꼭짓점이다.** 올린 PDF 위에 박스를
 그려 "이 값이 저 자리에서 나왔다"를 보여줄 수 있다. 지금 화면은 아직 안 쓰고 있다 — 붙일 값이 있다.
 
+## Studio 에이전트
+
+문서 종류마다 **전용 Studio 에이전트**가 붙는다. 화면의 `레이아웃분석` 단계 카드에 어느
+에이전트가 읽었는지 뜨고, 그 아래 지면 그림에 읽어낸 영역이 상자로 그려진다.
+
+| 종류 | 에이전트 | 역할 |
+| --- | --- | --- |
+| 하도급계약서 | `sitectx-contract` | 계약 조항·금액·공기 판독 |
+| 위험성평가표 | `sitectx-assessment` | 평가표 행·위험도 판독 |
+| TBM회의록 | `sitectx-tbm` | 참석자·중점위험 판독 |
+| 작업표준 | `sitectx-sop` | 작업단계·보호구 판독 |
+| 순회점검일지 | `sitectx-patrol` | 지적사항·조치 판독 |
+| 기타 | `sitectx-general` | 일반 문서 판독 |
+
+```bash
+node scripts/provision-agents.mjs   # 멱등. 없는 것만 만든다
+```
+
+### 왜 에이전트를 나눴나 — 체인이 안 돈다
+
+하나의 에이전트에 `document-parse → information-extract` 를 체인으로 엮는 것이 이상적이고
+Studio UI 도 그런 config 를 만들어 준다. **그런데 런타임이 그 체인을 실행하지 못한다:**
+
+```
+Step 'parse' next_steps references unknown step 'None'. Defined steps: ['extract', 'parse']
+```
+
+확인한 것 (2026-08-22 실측):
+
+- `next_steps` 참조 형식 세 가지(`[{id,name}]` · `[{name}]` · `[{id}]`)를 모두 시도 — 전부 같은 실패
+- config publish 는 API 에 없다 (`/publish` 404, `PATCH published_config_id` 는 200 이지만 반영 안 됨)
+- `information-extract` · `document-classify` · `instruct` · `schema-generate` 는 단독 실행 시
+  전부 `parse_result is required` — 즉 체인 없이는 쓸 수 없다
+- **단독으로 도는 스텝은 `document-parse` 하나뿐이다** (실측 7~8초, coordinates 포함)
+
+그래서 역할별 단일 스텝 에이전트를 나눠 두고 **파이프라인이 종류에 맞는 것을 골라 부른다.**
+Studio 가 체인을 고치면 각 에이전트에 extract 스텝만 이어 붙이면 되도록 형태를 맞춰 뒀다.
+
+가용한 스텝 타입 전체 (오류 메시지에서 확인):
+`class-generate · class-update · document-classify · document-parse · export ·
+information-extract · instruct · instruct-generate · match · merge · review ·
+schema-generate · schema-update · validate`
+
+**스텝 ID 는 계정 전역에서 유일해야 한다.** 재사용하면 409 로 막힌다 — 프로비저닝 스크립트가
+`randomUUID()` 를 쓰는 이유다.
+
+### 필드 추출은 왜 직접 API 인가
+
+위 이유로 Studio 의 `information-extract` 를 단독으로 못 쓴다. `/v1/information-extraction` 을
+직접 부르고 문서 종류별 스키마를 넘긴다. Upstage 안내에 따르면 Studio 외 API 사용은
+서비스 완성도 관점에서 평가되므로, 역할에 맞게 쓰는 것 자체는 문제가 없다.
+
 ## 왜 이 모양인가
 
 **청크가 문서보다 먼저 생긴다.** `documents.site_id` 는 NOT NULL 인데 그 값을 사람이 고른다.
@@ -107,6 +163,30 @@ Upstage 임베딩이 4096 이라 어느 쪽으로도 안 들어간다. 지금 �
 recall 도 100% 다. 느려지면 표현식 인덱스로 한 줄이면 붙는다:
 `CREATE INDEX ... USING hnsw ((binary_quantize(embedding)::bit(4096)) bit_hamming_ops)`.
 `bit` 의 hamming 상한이 64000 차원이라 4096 이 들어간다. **전환 신호는 행 수가 아니라 p95 지연 300ms.**
+
+## 데모 모드
+
+무대에서 네트워크가 흔들려도 화면이 멎지 않게 하는 경로다.
+
+- **올린 파일은 그대로 보인다.** 미리보기는 `URL.createObjectURL` 이라 브라우저 안에서 끝난다.
+- **분석 결과는 고정이다.** `lib/context/demo-fixture.json` 을 재생한다. 8단계가 순서대로 켜지고
+  소요시간은 녹화값의 1/4 로 줄여 보여준다(0.3~2.6초 사이로 자른다).
+- **Upstage 호출 0회.** `ingest_jobs.upstage_calls` 가 0 으로 남는다 — 브라우저 네트워크 탭으로는
+  증명할 수 없다. Upstage 호출은 서버에서 나가므로 라이브 모드에서도 탭에 뜨지 않기 때문이다.
+- **저장이 막힌다.** 고정 결과를 문서함에 넣으면 사실이 아닌 항목이 남는다. 저장 API 가 409 를
+  주고 화면도 저장 버튼 대신 안내를 띄운다.
+- 화면 상단에 데모라는 것과 무엇이 고정인지 항상 적혀 있다.
+
+### 픽스처를 다시 녹화하려면
+
+```bash
+npm run dev
+node scripts/record-demo.mjs <문서.pdf> [종류]
+```
+
+**손으로 쓰지 마라.** 라이브 실행에서 뽑아야 이벤트 형태가 라이브와 같다는 게 검증된 사실이 된다.
+스크립트는 완료 이벤트가 없으면 저장하지 않고, 녹화에 쓴 잡은 지운다.
+Vercel 파일시스템은 읽기 전용이라 **로컬에서만** 돈다 — 픽스처는 커밋해서 번들에 싣는다.
 
 ## 함정
 
@@ -135,12 +215,8 @@ recall 도 100% 다. 느려지면 표현식 인덱스로 한 줄이면 붙는다
 
 ## 남은 일
 
-- **데모 모드.** 토글은 화면에 있지만 `mode` 를 파이프라인이 쓰지 않는다. `mode=demo` 로 올려도
-  Upstage 를 실제로 부른다. 무대에서 그 버튼을 쓸 계획이면 이것부터.
-  픽스처는 **손으로 쓰지 말고 라이브 실행을 녹화해서** 만들 것 — 그래야 이벤트 스키마가 라이브와
-  같다는 게 검증된 사실이 된다. 녹화는 로컬에서만 된다(Vercel 파일시스템은 읽기 전용).
-- **레이아웃 박스 오버레이.** `coordinates` 는 이미 온다. PDF 미리보기 위에 겹치면
-  "이 값이 저 자리에서 나왔다"가 화면에서 증명된다.
+- **Studio 체인.** 부스에 물어보고 되는 방법이 있으면 각 에이전트에 extract 스텝을 이어라.
+  그러면 "여러 Studio 기능을 실제 workflow 로 엮는 구조"가 된다.
 - **챗봇에 문서 검색 툴 붙이기.** `POST /api/context/search` 의 `citations[]` 가
   `documentId · title · page · excerpt · score · source` 로 나간다. 법령 툴 옆에
   `search_site_documents` 를 하나 더 다는 형태가 자연스럽다 — 법은 국가법령정보센터에서,

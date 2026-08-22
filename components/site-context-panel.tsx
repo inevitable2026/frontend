@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import {
   DOCUMENT_KINDS,
   STAGE_ORDER,
@@ -67,6 +68,8 @@ export function SiteContextPanel() {
   const [upstageCalls, setUpstageCalls] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [ranAsDemo, setRanAsDemo] = useState(false);
+  const [activeRegion, setActiveRegion] = useState<number | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -129,6 +132,7 @@ export function SiteContextPanel() {
     setChosenSiteId("");
     setUpstageCalls(0);
     setMessage(null);
+    setRanAsDemo(mode === "demo");
 
     const form = new FormData();
     form.append("file", file);
@@ -212,6 +216,9 @@ export function SiteContextPanel() {
     await Promise.all([loadSites(), loadDocuments()]);
   }
 
+  const layout = stages.find((s) => s.이름 === "레이아웃분석")?.산출 as
+    | { agent?: string; agentId?: string; 역할?: string; 요소?: ParsedRegion[]; 요소수?: number }
+    | undefined;
   const extracted = stages.find((s) => s.이름 === "필드추출")?.산출 as ExtractedFields | undefined;
   const chunkPreview = stages.find((s) => s.이름 === "청킹")?.산출 as
     | { 청크수: number; 미리보기: Array<{ seq: number; page: number; text: string }> }
@@ -239,7 +246,14 @@ export function SiteContextPanel() {
             </button>
           ))}
         </div>
-      </header>
+        </header>
+
+      {mode === "demo" ? (
+        <p className="context-demo-note">
+          데모 모드입니다. 올린 파일은 화면에 그대로 보이지만 <b>분석 결과는 미리 녹화해 둔 고정
+          응답</b>이고 Upstage 를 호출하지 않습니다. 고정 결과는 문서함에 저장하지 않습니다.
+        </p>
+      ) : null}
 
       <section className="context-upload">
         <label>
@@ -284,6 +298,21 @@ export function SiteContextPanel() {
             )}
           </div>
 
+          {layout?.요소?.length ? (
+            <div className="context-regions">
+              <h2>
+                읽어낸 영역
+                {layout.역할 ? <span className="context-role">{layout.역할}</span> : null}
+              </h2>
+              <ParseOverlay
+                regions={layout.요소}
+                agent={layout.agent ?? null}
+                activeId={activeRegion}
+                onHover={setActiveRegion}
+              />
+            </div>
+          ) : null}
+
           <ol className="stage-list">
             {stages.map((stage) => (
               <li key={stage.이름} className={`stage stage--${stage.상태}`}>
@@ -292,6 +321,9 @@ export function SiteContextPanel() {
                 <span className="stage-meta">
                   {stage.상태 === "실행중" ? "실행중" : seconds(stage.소요ms)}
                 </span>
+                {stage.이름 === "레이아웃분석" && layout?.agent ? (
+                  <span className="stage-agent">{layout.agent}</span>
+                ) : null}
                 {stage.실패사유 ? <p className="stage-error">{stage.실패사유}</p> : null}
               </li>
             ))}
@@ -316,7 +348,16 @@ export function SiteContextPanel() {
         </section>
       ) : null}
 
-      {phase === "done" ? (
+      {phase === "done" && ranAsDemo ? (
+        <section className="context-save">
+          <p className="context-note">
+            데모 모드 결과라 저장하지 않습니다. Upstage 호출 {upstageCalls}회 —
+            네트워크를 타지 않았다는 뜻입니다. 실제로 문서함에 넣으려면 라이브 모드로 다시 올리세요.
+          </p>
+        </section>
+      ) : null}
+
+      {phase === "done" && !ranAsDemo ? (
         <section className="context-save">
           <label>
             저장할 현장
