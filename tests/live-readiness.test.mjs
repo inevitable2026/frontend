@@ -448,3 +448,66 @@ test("every disabled reason is admin-readable, distinct, and keeps its cause in 
   }
   assert.equal(reasons.size, causes.length);
 });
+
+/**
+ * 프로덕션에서 자격 범위 영수증을 받아 주는 조건.
+ *
+ * 이 계정에는 Studio 프로젝트가 없어(`/v2/agents` 의 `project_id` 가 전부 null,
+ * `/v2/projects` 는 404) `api-project-id/v1` 증명을 만들 수 없다. 그래서 두 겹 구조를
+ * 키 지문 + 별도 환경변수로 옮겼다. **영수증만으로는 절대 열리지 않는다** 는 것이 요점이다.
+ */
+test("프로덕션에서는 별도 승낙 없이 자격 범위 영수증이 통하지 않는다", async () => {
+  await withEnv(
+    {
+      ...게이트환경(),
+      NODE_ENV: "production",
+      STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED: "true",
+      STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION: undefined,
+    },
+    async () => {
+      const readiness = await getStudioLiveReadiness(NOW, 하트비트());
+      assert.equal(readiness.enabled, false);
+      if (readiness.enabled) return;
+      // 로컬용 변수가 켜져 있어도 프로덕션에서는 그것으로 열리지 않는다.
+      assert.match(readiness.detail, /STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION/);
+    },
+  );
+});
+
+test("프로덕션 승낙이 있어도 키가 다르면 열리지 않는다", async () => {
+  // 두 겹 중 하나만으로는 안 된다. 다른 키로 발급한 영수증은 통하지 않는다.
+  await withEnv(
+    {
+      ...게이트환경(),
+      NODE_ENV: "production",
+      STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION: "true",
+      UPSTAGE_API_KEY: "rotated-upstage-key",
+    },
+    async () => assert.equal((await getStudioLiveReadiness(NOW, 하트비트())).enabled, false),
+  );
+});
+
+test("프로덕션 승낙과 키가 모두 맞으면 열린다", async () => {
+  await withEnv(
+    {
+      ...게이트환경(),
+      NODE_ENV: "production",
+      STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION: "true",
+      UPSTAGE_API_KEY: KEY,
+    },
+    async () => assert.equal((await getStudioLiveReadiness(NOW, 하트비트())).enabled, true),
+  );
+});
+
+test("개발 환경은 프로덕션 승낙이 아니라 로컬 승낙을 본다", async () => {
+  // 프로덕션용 변수만 켜 두고 로컬 변수를 끄면, 개발 환경에서는 열리지 않아야 한다.
+  await withEnv(
+    {
+      ...게이트환경(),
+      NODE_ENV: "development",
+      STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED: undefined,
+      STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION: "true",
+    },
+    async () => assert.equal((await getStudioLiveReadiness(NOW, 하트비트())).enabled, false),
+  );
+});

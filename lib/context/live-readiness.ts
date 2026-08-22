@@ -314,12 +314,47 @@ export async function getStudioLiveReadiness(
         "Receipt projectIdentity does not match STUDIO_EXPECTED_PROJECT_ID.",
       );
     }
-  } else if (process.env.NODE_ENV === "production" || process.env.STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED !== "true") {
-    return disabled(
-      "이 서버에서는 개발용 접속 설정으로 문서를 분석할 수 없습니다. 시스템 담당자에게 문의해 주세요.",
-      "localhost credential scope needs an explicit non-production opt-in.",
-    );
   } else {
+    /*
+     * 자격 범위(credential-scope) 영수증을 어디서 받아 줄 것인가.
+     *
+     * 원래는 **프로덕션에서 무조건 거절**했다. 이유가 있다: `api-project-id/v1` 은 영수증을
+     * 특정 Studio 프로젝트에 묶어서, 개발 프로젝트로 발급한 영수증이 운영 프로젝트를 열지
+     * 못하게 한다. 자격 범위는 그 구분을 못 한다.
+     *
+     * **그런데 이 계정에는 프로젝트가 없다.** 실측:
+     *
+     *   GET /v2/agents      에이전트 16개, `project_id` 가 전부 null
+     *   GET /v2/projects    404          (/me · /account 도 404)
+     *
+     * 관측할 project id 가 없으므로 그 증명은 만들 수 없다. 없는 값을 적어 넣으면 게이트가
+     * 지키려던 것이 바로 그 자리에서 무너진다.
+     *
+     * 그래서 통제를 없애지 않고 **같은 모양으로 옮겼다.** `api-project-id` 가 지키던 것은
+     * "영수증과 서버가 서로 다른 곳에서 각자 선언한 값이 일치해야 한다" 는 두 겹 구조다.
+     * 여기서도 두 겹을 요구한다:
+     *
+     *   ① 영수증의 `credentialScope.keyFingerprint` 가 **이 서버가 지금 든 키**와 같을 것
+     *      — 다른 키로 발급한 영수증은 통하지 않는다
+     *   ② 프로덕션이라면 `STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION` 을 **따로** 켤 것
+     *      — 영수증만으로는 절대 열리지 않는다. 사람이 배포 환경에 손으로 켜야 한다
+     *
+     * 이름을 길게 지은 것은 일부러다. 이 변수가 켜져 있다는 것은 **프로젝트 단위 격리 없이
+     * 열려 있다** 는 뜻이고, 환경변수 목록을 보는 사람이 그것을 읽을 수 있어야 한다.
+     * 프로젝트가 생기면 `api-project-id/v1` 로 되돌아가고 이 변수를 지운다.
+     */
+    const 프로덕션 = process.env.NODE_ENV === "production";
+    const 열어둠 = 프로덕션
+      ? process.env.STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION === "true"
+      : process.env.STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED === "true";
+    if (!열어둠) {
+      return disabled(
+        "이 서버에서는 개발용 접속 설정으로 문서를 분석할 수 없습니다. 시스템 담당자에게 문의해 주세요.",
+        프로덕션
+          ? "credential scope needs STUDIO_ALLOW_CREDENTIAL_SCOPE_IN_PRODUCTION on a production deployment."
+          : "localhost credential scope needs an explicit non-production opt-in.",
+      );
+    }
     const key = process.env.UPSTAGE_API_KEY;
     const expectedFingerprint = key ? `sha256:${createHash("sha256").update(key).digest("hex")}` : "";
     if (!expectedFingerprint || receipt.credentialScope?.keyFingerprint !== expectedFingerprint) {
