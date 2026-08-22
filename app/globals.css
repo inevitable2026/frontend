@@ -4538,7 +4538,17 @@ button {
 
 .risk-queue {
   display: grid;
-  gap: 28px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+/* 세 묶음을 세로로 쌓으면 화면이 길어지고 카드 한 장이 가로로 늘어난다.
+   보드 칸반처럼 열로 놓으면 둘 다 해결된다 — 한 열이 좁아 글줄도 저절로 짧아진다. */
+@media (max-width: 1023px) {
+  .risk-queue {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .risk-queue-empty {
@@ -4883,3 +4893,168 @@ button {
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* --- 읽기 폭 ------------------------------------------------------------
+   보드 카드는 칸반 3열 안에 있어 한 열이 370px 남짓이다. 그래서 원래는 한 줄이
+   길어질 일이 없었다. 목록으로 펴면서 954px 이 되어 한 줄에 74~78자가 들어갔다 —
+   한글 읽기 적정선(35~45자)의 두 배다.
+
+   패널 폭(960px)은 그대로 두고 **글 블록만** 좁힌다. 카드 테두리까지 좁히면
+   태그·기한 같은 오른쪽 정렬 요소가 갈 곳을 잃는다.
+
+   단위는 `em` 이다. `ch` 는 숫자 "0" 의 폭이라 한글의 절반쯤이고, `46ch` 로 뒀다가
+   29자로 좁아졌다. 한글 글자는 대략 `1em` 이므로 `em` 이 글자 수와 맞는다.
+   ------------------------------------------------------------------------ */
+
+.risk-queue-card .board-card-title,
+.risk-queue-card .board-card-note,
+.risk-queue-card .board-card-why,
+.risk-queue-card .board-card-blocked,
+.risk-row .board-card-title,
+.risk-row .board-card-note,
+.risk-row .board-draft-value,
+.risk-ws-why,
+.risk-ws-invalidates li,
+.risk-tl-why,
+.risk-tl-invalid {
+  max-width: 42em;
+}
+
+/* 대기열이 열로 서면 열 자체가 좁으므로 상한을 풀어 준다. 두 번 좁히면 글자가 갇힌다. */
+.risk-queue-card .board-card-title,
+.risk-queue-card .board-card-note,
+.risk-queue-card .board-card-why,
+.risk-queue-card .board-card-blocked {
+  max-width: none;
+}
+
+/* 여러 줄이 되는 곳은 줄 간격도 같이 넉넉하게. */
+.risk-queue-card .board-card-note,
+.risk-queue-card .board-card-why,
+.risk-row .board-draft-value {
+  line-height: 1.65;
+}
+
+/* --- 현장 시간축 --------------------------------------------------------- */
+
+.risk-site-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.risk-site-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.risk-site-bar button:hover { border-color: var(--purple-primary); }
+
+.risk-site-bar button em {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.risk-timeline { display: grid; gap: 24px; }
+
+.risk-tl-day h3 {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.risk-tl-day ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 시간축의 선. 항목 사이를 잇는다 — 마지막 항목만 선이 끊긴다. */
+.risk-tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.risk-tl-item::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  left: 11px;
+  width: 1px;
+  background: var(--border-soft);
+}
+
+.risk-tl-item:last-child::before { display: none; }
+
+.risk-tl-mark {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  font-size: 11px;
+}
+
+.risk-tl-item.is-변경 .risk-tl-mark { color: var(--risk-high); }
+.risk-tl-item.is-작성 .risk-tl-mark { color: var(--purple-primary); }
+.risk-tl-item.is-승인 .risk-tl-mark { color: var(--risk-low); }
+.risk-tl-item.is-할일 .risk-tl-mark { color: var(--text-muted); }
+
+.risk-tl-body {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risk-tl-body:hover { border-color: var(--purple-primary); }
+
+.risk-tl-kind {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.risk-tl-item.is-변경 .risk-tl-kind { color: var(--risk-high); }
+
+.risk-tl-title { font-size: 14px; font-weight: 600; }
+
+.risk-tl-why,
+.risk-tl-invalid,
+.risk-tl-produces {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.risk-tl-invalid { color: var(--risk-high); }

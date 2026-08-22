@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AgentPanel, { type 패널상태, type 필드 } from "@/components/risk/agent-panel";
 import RiskQueue, { 위험성평가카드인가 } from "@/components/risk/risk-queue";
 import RiskRecords from "@/components/risk/risk-records";
+import RiskTimeline from "@/components/risk/risk-timeline";
 import RiskTable from "@/components/risk/risk-table";
 import RiskWorkspace from "@/components/risk/risk-workspace";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
@@ -82,7 +83,7 @@ function 문서필드(r: Record<string, unknown>): 필드[] {
 const 보드기본현장 = [{ id: "site_gimpo_gochon_01", name: "김포 고촌 현장" }];
 
 /** 이 탭이 지금 무엇을 보이고 있는가. 대기열이 기본이다. */
-type 화면 = "대기열" | "작업장" | "새평가";
+type 화면 = "대기열" | "타임라인" | "작업장" | "새평가";
 
 export function RiskAssessmentPanel() {
   const [화면, set화면] = useState<화면>("대기열");
@@ -95,6 +96,7 @@ export function RiskAssessmentPanel() {
   const [기록로딩, set기록로딩] = useState(true);
   const [기록펼침, set기록펼침] = useState(false);
   const [고른카드, set고른카드] = useState<WorkItem | null>(null);
+  const [고른현장, set고른현장] = useState<string | null>(null);
 
   const [모드, set모드] = useState<생성모드>("데모");
   const [어휘, set어휘] = useState<어휘>(기본어휘);
@@ -448,6 +450,12 @@ export function RiskAssessmentPanel() {
     }
   }
 
+  /** 대기열에 카드가 실제로 있는 현장만. 빈 현장 버튼은 누를 이유가 없다. */
+  const 현장있는것: Array<[string, string]> = [...new Set(대기열.map((i) => i.siteId))].map((id) => [
+    id,
+    현장이름.get(id) ?? id,
+  ]);
+
   const 입력있음 = 공종.length > 0 || 장비.length > 0 || 자재.length > 0;
 
   // 작업장 — 대기열에서 고른 카드를 연 상태.
@@ -471,6 +479,27 @@ export function RiskAssessmentPanel() {
     );
   }
 
+  // 시간축 — 현장 하나에 무슨 일이 있었는가.
+  if (화면 === "타임라인" && 고른현장) {
+    return (
+      <div className="risk-panel">
+        <RiskTimeline
+          항목들={대기열.filter((i) => i.siteId === 고른현장)}
+          현장이름={현장이름.get(고른현장) ?? 고른현장}
+          기준시각={기준시각}
+          뒤로={() => {
+            set화면("대기열");
+            set고른현장(null);
+          }}
+          선택={(item) => {
+            set고른카드(item);
+            set화면("작업장");
+          }}
+        />
+      </div>
+    );
+  }
+
   // 대기열 — 이 탭의 첫 화면.
   if (화면 === "대기열") {
     return (
@@ -488,6 +517,26 @@ export function RiskAssessmentPanel() {
             새 평가 만들기
           </button>
         </header>
+
+        {/* 현장별 시간축 입구. 대기열은 "지금 무엇을" 이고 시간축은 "이 현장에 무슨 일이" 다.
+            현장이 하나뿐일 때도 버튼을 숨기지 않는다 — 두 화면이 다른 질문에 답하기 때문이다. */}
+        {현장있는것.length > 0 ? (
+          <nav className="risk-site-bar" aria-label="현장 시간축">
+            {현장있는것.map(([id, 이름]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  set고른현장(id);
+                  set화면("타임라인");
+                }}
+              >
+                {이름}
+                <em>{대기열.filter((i) => i.siteId === id).length}</em>
+              </button>
+            ))}
+          </nav>
+        ) : null}
 
         <RiskQueue
           항목들={대기열}

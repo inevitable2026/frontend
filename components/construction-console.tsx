@@ -13,6 +13,8 @@ import {
 import { JsonViewer } from "@/components/json-viewer";
 import { MarkdownContent, type CitationSource } from "@/components/markdown-content";
 import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
+import { 재평가건수 } from "@/components/risk/risk-queue";
+import type { BoardPage } from "@/lib/board/types";
 import { SiteContextPanel } from "@/components/site-context-panel";
 import { TaskBoard } from "@/components/task-board/task-board";
 
@@ -34,6 +36,9 @@ const navigation: readonly { label: string; icon: string; badge?: number }[] = [
 const NAV_BOARD = 0;
 const NAV_SITE_CONTEXT = 2;
 const NAV_RISK = 4;
+
+/** 배지를 세는 현장. 태스크 보드의 `SITE_ID` 와 같다. 현장 선택이 붙으면 그걸 따른다. */
+const BADGE_SITE = "site_gimpo_gochon_01";
 
 const promptCards = [
   {
@@ -237,7 +242,30 @@ function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
 
 export function ConstructionConsole() {
   const [activeNav, setActiveNav] = useState(NAV_BOARD);
+  /**
+   * 위험성평가 탭 배지 — 재평가가 필요한 건수.
+   * 상수로 박지 않는다. 배지가 실제와 어긋나면 그 자체로 거짓말이다.
+   */
+  const [riskBadge, setRiskBadge] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // 사이드바 배지는 탭을 열기 전에도 맞아야 한다. 그래서 콘솔이 직접 센다.
+  useEffect(() => {
+    let 살아있음 = true;
+    fetch(`/api/board/items?siteId=${encodeURIComponent(BADGE_SITE)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<BoardPage>) : null))
+      .then((page) => {
+        if (!살아있음 || !page) return;
+        const n = 재평가건수(page.items);
+        setRiskBadge(n > 0 ? n : undefined);
+      })
+      .catch(() => {
+        /* 배지를 못 세면 안 보인다. 틀린 숫자를 보이는 것보다 낫다. */
+      });
+    return () => {
+      살아있음 = false;
+    };
+  }, []);
   const [question, setQuestion] = useState("");
   const [lastQuestion, setLastQuestion] = useState("");
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
@@ -558,9 +586,11 @@ export function ConstructionConsole() {
                 style={{ "--nav-icon": `url(${item.icon})` } as CSSProperties}
               />
               <span className="nav-item-label">{item.label}</span>
-              {item.badge === undefined ? null : (
-                <span className="nav-badge">{item.badge}</span>
-              )}
+              {(() => {
+                // 위험성평가 배지는 실측값이라 navigation 상수가 아니라 상태에서 온다.
+                const badge = index === NAV_RISK ? riskBadge : item.badge;
+                return badge === undefined ? null : <span className="nav-badge">{badge}</span>;
+              })()}
             </button>
           ))}
         </nav>

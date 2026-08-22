@@ -35,6 +35,16 @@ type 묶음 = "재평가" | "작성중" | "최신";
  * - 작성중: 초안이 붙었고 아직 승인 전.
  * - 최신: 나머지.
  */
+/**
+ * 재평가가 필요한 건수. 사이드바 배지가 이 값을 쓴다.
+ *
+ * **세어서 쓴다.** 태스크 보드의 배지 11 은 상수로 박혀 있는데(`construction-console.tsx:27`),
+ * 그 숫자가 실제와 어긋나면 배지가 거짓말이 된다. 여기서는 대기열이 실제로 고른 것을 센다.
+ */
+export function 재평가건수(항목들: WorkItem[]): number {
+  return 항목들.filter((i) => 위험성평가카드인가(i) && i.invalidates.length > 0).length;
+}
+
 function 묶음판정(item: WorkItem): 묶음 {
   if (item.invalidates.length > 0) return "재평가";
   if (item.draft && item.status !== "done") return "작성중";
