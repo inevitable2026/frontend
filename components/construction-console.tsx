@@ -30,14 +30,15 @@ const navigation: readonly { label: string; icon: string; badge?: number }[] = [
   { label: "태스크 보드", icon: "/assets/file-check.svg", badge: 11 },
   { label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
   { label: "현장 맥락 관리", icon: "/assets/database.svg" },
-  { label: "TBM 기록 목록", icon: "/assets/file-user.svg" },
-  { label: "위험성평가 기록 목록", icon: "/assets/file-exclamation.svg" },
+  // TBM 기록 숨기기
+  // { label: "TBM 기록 목록", icon: "/assets/file-user.svg" },
+  { label: "위험성평가 기록", icon: "/assets/file-exclamation.svg" },
 ];
 
 const NAV_BOARD = 0;
 const NAV_CHAT = 1;
 const NAV_SITE_CONTEXT = 2;
-const NAV_RISK = 4;
+const NAV_RISK = 3;
 
 /**
  * 배지를 세는 현장. **태스크 보드와 반드시 같은 값이어야 한다.**
@@ -289,8 +290,12 @@ export function ConstructionConsole({
             <AssetCarousel />
             <div className="promo-copy">
               <div className="promo-fade" aria-hidden="true" />
-              <h2 id="upload-title">맥락/레퍼런스 추가하기</h2>
-              <p>위험성평가서, 공정표, 회사 양식 등 현장 문서를 올려주시면, 우리 현장 기준에 맞는 AI 초안을 만들어 드립니다.</p>
+              <h2 id="upload-title">현장 문서 추가하기</h2>
+              <p>
+                위험성평가서·공정표·회사 양식 등 현장 문서를 올리면,
+                <br />
+                우리 현장 기준에 맞춘 AI 초안을 바로 만들 수 있어요.
+              </p>
             </div>
             <input
               ref={uploadInput}
