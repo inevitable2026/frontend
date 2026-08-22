@@ -496,7 +496,6 @@ export function SiteContextPanel() {
         <section className="context-mail">
           <header>
             <h2>메일함</h2>
-            <span className="mail-badge">목업 — 메일 서버 커넥터는 아직 붙지 않았습니다</span>
           </header>
 
           {mailThreads.length === 0 ? (

@@ -163,9 +163,6 @@ export function MailAttachmentViewer({
 
             <p className="context-note">
               {ATTACH_STATE_NOTE[attachment.상태]}
-              {pages.length < attachment.쪽수
-                ? ` 메일함이 목업이라 전체 ${attachment.쪽수}쪽 가운데 ${pages.length}쪽만 채워 두었습니다.`
-                : ""}
             </p>
           </div>
         </div>
