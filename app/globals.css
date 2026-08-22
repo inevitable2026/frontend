@@ -239,40 +239,61 @@ button {
   background: #ffffff;
 }
 
-.asset-strip {
+.asset-carousel {
   position: absolute;
   top: 41px;
-  left: -33px;
-  display: flex;
-  width: 375px;
+  left: 0;
+  width: 100%;
   height: 80.491px;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 14.626px;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
 }
 
-.asset-strip-blur {
+.asset-track {
+  display: flex;
+  width: max-content;
+  height: 100%;
+  align-items: flex-start;
+  animation: asset-carousel-scroll 18s linear infinite;
+  will-change: transform;
+}
+
+.asset-group {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 14.626px;
+  padding-right: 14.626px;
+}
+
+.asset-carousel-blur {
   top: 57.9px;
   opacity: 0.44;
   filter: blur(14.4px);
 }
 
-.asset-strip img {
+.asset-track img {
   height: 63.591px;
   flex: none;
   object-fit: cover;
 }
 
-.asset-strip .asset-square {
+.asset-track .asset-square {
   width: 63.589px;
 }
 
-.asset-strip .asset-narrow {
+.asset-track .asset-narrow {
   width: 61.81px;
 }
 
-.asset-strip .asset-wide {
+.asset-track .asset-wide {
   width: 65.695px;
+}
+
+@keyframes asset-carousel-scroll {
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 .promo-copy {
@@ -364,6 +385,7 @@ button {
 .content-stack {
   display: flex;
   width: min(1123px, calc(100% - 80px));
+  min-height: calc(100dvh - 128px);
   flex: none;
   flex-direction: column;
   align-items: center;
@@ -397,7 +419,7 @@ button {
 .eyebrow {
   min-width: 100%;
   color: var(--purple-copy);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -1px;
   line-height: normal;
@@ -414,7 +436,7 @@ button {
 
 .hero-description {
   color: var(--text-muted);
-  font-size: 23px;
+  font-size: 18px;
   font-weight: 500;
   letter-spacing: -0.69px;
   line-height: normal;
@@ -490,7 +512,7 @@ button {
   min-width: 100%;
   flex-direction: column;
   color: #000000;
-  font-size: 23px;
+  font-size: 20px;
   font-weight: 500;
   letter-spacing: -1.15px;
   line-height: 1.4;
@@ -498,10 +520,13 @@ button {
 }
 
 .ask-bar {
-  position: relative;
+  position: sticky;
+  bottom: 24px;
+  z-index: 3;
   width: 100%;
   height: 123px;
   flex: none;
+  margin-top: auto;
   overflow: hidden;
   border: 2px solid rgba(92, 82, 255, 0.09);
   border-radius: 18px;
@@ -586,9 +611,6 @@ button {
     width: min(1040px, calc(100% - 48px));
   }
 
-  .card-prompt {
-    font-size: 19px;
-  }
 }
 
 @media (max-width: 1199px) {
@@ -763,6 +785,7 @@ button {
 
   .content-stack {
     width: min(760px, calc(100% - 40px));
+    min-height: calc(100dvh - 184px);
   }
 
   .hero-ellipse {
@@ -797,6 +820,7 @@ button {
 
   .content-stack {
     width: calc(100% - 32px);
+    min-height: calc(100dvh - 152px);
     gap: 28px;
   }
 
@@ -809,7 +833,7 @@ button {
   }
 
   .eyebrow {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .hero-copy h1 {
@@ -821,7 +845,7 @@ button {
 
   .hero-description {
     max-width: 28ch;
-    font-size: 17px;
+    font-size: 18px;
     line-height: 1.5;
   }
 
@@ -845,11 +869,12 @@ button {
   }
 
   .card-prompt {
-    font-size: 18px;
+    font-size: 20px;
     line-height: 1.45;
   }
 
   .ask-bar {
+    bottom: 16px;
     height: 112px;
   }
 
@@ -874,6 +899,8 @@ button {
   *::before,
   *::after {
     scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

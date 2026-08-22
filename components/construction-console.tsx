@@ -36,6 +36,32 @@ const appAssets = [
   { src: "/assets/image-72.png", className: "asset-narrow" },
 ] as const;
 
+function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
+  return (
+    <div
+      className={`asset-carousel${blurred ? " asset-carousel-blur" : ""}`}
+      aria-hidden="true"
+    >
+      <div className="asset-track">
+        {[0, 1].map((groupIndex) => (
+          <div className="asset-group" key={groupIndex}>
+            {appAssets.map((asset) => (
+              <Image
+                key={`${groupIndex}-${asset.src}`}
+                className={asset.className}
+                src={asset.src}
+                alt=""
+                width={66}
+                height={64}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ConstructionConsole() {
   const [activeNav, setActiveNav] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -178,30 +204,8 @@ export function ConstructionConsole() {
 
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">
-            <div className="asset-strip asset-strip-blur" aria-hidden="true">
-              {appAssets.map((asset) => (
-                <Image
-                  key={`blur-${asset.src}`}
-                  className={asset.className}
-                  src={asset.src}
-                  alt=""
-                  width={66}
-                  height={64}
-                />
-              ))}
-            </div>
-            <div className="asset-strip" aria-hidden="true">
-              {appAssets.map((asset) => (
-                <Image
-                  key={asset.src}
-                  className={asset.className}
-                  src={asset.src}
-                  alt=""
-                  width={66}
-                  height={64}
-                />
-              ))}
-            </div>
+            <AssetCarousel blurred />
+            <AssetCarousel />
             <div className="promo-copy">
               <div className="promo-fade" aria-hidden="true" />
               <h2 id="upload-title">맥락/레퍼런스 추가하기</h2>
