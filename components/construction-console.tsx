@@ -208,25 +208,23 @@ async function readResponseError(response: Response): Promise<string> {
 function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
   return (
     <div
-      className={`asset-carousel${blurred ? " asset-carousel-blur" : ""}`}
+      className={`asset-track${blurred ? " asset-track-blur" : ""}`}
       aria-hidden="true"
     >
-      <div className="asset-track">
-        {[0, 1].map((groupIndex) => (
-          <div className="asset-group" key={groupIndex}>
-            {appAssets.map((asset) => (
-              <Image
-                key={`${groupIndex}-${asset.src}`}
-                className={asset.className}
-                src={asset.src}
-                alt=""
-                width={66}
-                height={64}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
+      {[0, 1].map((groupIndex) => (
+        <div className="asset-group" key={groupIndex}>
+          {appAssets.map((asset) => (
+            <Image
+              key={`${groupIndex}-${asset.src}`}
+              className={asset.className}
+              src={asset.src}
+              alt=""
+              width={66}
+              height={64}
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -573,8 +571,12 @@ export function ConstructionConsole() {
 
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">
-            <AssetCarousel blurred />
-            <AssetCarousel />
+            <div className="asset-stage" aria-hidden="true">
+              <div className="asset-stage-inner">
+                <AssetCarousel blurred />
+                <AssetCarousel />
+              </div>
+            </div>
             <div className="promo-copy">
               <div className="promo-fade" aria-hidden="true" />
               <h2 id="upload-title">맥락/레퍼런스 추가하기</h2>
