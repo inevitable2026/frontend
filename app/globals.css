@@ -7370,3 +7370,20 @@ button {
     padding: 18px 16px 0;
   }
 }
+
+/* 연 평가서에 조건이 안 붙어 있을 때. 경고지 오류가 아니라 노란 계열을 쓴다. */
+.risk-warn {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #f0d9a8;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #7a5a1a;
+  font-size: 12.5px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.risk-warn b {
+  color: #5e4412;
+}

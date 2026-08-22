@@ -231,7 +231,20 @@ export function RiskAssessmentPanel() {
       const res = await fetch(`/api/risk/${id}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? `평가를 읽지 못했습니다 (${res.status})`);
-      setAssessment(body.assessment as Assessment);
+      const a = body.assessment as Assessment;
+      setAssessment(a);
+
+      // 평가서가 들고 있는 조건을 입력칸에 되돌려 놓는다.
+      //
+      // 예전에는 `setAssessment` 만 했다. 그러면 표에는 "철근콘크리트공사 · 절단작업"이
+      // 보이는데 위쪽 공종·장비·자재는 **전부 0**이었다 — 화면이 방금 연 평가서를
+      // 새 평가처럼 취급하고, 다시 생성하면 그 조건이 통째로 날아갔다.
+      set공종(a.work_types ?? []);
+      set장비(a.equipment ?? []);
+      set자재(a.materials ?? []);
+      if (a.matrix) set매트릭스(a.matrix);
+      if (a.method) set평가방법(a.method);
+      set현장(a.site ?? "");
     } catch (err) {
       set오류((err as Error).message);
     }
@@ -653,6 +666,24 @@ export function RiskAssessmentPanel() {
           </select>
         </label>
       </section>
+
+      {/*
+        연 평가서에 조건이 하나도 안 붙어 있을 때의 경고.
+
+        표에는 위험요인이 여러 줄 보이는데 공종·장비·자재가 전부 0 이면, 이 화면에서
+        「다시 만들기」를 누르는 순간 **아무 조건도 없이** 새로 생성된다. 지금 보이는
+        행들과 아무 관계 없는 표가 나오고, 그게 원래 평가서를 밀어낸다.
+
+        버튼이 비활성이라 실제로 그렇게 되지는 않지만, 왜 눌리지 않는지를 말해 주지
+        않으면 사용자는 화면이 고장 났다고 읽는다.
+      */}
+      {assessment && !입력있음 ? (
+        <p className="risk-warn" role="status">
+          이 평가서에는 <b>공종·장비·자재가 저장되어 있지 않습니다.</b> 표의 행은 그대로
+          보이지만 어떤 조건으로 만든 것인지가 남아 있지 않아, 이 상태로는 다시 만들 수
+          없습니다. 아래에서 조건을 채우면 그때부터 편집·재생성이 됩니다.
+        </p>
+      ) : null}
 
       <section className="risk-chips">
         {/* 문서에서 채워진 값 위에 **더할 수 있어야** 한다. 어휘는 장비 78·자재 50 종이라
