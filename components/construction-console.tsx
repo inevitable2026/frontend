@@ -9,6 +9,9 @@ import { askBarStatus } from "@/components/chat/status";
 import { ChatTranscript } from "@/components/chat/chat-transcript";
 import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components/chat/prompts";
 import { useLawChat } from "@/components/chat/use-law-chat";
+import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
+import { 재평가건수 } from "@/components/risk/risk-queue";
+import type { BoardPage } from "@/lib/board/types";
 import { SiteContextPanel } from "@/components/site-context-panel";
 import { ContextWatch } from "@/components/task-board/context-watch";
 import { TaskBoard } from "@/components/task-board/task-board";
@@ -18,7 +21,9 @@ import type { BoardWatch } from "@/components/task-board/types";
 /**
  * 사이드바 차례. **첫 항목이 태스크 보드**이므로 아래 인덱스가 곧 화면이다.
  * 0 태스크 보드 · 1 우리 회사 챗봇 · 2 현장 맥락 관리 · 3 TBM 기록 · 4 위험성평가 기록.
- * 순서를 바꾸면 `NAV_BOARD` · `NAV_SITE_CONTEXT` 두 상수도 같이 옮겨야 한다.
+ * 순서를 바꾸면 `NAV_BOARD` · `NAV_SITE_CONTEXT` · `NAV_RISK` 세 상수도 같이 옮겨야 한다.
+ * 날숫자로 비교하면 안 된다 — 실제로 위험성평가를 `=== 3` 으로 두었다가 태스크 보드가
+ * 앞에 끼면서 조용히 TBM 탭을 가리켰다. 자동 병합은 인덱스의 의미를 모른다.
  */
 const navigation: readonly { label: string; icon: string; badge?: number }[] = [
   { label: "태스크 보드", icon: "/assets/file-check.svg", badge: 11 },
@@ -31,6 +36,10 @@ const navigation: readonly { label: string; icon: string; badge?: number }[] = [
 const NAV_BOARD = 0;
 const NAV_CHAT = 1;
 const NAV_SITE_CONTEXT = 2;
+const NAV_RISK = 4;
+
+/** 배지를 세는 현장. 태스크 보드의 `SITE_ID` 와 같다. 현장 선택이 붙으면 그걸 따른다. */
+const BADGE_SITE = "site_gimpo_gochon_01";
 
 const appAssets = [
   { src: "/assets/document-app.svg", className: "asset-square" },
@@ -77,12 +86,36 @@ export function ConstructionConsole({
   initialBoard?: BoardSources | null;
 }) {
   const [activeNav, setActiveNav] = useState(NAV_BOARD);
+  /**
+   * 위험성평가 탭 배지 — 재평가가 필요한 건수.
+   * 상수로 박지 않는다. 배지가 실제와 어긋나면 그 자체로 거짓말이다.
+   */
+  const [riskBadge, setRiskBadge] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   /**
    * "연결된 맥락을 보고 있습니다". 보드가 스냅샷을 읽고 나서 올려 주고, 사이드바가 그린다.
    * 아직 한 번도 읽지 않았으면 null 이고 그 자리는 비워 둔다.
    */
   const [watch, setWatch] = useState<BoardWatch | null>(null);
+
+  // 사이드바 배지는 탭을 열기 전에도 맞아야 한다. 그래서 콘솔이 직접 센다.
+  useEffect(() => {
+    let 살아있음 = true;
+    fetch(`/api/board/items?siteId=${encodeURIComponent(BADGE_SITE)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<BoardPage>) : null))
+      .then((page) => {
+        if (!살아있음 || !page) return;
+        const n = 재평가건수(page.items);
+        setRiskBadge(n > 0 ? n : undefined);
+      })
+      .catch(() => {
+        /* 배지를 못 세면 안 보인다. 틀린 숫자를 보이는 것보다 낫다. */
+      });
+    return () => {
+      살아있음 = false;
+    };
+  }, []);
+
   const uploadInput = useRef<HTMLInputElement>(null);
   // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
   const chat = useLawChat();
@@ -207,9 +240,11 @@ export function ConstructionConsole({
                 style={{ "--nav-icon": `url(${item.icon})` } as CSSProperties}
               />
               <span className="nav-item-label">{item.label}</span>
-              {item.badge === undefined ? null : (
-                <span className="nav-badge">{item.badge}</span>
-              )}
+              {(() => {
+                // 위험성평가 배지는 실측값이라 navigation 상수가 아니라 상태에서 온다.
+                const badge = index === NAV_RISK ? riskBadge : item.badge;
+                return badge === undefined ? null : <span className="nav-badge">{badge}</span>;
+              })()}
             </button>
           ))}
         </nav>
@@ -262,6 +297,8 @@ export function ConstructionConsole({
           <TaskBoard initialSources={initialBoard} onWatchChange={setWatch} />
         ) : activeNav === NAV_SITE_CONTEXT ? (
           <SiteContextPanel />
+        ) : activeNav === NAV_RISK ? (
+          <RiskAssessmentPanel />
         ) : (
         <div className={`content-stack${chat.lastQuestion ? " is-chatting" : ""}`}>
           {!chat.lastQuestion ? <>
