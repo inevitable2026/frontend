@@ -18,6 +18,7 @@ import {
   type RuleId,
   type SnapshotFact,
   type WorkItem,
+  type DraftEdit,
   type WorkItemEvent,
   type WorkItemEventType,
   type WorkItemOrigin,
@@ -26,9 +27,14 @@ import {
   type WorkItemTrigger,
 } from "./types";
 
-// 같은 인터페이스의 Postgres 구현이다. **아직 테이블이 없으므로 이 파일은 실행되지 않는다.**
-// 스키마가 합의되는 날 BOARD_STORE=pg 한 줄로 바꿔 끼우려고 질의를 미리 정확히 써 둔 것이고,
+// 같은 인터페이스의 Postgres 구현이다. 2026-08-22 에 board 스키마가 실제로 만들어져
+// (docs/migration-board.sql) BOARD_STORE=pg 로 도는 경로가 되었다. 그전까지는 테이블이
+// 없어서 한 번도 실행되지 않았고, 그 사이에 숨어 있던 jsonb 바인딩 오류를 첫 실행에서
+// 밟았다 — 아래 json() 의 주석에 그 내용을 적어 두었다.
 // 첫 호출에서 테이블이 없으면 조용히 비어 있는 척하지 않고 무엇이 없는지 말하고 멈춘다.
+//
+// site_id 는 uuid 다. uuid 형식이 아닌 siteId 로 질의하면 22P02 로 죽는다. 옛 문자열
+// 식별자(site_gimpo_gochon_01)가 코드에 남아 있으면 빈 보드가 아니라 오류로 드러난다.
 //
 // 스키마를 board 로 한정하는 이유는 tbm-check 가 소유한 public.sites 와 이름이 겹치기 때문이다.
 // search_path 에 기대면 남의 테이블을 읽는 사고가 난다. 컬럼은 전부 snake_case 이고,
@@ -147,8 +153,40 @@ function toDetection(row: DetectionRow): Detection {
   };
 }
 
+/**
+ * jsonb 컬럼에 넣을 값을 문자열로 만든다.
+ *
+ * 이 함수의 결과에는 반드시 `::text::jsonb` 를 붙인다. `::jsonb` 만 붙이면 안 된다.
+ * postgres.js 는 `${문자열}::jsonb` 를 만나면 그 매개변수를 jsonb 타입으로 보내면서 값을
+ * 한 번 더 JSON 으로 감싼다. 그래서 '[]' 를 넣으면 배열이 아니라 문자열 스칼라 '"[]"' 가
+ * 들어가고, board.work_items 의 jsonb_typeof 체크가 23514 로 그 행을 거절한다.
+ * 중간에 `::text` 를 끼우면 매개변수가 text 로 나가고 서버가 그 문자열을 jsonb 로 파싱한다.
+ *
+ *   select ${'[]'}::jsonb       → jsonb_typeof = 'string'   ← 틀림
+ *   select ${'[]'}::text::jsonb → jsonb_typeof = 'array'    ← 맞음
+ *
+ * 이 파일이 라이브 DB 를 처음 만난 2026-08-22 에 실제로 밟은 오류다. 그전까지는 테이블이
+ * 없어서 한 번도 실행되지 않았기 때문에 드러나지 않았다. 체크 제약이 없는 컬럼
+ * (snapshot_facts.value · work_item_events.diff)은 오류 없이 잘못된 모양으로 들어가므로
+ * 더 나쁘다 — 나중에 값을 읽을 때에야 문자열이 나온다.
+ */
 function json(value: unknown): string {
   return JSON.stringify(value ?? null);
+}
+
+// board.*.site_id 는 uuid 다. uuid 가 아닌 문자열을 그대로 바인딩하면 Postgres 가
+// 22P02 'invalid input syntax for type uuid' 를 던지고, 라우트는 그것을 BoardStoreError 로
+// 알아보지 못해 500 을 돌려준다. /api/board/* 의 ?siteId= 는 사용자가 아무 문자열이나 넣을
+// 수 있는 자리이므로 여기서 먼저 걸러 400 으로 내린다. 옛 문자열 식별자
+// (site_gimpo_gochon_01)가 코드 어딘가에 남아 있을 때 "서버가 터졌다" 가 아니라
+// "형식이 틀렸다" 로 읽히게 하는 것이 이 함수의 목적이다.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertSiteId(siteId: string): void {
+  if (!siteId) fail("invalid", "siteId 가 필요합니다.");
+  if (!UUID.test(siteId)) {
+    fail("invalid", `siteId 는 uuid 형식이어야 합니다. '${siteId}' 는 현장 uuid 가 아닙니다.`);
+  }
 }
 
 function nowIso(): string {
@@ -180,7 +218,7 @@ export function createPgBoardStore(): BoardStore {
     const sql = db();
     await sql`
       insert into board.work_item_events (item_id, type, actor, reason, diff, created_at)
-      values (${itemId}, ${type}, ${actor}, ${reason}, ${json(diff)}::jsonb, ${nowIso()})
+      values (${itemId}, ${type}, ${actor}, ${reason}, ${json(diff)}::text::jsonb, ${nowIso()})
     `;
   }
 
@@ -228,11 +266,11 @@ export function createPgBoardStore(): BoardStore {
           estimated_minutes, assignee, delegable, blocked_by, lane_order, created_at, updated_at
         ) values (
           ${item.itemId}, ${item.siteId}, ${item.timing}, ${item.status}, ${item.origin},
-          ${item.title}, ${item.summary}, ${json(item.trigger)}::jsonb,
-          ${json(item.invalidates)}::jsonb, ${json(item.produces)}::jsonb, ${json(item.draft)}::jsonb,
+          ${item.title}, ${item.summary}, ${json(item.trigger)}::text::jsonb,
+          ${json(item.invalidates)}::text::jsonb, ${json(item.produces)}::text::jsonb, ${json(item.draft)}::text::jsonb,
           ${item.confirmedBy}, ${item.confirmedAt}, ${item.dueBy},
           ${item.estimatedMinutes}, ${item.assignee}, ${item.delegable},
-          ${json(item.blockedBy)}::jsonb, ${item.laneOrder}, ${item.createdAt}, ${item.updatedAt}
+          ${json(item.blockedBy)}::text::jsonb, ${item.laneOrder}, ${item.createdAt}, ${item.updatedAt}
         )
         on conflict (item_id) do update set
           timing            = excluded.timing,
@@ -278,7 +316,7 @@ export function createPgBoardStore(): BoardStore {
     upsertItems,
 
     async listItems(query: BoardQuery): Promise<BoardPage> {
-      if (!query.siteId) fail("invalid", "siteId 가 필요합니다.");
+      assertSiteId(query.siteId);
       await ensureSchema();
       const sql = db();
 
@@ -437,6 +475,7 @@ export function createPgBoardStore(): BoardStore {
     },
 
     async listFacts(siteId: string, factType?: FactType): Promise<SnapshotFact[]> {
+      assertSiteId(siteId);
       await ensureSchema();
       const sql = db();
       // 최신 값만이 아니라 이력 전부를 관측 시각 오름차순으로 돌려준다. 같은 key 의 앞뒤 값이
@@ -471,7 +510,7 @@ export function createPgBoardStore(): BoardStore {
           ), ins as (
             insert into board.snapshot_facts (site_id, fact_type, key, value, observed_at, source_doc_id, confidence)
             values (
-              ${fact.siteId}, ${fact.factType}, ${fact.key}, ${json(fact.value)}::jsonb,
+              ${fact.siteId}, ${fact.factType}, ${fact.key}, ${json(fact.value)}::text::jsonb,
               ${fact.observedAt}, ${fact.sourceDocId}, ${fact.confidence}
             )
             on conflict (site_id, fact_type, key, observed_at) do update set
@@ -497,6 +536,7 @@ export function createPgBoardStore(): BoardStore {
     },
 
     async latestSnapshotAt(siteId: string): Promise<string | null> {
+      assertSiteId(siteId);
       await ensureSchema();
       const sql = db();
       const rows = await sql<Array<{ latest: string | null }>>`
@@ -516,9 +556,9 @@ export function createPgBoardStore(): BoardStore {
             evidence, invalidates, produces, summary, created_item_ids
           ) values (
             ${run.runId}, ${detection.siteId}, ${run.startedAt}, ${detection.ruleId}, ${detection.detectedAt},
-            ${detection.confidence}, ${json(detection.evidence)}::jsonb, ${json(detection.invalidates)}::jsonb,
-            ${json(detection.produces)}::jsonb, ${detection.summary},
-            ${json(run.created.map((item: WorkItem) => item.itemId))}::jsonb
+            ${detection.confidence}, ${json(detection.evidence)}::text::jsonb, ${json(detection.invalidates)}::text::jsonb,
+            ${json(detection.produces)}::text::jsonb, ${detection.summary},
+            ${json(run.created.map((item: WorkItem) => item.itemId))}::text::jsonb
           )
           on conflict (run_id, rule_id, detected_at) do update set
             confidence       = excluded.confidence,
@@ -541,7 +581,27 @@ export function createPgBoardStore(): BoardStore {
       if (run.created.length > 0) await upsertItems(run.created);
     },
 
+    /**
+     * 초안 대비 수정분을 이력으로 남긴다.
+     *
+     * DraftEdit 와 WorkItemEvent.diff 는 이름만 다르고 모양이 일대일로 대응하므로
+     * 옮겨 담는 일이 전부다. 확정 이력('approved')과 따로 한 줄을 두는 이유는 무엇을
+     * 고쳤는지와 누가 확정했는지가 서로 다른 물음이기 때문이다.
+     */
+    async recordDraftEdits(itemId: string, actor: string, edits: DraftEdit[]): Promise<void> {
+      if (edits.length === 0) return;
+      await ensureSchema();
+      await appendEvent(
+        itemId,
+        "edited",
+        actor,
+        null,
+        edits.map((edit) => ({ field: edit.path, from: edit.before, to: edit.after })),
+      );
+    },
+
     async listDetections(siteId: string, since?: string): Promise<Detection[]> {
+      assertSiteId(siteId);
       await ensureSchema();
       const sql = db();
       const rows = await sql<DetectionRow[]>`

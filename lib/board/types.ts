@@ -158,6 +158,22 @@ export type WorkItem = {
 
 export type WorkItemEventType = "created" | "moved" | "approved" | "rejected" | "edited";
 
+/**
+ * 승인 직전에 사람이 초안에서 고친 자리.
+ *
+ * 화면의 DraftEdit 와 같은 모양이고, WorkItemEvent.diff 로 옮길 때 이름만 바뀐다
+ * (path → field · before → from · after → to). 위험도 점수는 제품이 확정하지 않고 사람이
+ * 고친 차이가 이력으로 남아야 한다는 계약이 이 타입이 있는 이유다. 받을 자리가 없으면
+ * 라우트가 알 수 없는 키를 조용히 버리고, 그 순간 카드에 적힌 "숫자를 고쳐 승인하면 그
+ * 차이가 이력으로 남습니다" 가 거짓말이 된다.
+ */
+export type DraftEdit = {
+  /** 고친 칸을 가리키는 경로. "rows[2].value" · "body" */
+  path: string;
+  before: string;
+  after: string;
+};
+
 export type WorkItemEvent = {
   eventId: string;
   itemId: string;
@@ -318,4 +334,10 @@ export type BoardStore = {
   latestSnapshotAt(siteId: string): Promise<string | null>;
   appendDetections(run: DetectionRun): Promise<void>;
   listDetections(siteId: string, since?: string): Promise<Detection[]>;
+  /**
+   * 초안 대비 수정분을 'edited' 이력 한 줄로 남긴다. 확정 직전에만 불린다.
+   * docs/migration-board.sql 이 work_item_events 의 type 체크에 'edited' 를 미리 넣어 둔
+   * 자리가 여기다.
+   */
+  recordDraftEdits(itemId: string, actor: string, edits: DraftEdit[]): Promise<void>;
 };

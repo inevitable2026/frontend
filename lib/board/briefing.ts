@@ -226,6 +226,11 @@ export type BriefingInput = {
   detections: Detection[];
   /** 현장의 카드 전부 */
   items: WorkItem[];
+  /**
+   * 창 안에 들어온 문서 수. 세지 못했으면 넘기지 않는다 — 0 을 넘기면 "한 건도 없었다"
+   * 가 되어 문장이 사실과 어긋난다.
+   */
+  documentCount?: number;
   labels?: Record<string, string>;
 };
 
@@ -271,6 +276,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
     draftedCount,
     paragraphs: 문단들({
       감지,
+      배분,
       새카드,
       전체: input.items,
       기준,
@@ -278,6 +284,8 @@ export function buildBriefing(input: BriefingInput): Briefing {
       conditionCount,
       createdCount,
       draftedCount,
+      documentCount: input.documentCount,
+      labels: input.labels,
     }),
     entries,
   };
@@ -315,6 +323,8 @@ function 카드배분(감지: Detection[], 새카드: WorkItem[]): Map<Detection
 
 type 문단재료 = {
   감지: Detection[];
+  /** 어느 감지에서 어느 카드가 나왔는지. 조건을 중요한 순서로 세울 때 쓴다 */
+  배분: Map<Detection, WorkItem[]>;
   새카드: WorkItem[];
   전체: WorkItem[];
   기준: KstClock;
@@ -322,25 +332,43 @@ type 문단재료 = {
   conditionCount: number;
   createdCount: number;
   draftedCount: number;
+  documentCount?: number;
+  labels?: Record<string, string>;
 };
+
+/**
+ * 머리글에 내용을 적어 줄 조건의 최대 수.
+ *
+ * 전부 적으면 머리글이 아래 목록의 사본이 되고, 하나도 적지 않으면 숫자만 남아 무슨 일이
+ * 있었는지 알 수 없다. 넷까지 적고 나머지는 몇 건이 더 있는지만 밝힌다.
+ */
+const 요약할조건수 = 4;
 
 function 문단들(재료: 문단재료): string[] {
   const out: string[] = [];
   const 창말 = `${날짜말(재료.창, 재료.기준)} ${시각말(재료.창)} 이후`;
+  // 문서 수를 세지 못한 자리에는 아무 말도 넣지 않는다. 못 센 것을 0 으로 적으면
+  // "한 건도 들어오지 않았다" 가 되어 사실과 어긋난다.
+  const 읽은말 =
+    재료.documentCount !== undefined && 재료.documentCount > 0
+      ? ` 들어온 문서 ${재료.documentCount}건을 읽어`
+      : "";
 
   // 1. 무엇을 감지했고 무엇을 올렸나
   if (재료.conditionCount === 0 && 재료.createdCount === 0) {
-    out.push(`${창말} 새로 감지된 조건은 없습니다. 올라온 태스크도 없습니다.`);
+    out.push(`${창말}${읽은말} 새로 감지된 조건은 없습니다. 올라온 태스크도 없습니다.`);
   } else if (재료.conditionCount === 0) {
     const n = `${재료.createdCount}건`;
-    out.push(`${창말} 새로 감지된 조건은 없습니다. 다만 태스크 ${n}${은는(n)} 올라와 있습니다.`);
+    out.push(
+      `${창말}${읽은말} 새로 감지된 조건은 없습니다. 다만 태스크 ${n}${은는(n)} 올라와 있습니다.`,
+    );
   } else {
     const 조건 = `${재료.conditionCount}건`;
     // "할 일"은 칸반 열 이름이라 여기서는 쓰지 않는다. 열 이름과 총계가 같은 낱말이면
     // 읽는 사람이 승인 대기와 완료까지 할 일 열에 있다고 읽는다.
     const 태스크 = `${재료.createdCount}건`;
     out.push(
-      `${창말} 조건 ${조건}${을를(조건)} 감지했고, 그 결과로 오늘 태스크 ${태스크}${을를(태스크)} 올렸습니다.`,
+      `${창말}${읽은말} 조건 ${조건}${을를(조건)} 찾았고, 오늘 처리해야 할 태스크 ${태스크}${을를(태스크)} 올렸습니다.`,
     );
   }
 
@@ -348,13 +376,47 @@ function 문단들(재료: 문단재료): string[] {
   if (재료.createdCount > 0) {
     if (재료.draftedCount > 0) {
       const n = `${재료.draftedCount}건`;
-      out.push(`이 가운데 ${n}${은는(n)} 초안까지 써 두었으니 검토하고 승인해 주십시오.`);
+      out.push(`이 가운데 ${n}${은는(n)} 문서 초안까지 써 두었으니 검토하고 승인해 주십시오.`);
     } else {
       out.push("초안이 붙은 것은 없습니다. 모두 사람이 직접 확인해야 하는 항목입니다.");
     }
   }
 
-  // 3. 가장 급한 것
+  // 3. 무엇을 감지했나 — 숫자 뒤에 조건의 내용을 적는다.
+  //
+  // "조건 3건" 만 적으면 읽는 사람은 무슨 일이 있었는지 알 수 없어 아래 항목을 하나씩
+  // 펼쳐 봐야 한다. 그럴 바에는 브리핑이 있을 이유가 없다. 카드를 많이 만든 조건일수록
+  // 오늘 손이 많이 가므로 그 순서로 세우고, 같으면 먼저 감지된 것을 앞에 둔다.
+  if (재료.conditionCount > 0) {
+    const 중요한순 = [...재료.감지].sort((a, b) => {
+      const 카드차 = (재료.배분.get(b)?.length ?? 0) - (재료.배분.get(a)?.length ?? 0);
+      if (카드차 !== 0) return 카드차;
+      return Date.parse(a.detectedAt) - Date.parse(b.detectedAt);
+    });
+
+    for (const d of 중요한순.slice(0, 요약할조건수)) {
+      const 이름 = ruleLabel(d.ruleId, 재료.labels);
+      const 요약 = d.summary.trim().replace(/[.。]\s*$/u, "");
+      if (!요약) continue;
+      const 딸린 = 재료.배분.get(d)?.length ?? 0;
+      const 초안 = 재료.배분.get(d)?.filter((i) => i.draft !== null).length ?? 0;
+      const 꼬리 =
+        딸린 === 0
+          ? ""
+          : 초안 > 0
+            ? ` 태스크 ${딸린}건이 여기서 나왔고 그 가운데 ${초안}건에는 초안이 붙어 있습니다.`
+            : ` 태스크 ${딸린}건이 여기서 나왔습니다.`;
+      out.push(`${이름} — ${요약}.${꼬리}`);
+    }
+
+    const 남은 = 재료.conditionCount - Math.min(재료.conditionCount, 요약할조건수);
+    if (남은 > 0) {
+      const n = `${남은}건`;
+      out.push(`나머지 조건 ${n}${은는(n)} 아래 목록에 그대로 있습니다.`);
+    }
+  }
+
+  // 4. 가장 급한 것
   const 급한 = 가장급한카드(재료.전체);
   if (급한) {
     const 기한 = 기한말(급한.item, 재료.기준);
@@ -366,14 +428,14 @@ function 문단들(재료: 문단재료): string[] {
     if (급한.item.summary) out.push(급한.item.summary.trim());
   }
 
-  // 4. 무너진 전제
+  // 5. 무너진 전제
   const 무효문서 = [...new Set(재료.감지.flatMap((d) => d.invalidates.map((v) => v.docId)))];
   if (무효문서.length > 0) {
     const n = `${무효문서.length}건`;
     out.push(`이 조건들이 전제를 무너뜨린 문서는 ${n}입니다 — ${무효문서.join(" · ")}.`);
   }
 
-  // 5. 사람 확인이 걸린 것
+  // 6. 사람 확인이 걸린 것
   const 확인대기 = 재료.새카드.filter((i) => i.trigger?.requiresHumanConfirmation === true).length;
   if (확인대기 > 0) {
     const n = `${확인대기}건`;

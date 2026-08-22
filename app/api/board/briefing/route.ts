@@ -1,5 +1,6 @@
 import { buildBriefing, kstIsoOf, kstNowIso } from "@/lib/board/briefing";
 import { BOARD_STORE_ERROR_STATUS, boardStore, isBoardStoreError } from "@/lib/board/store";
+import { db } from "@/lib/context/db";
 import { triggerRules } from "@/lib/detect/rules";
 
 export const runtime = "nodejs";
@@ -13,6 +14,27 @@ const WINDOW_HOURS = 24;
 
 // 규칙 이름표는 규칙 자신이 들고 있다. 여기서 다시 적으면 두 곳이 갈라진다.
 const RULE_LABELS = Object.fromEntries(triggerRules.map((rule) => [rule.id, rule.label]));
+
+/**
+ * 창 안에 들어온 문서 수. 브리핑 첫 문장의 "문서 N건을 읽어" 가 이 값을 쓴다.
+ *
+ * 문서함은 보드 store 와 다른 곳(`lib/context/db`)에 있고, 보드가 JSON store 로 돌 때는
+ * 아예 없을 수도 있다. 그래서 실패는 삼키고 `undefined` 로 돌린다 — 0 으로 돌리면 브리핑이
+ * "한 건도 들어오지 않았다" 고 적어 사실과 어긋난다.
+ */
+async function 읽은문서수(siteId: string, 창시작: string, 기준: string): Promise<number | undefined> {
+  try {
+    const sql = db();
+    const [row] = await sql<Array<{ n: string }>>`
+      select count(*)::text as n from documents
+       where site_id = ${siteId} and created_at >= ${창시작} and created_at <= ${기준}
+    `;
+    const n = Number(row?.n);
+    return Number.isFinite(n) ? n : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function fail(message: string, status: number) {
   return Response.json({ error: message }, { status, headers: HEADERS });
@@ -36,9 +58,10 @@ export async function GET(req: Request) {
 
   const store = boardStore();
   try {
-    const [detections, page] = await Promise.all([
+    const [detections, page, documentCount] = await Promise.all([
       store.listDetections(siteId, 창시작),
       store.listItems({ siteId }),
+      읽은문서수(siteId, 창시작, at),
     ]);
 
     if (page.total === 0 && detections.length === 0) {
@@ -54,6 +77,7 @@ export async function GET(req: Request) {
       windowHours: WINDOW_HOURS,
       detections,
       items: page.items,
+      documentCount,
       labels: RULE_LABELS,
     });
 
