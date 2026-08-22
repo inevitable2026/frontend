@@ -267,8 +267,12 @@ export function ConstructionConsole({
             <AssetCarousel />
             <div className="promo-copy">
               <div className="promo-fade" aria-hidden="true" />
-              <h2 id="upload-title">맥락/레퍼런스 추가하기</h2>
-              <p>위험성평가서, 공정표, 회사 양식 등 현장 문서를 올려주시면, 우리 현장 기준에 맞는 AI 초안을 만들어 드립니다.</p>
+              <h2 id="upload-title">현장 문서 추가하기</h2>
+              <p>
+                위험성평가서·공정표·회사 양식 등 현장 문서를 올리면,
+                <br />
+                우리 현장 기준에 맞춘 AI 초안을 바로 만들 수 있어요.
+              </p>
             </div>
             <input
               ref={uploadInput}
