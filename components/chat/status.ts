@@ -2,12 +2,12 @@
 export function askBarStatus(state: {
   error: string;
   isSubmitting: boolean;
-  answer: string;
-  lastQuestion: string;
+  turns: { answer: string }[];
+  pendingTurn: { question: string } | null;
 }): string {
   if (state.error) return `오류: ${state.error}`;
   if (state.isSubmitting) return "질문을 보내고 답변을 기다리는 중입니다.";
-  if (state.answer) return "답변이 완료되었습니다.";
-  if (state.lastQuestion) return `질문을 보냈습니다: ${state.lastQuestion}`;
+  if (state.turns.length > 0 && state.turns.at(-1)?.answer) return "답변이 완료되었습니다.";
+  if (state.pendingTurn) return `질문을 보냈습니다: ${state.pendingTurn.question}`;
   return "";
 }

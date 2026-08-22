@@ -1,20 +1,24 @@
 /**
  * `/api/chat` 라우트를 네트워크·DB 없이 돌리기 위한 대역.
  *
- * 라우트는 근거 모듈 넷을 `@/lib/agent/*` 로 가져온다. 그 모듈들은 postgres 커넥션과
- * Upstage 임베딩을 실제로 열기 때문에 테스트에서 그대로 부를 수 없다. tsc 는 경로 별칭을
- * 산출물에 그대로 남기므로(`import ... from "@/lib/agent/site-context"`), 별칭을 이 파일로
- * 돌려 대역을 끼운다. 별칭 해석기는 Node 기본 제공인 `node:module` 의 `registerHooks` 뿐이고
- * 새 러너나 프레임워크를 들이지 않는다.
+ * 라우트는 근거 모듈 넷을 `@/lib/agent/*` 로, 대화 기록 저장소를 `@/lib/chat/*` 로 가져온다.
+ * 그 모듈들은 postgres 커넥션과 Upstage 임베딩을 실제로 열기 때문에 테스트에서 그대로 부를
+ * 수 없다. tsc 는 경로 별칭을 산출물에 그대로 남기므로(`import ... from
+ * "@/lib/agent/site-context"`), 별칭을 대역 파일로 돌려 끼운다. 별칭 해석기는 Node 기본
+ * 제공인 `node:module` 의 `registerHooks` 뿐이고 새 러너나 프레임워크를 들이지 않는다.
  *
  * 대역이 노리는 것은 라우트의 인용 격리 규약이다 — 어떤 ref 가 읽히는지, 후보가 근거로
  * 승격되지 않는지는 근거 모듈이 아니라 라우트가 정한다. 그래서 근거 모듈은 각본으로 바꾸고
  * 라우트만 진짜를 돌린다.
  */
 import { registerHooks } from "node:module";
+import { randomUUID } from "node:crypto";
+
+import { resetChatHistory, TEST_SITE_ID } from "./chat-history-double.mjs";
 
 const HERE = import.meta.url;
 const dist = (path) => new URL(`../../tmp/test-dist/${path}`, import.meta.url).href;
+const here = (path) => new URL(path, import.meta.url).href;
 
 // FACT_TYPES·DOCUMENT_KINDS 는 도구 인자 스키마의 어휘라서 대역을 쓰면 검증이 헐거워진다.
 // 이 둘만 빌드 산출물의 진짜 모듈로 보낸다.
@@ -25,6 +29,8 @@ const ALIASES = new Map([
   ["@/lib/agent/site-facts", HERE],
   ["@/lib/board/types", dist("lib/board/types.js")],
   ["@/lib/context/types", dist("lib/context/types.js")],
+  ["@/lib/chat/chat-history-access", here("./chat-history-double.mjs")],
+  ["@/lib/chat/chat-history-store", here("./chat-history-double.mjs")],
 ]);
 
 registerHooks({
@@ -120,17 +126,23 @@ export function resetHarness() {
     fn.rejects(`${fn.stubName}: 각본에 없는 호출`);
   }
   Object.assign(configured, { law: true, company: true, assessment: true, facts: true });
+  resetChatHistory();
 }
 
 export async function loadChatRoute() {
   return import(dist("app/api/chat/route.js"));
 }
 
-export function chatRequest(question) {
+/**
+ * 왕복 한 번. `conversationId` 를 싣지 않아 요청마다 새 대화가 열린다 — 참조 사전이 요청과
+ * 함께 사라지는지 보는 시험들이 서로의 기록을 물려받지 않아야 한다. 이어지는 대화를 보려면
+ * `overrides` 로 `conversationId` 를 준다.
+ */
+export function chatRequest(question, overrides = {}) {
   return new Request("http://localhost/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ siteId: TEST_SITE_ID, commandId: randomUUID(), question, ...overrides }),
   });
 }
 

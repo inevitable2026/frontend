@@ -50,6 +50,9 @@
     "../lib/risk/row-review-access.ts",
     "../lib/risk/row-review-types.ts",
     "../lib/risk/row-application-types.ts",
-    "../lib/risk/row-application-client.ts"
+    "../lib/risk/row-application-client.ts",
+    "../lib/chat/chat-history-access.ts",
+    "../lib/chat/chat-history-types.ts",
+    "../lib/chat/chat-history-store.ts"
   ]
 }

@@ -22,6 +22,7 @@ export type ConsoleUrlState = {
   riskSiteId: string | null;
   cardId: string | null;
   assessmentId: string | null;
+  conversationId: string | null;
 };
 
 /**
@@ -38,6 +39,7 @@ export function patchConsoleUrlState(
     next.riskSiteId = null;
     next.cardId = null;
     next.assessmentId = null;
+    next.conversationId = null;
     next.riskScreen = "queue";
   }
   return next;
@@ -57,6 +59,7 @@ export const DEFAULT_CONSOLE_URL_STATE: ConsoleUrlState = {
   nav: "board", siteId: BOARD_SITE_ID, boardDate: BOARD_DATE, boardView: "week",
   boardFilterDate: BOARD_DATE, contextKind: null, documentId: null, riskScreen: "queue",
   riskSiteId: null, cardId: null, assessmentId: null,
+  conversationId: null,
 };
 
 type Params = Pick<URLSearchParams, "get"> | Record<string, string | string[] | undefined>;
@@ -82,6 +85,7 @@ export function parseConsoleUrlState(params: Params): ConsoleUrlState {
   const riskSiteId = value(params, "riskSiteId");
   const cardId = value(params, "cardId");
   const assessmentId = value(params, "assessmentId");
+  const conversationId = value(params, "conversationId");
   const requestedNav = value(params, "nav");
   const requestedRiskScreen = value(params, "risk");
   return {
@@ -106,6 +110,7 @@ export function parseConsoleUrlState(params: Params): ConsoleUrlState {
     riskSiteId: riskSiteId !== null && UUID.test(riskSiteId) ? riskSiteId : null,
     cardId: cardId !== null && RESOURCE_ID.test(cardId) ? cardId : null,
     assessmentId: assessmentId !== null && RESOURCE_ID.test(assessmentId) ? assessmentId : null,
+    conversationId: conversationId !== null && UUID.test(conversationId) ? conversationId : null,
   };
 }
 
@@ -120,5 +125,6 @@ export function serializeConsoleUrlState(state: ConsoleUrlState): string {
   if (state.riskSiteId) params.set("riskSiteId", state.riskSiteId);
   if (state.cardId) params.set("cardId", state.cardId);
   if (state.assessmentId) params.set("assessmentId", state.assessmentId);
+  if (state.conversationId) params.set("conversationId", state.conversationId);
   return `/?${params.toString()}`;
 }

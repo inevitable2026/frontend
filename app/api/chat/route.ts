@@ -26,6 +26,20 @@ import {
 import { isSiteFactsConfigured, readSiteFacts, type SiteFact } from "@/lib/agent/site-facts";
 import { FACT_TYPES } from "@/lib/board/types";
 import { DOCUMENT_KINDS, type DocumentKind } from "@/lib/context/types";
+import { chatHistoryAccess, ChatHistoryAccessUnavailableError } from "@/lib/chat/chat-history-access";
+import {
+  beginChatTurn,
+  buildPriorChatModelContext,
+  ChatConversationNotFoundError,
+  ChatHistoryUnavailableError,
+  ChatTurnCommandReuseError,
+  ChatTurnInFlightError,
+  ChatTurnTransitionConflictError,
+  completeChatTurn,
+  failChatTurn,
+  hydrateChatHistory,
+} from "@/lib/chat/chat-history-store";
+import type { ChatToolCall, ChatTurn } from "@/lib/chat/chat-history-types";
 
 /**
  * 챗봇 탭의 왕복 한 번. 답은 스트림이 아니라 `{ events: [...] }` JSON 한 덩어리다
@@ -67,6 +81,7 @@ const UPSTAGE_TIMEOUT_MS = 30_000;
 // 근거를 다시 보내면 같은 자리에서 또 끊기면서 남은 여유까지 태운다.
 const SYNTHESIS_TIMEOUT_MS = 60_000;
 const MAX_QUESTION_LENGTH = 2_000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // 도구 계열이 넷(법령·사내문서·평가표·현장사실)이 되면서 "검색→읽기" 한 쌍으로 끝나지
 // 않는다. 핵심 시나리오인 "법적으로 빠진 서류 확인"만 해도 법령 원문 한 번과 사내 검색이
 // 함께 필요하다. 상한을 없애지는 않는다 — 도구 실패가 반복될 때 왕복이 무한히 늘어난다.
@@ -118,6 +133,9 @@ type ToolEvent = {
   sources: OfficialSource[];
 };
 
+type AssistantEvent = { type: "assistant"; content: string };
+type GeneratedEvent = ToolEvent | AssistantEvent;
+
 /** 법적 주장이 딛고 설 수 있는 유일한 근거와, 현장 사실만 말할 수 있는 근거를 갈라 담는다. */
 type CompanyEvidence =
   | { 근거종류: "사내문서"; 근거: CompanyReadResult }
@@ -138,12 +156,20 @@ const factsTool = { type: "function", function: { name: "read_site_facts", descr
 
 function jsonError(message: string, status: number) { return Response.json({ error: { message } }, { status }); }
 
-function parseQuestion(value: unknown): string | null {
+function jsonChatError(message: string, status: number, details: { conversationId: string; turn: ChatTurn }): Response {
+  return Response.json({ error: { message }, ...details }, { status });
+}
+
+function parseCommand(value: unknown): { siteId: string; conversationId?: string; commandId: string; question: string } | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
-  if (Object.keys(body).length !== 1 || typeof body.question !== "string") return null;
+  if (Object.keys(body).some((key) => key !== "siteId" && key !== "conversationId" && key !== "commandId" && key !== "question") || typeof body.siteId !== "string" || typeof body.commandId !== "string" || typeof body.question !== "string") return null;
+  const siteId = body.siteId.trim();
+  const commandId = body.commandId.trim();
+  const conversationId = body.conversationId === undefined || body.conversationId === null ? undefined : typeof body.conversationId === "string" ? body.conversationId.trim() : null;
   const question = body.question.trim();
-  return question.length > 0 && question.length <= MAX_QUESTION_LENGTH ? question : null;
+  if (!UUID.test(siteId) || !UUID.test(commandId) || conversationId === null || (conversationId !== undefined && !UUID.test(conversationId)) || question.length === 0 || question.length > MAX_QUESTION_LENGTH) return null;
+  return { siteId, ...(conversationId ? { conversationId } : {}), commandId, question };
 }
 
 function parseArguments(text: string): Record<string, unknown> | null {
@@ -258,6 +284,7 @@ async function synthesizeGroundedAnswer(
   apiKey: string,
   question: string,
   evidence: GroundedEvidence,
+  priorContext: ChatMessage[],
 ): Promise<string> {
   // 세 갈래가 모두 비었을 때만 거부한다. 사내 근거만 있어도 현장 사실은 답할 수 있고,
   // 그 답에는 법적 판단을 하지 않았다는 말이 붙는다.
@@ -272,6 +299,14 @@ async function synthesizeGroundedAnswer(
         role: "system",
         content: "당신은 한국 건설현장 정보 답변 편집자입니다. 제공된 근거만 사용해 한국어로 답하세요. 법적 주장·의무·기준·처벌은 officialEvidence 의 공식 원문에서만 인용하고, 각 설명 문장이나 목록 항목 바로 뒤에 법령명·시행일과 제38조제1항처럼 정확한 조문, 그리고 서버가 준 국가법령정보센터 URL 을 적으세요. 사내 문서나 위험성평가표로 법적 판단을 하지 마세요. officialEvidence 가 비어 있으면 법령 원문을 확인하지 않았으므로 법적 판단은 하지 않았다는 점을 반드시 밝히고 의무를 단정하지 마세요. 현장에서 실제로 무엇이 있었는지는 companyEvidence 와 factEvidence 에서만 말하고, 인용할 때마다 문서 제목·현장명·쪽 번호를 밝히세요. 사내 문서의 쪽 번호는 근거의 pages 에 있는 값만 쓰고, 여러 쪽이면 '2~3쪽' 처럼 범위로 적으며, pages 가 비어 있으면 쪽 번호를 지어내지 말고 쪽 정보가 없다고 적으세요. 근거종류가 '위험성평가' 인 것은 SAFEGRID 에 등록된 평가이고 현장소속이 확인되지 않았으므로 '우리 현장의 기록' 이라고 쓰지 말고 소속이 확인되지 않은 평가라는 점을 밝히세요. source 가 '합성' 인 근거를 인용할 때는 시연을 위해 만든 합성 문서라는 점을 그 문장 안에 반드시 적으세요. factEvidence 를 인용할 때는 observedAt 의 관측 시각과 source 를 함께 적으세요. 근거에 없는 것을 지어내지 말고, 확인되지 않은 것은 근거가 없다고 답하세요. 현장 조건이 부족하면 확정하지 말고 필요한 추가 정보를 질문하세요. 답변은 마크다운으로 작성하고 점검 항목은 하이픈 목록으로 구분하세요. 검색이나 도구를 요청할 수 없으며 call:, result:, 첨부: 또는 tool_call 같은 내부 표현을 절대 출력하지 마세요. 답변은 일반 정보이고 최신 공식 법령 및 전문가 확인이 필요하다는 점을 마지막에 알리세요.",
       },
+      // 이전 대화는 "무엇을 묻고 있었는지" 를 위해서만 넣는다. 인용은 이번 요청이 읽은
+      // 근거에서만 나와야 하므로 그 경계를 말로도 한 번 더 긋는다.
+      ...(priorContext.length > 0
+        ? [
+            { role: "user" as const, content: "이전 대화는 참고용이며, 이전 도구 결과나 인용은 재사용하지 마세요." },
+            ...priorContext,
+          ]
+        : []),
       {
         role: "user",
         content: JSON.stringify({ question, ...evidence }),
@@ -342,14 +377,48 @@ function failureMessage(name: ToolName): string {
   return "사내 문서를 조회하지 못했습니다. 다른 검색어로 다시 시도하세요.";
 }
 
-export async function POST(request: Request) {
+/** 확인 과정을 저장 가능한 모양으로. 화면이 다시 그릴 수 있을 만큼만 남긴다. */
+function persistedToolCalls(events: ToolEvent[]): ChatToolCall[] {
+  return events.map((event, index) => ({
+    id: `${event.name}-${index + 1}`,
+    name: event.name,
+    status: event.status,
+    input: event.input,
+    // 확인 과정은 어차피 JSON 으로 저장된다. `SiteFact.value` 만 `unknown` 이라 타입으로는
+    // 증명되지 않으므로 저장 경계에서 한 번 좁힌다 — 여기 들어오는 값은 전부 도구가 JSON
+    // 으로 만들어 온 것이다.
+    output: event.output as ChatToolCall["output"],
+    sources: event.sources.map((source) => ({ label: source.title, url: source.url })),
+  }));
+}
+
+/** 저장된 턴을 화면이 읽는 이벤트로 되돌린다. 새로고침해도 같은 화면이 나와야 한다. */
+function eventsForTurn(turn: ChatTurn): GeneratedEvent[] {
+  const events: GeneratedEvent[] = turn.toolCalls.map((call) => ({
+    type: "tool",
+    name: call.name as ToolName,
+    status: call.status,
+    input: call.input as Record<string, string | number>,
+    output: call.output as ToolEvent["output"],
+    sources: call.sources.map((source) => ({ title: source.label, url: source.url, authority: "", version: "" })),
+  }));
+  if (turn.assistantText) events.push({ type: "assistant", content: turn.assistantText });
+  return events;
+}
+
+function isTestGeneratorEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.CHAT_TEST_GENERATOR_ENABLED === "true";
+}
+
+async function generateLawAnswer(apiKey: string, question: string, priorContext: ChatMessage[]): Promise<GeneratedEvent[]> {
+  if (isTestGeneratorEnabled()) {
+    const delay = Number(process.env.CHAT_TEST_GENERATOR_DELAY_MS ?? "0");
+    if (Number.isFinite(delay) && delay > 0) await new Promise((resolve) => setTimeout(resolve, Math.min(delay, 10_000)));
+    if (process.env.CHAT_TEST_GENERATOR_MODE === "forced-completion-failure") throw new Error("CHAT_TEST_FORCED_COMPLETION_FAILURE");
+    return [{ type: "assistant", content: JSON.stringify({ test: true, priorQuestions: priorContext.filter((message) => message.role === "user").map((message) => message.content), question }) }];
+  }
+
   const startedAt = Date.now();
-  let body: unknown;
-  try { body = await request.json(); } catch { return jsonError("JSON 형식의 요청 본문이 필요합니다.", 400); }
-  const question = parseQuestion(body);
-  if (!question) return jsonError(`question은 공백이 아닌 문자열 1개여야 하며 ${MAX_QUESTION_LENGTH}자 이하여야 합니다.`, 400);
-  const apiKey = process.env.UPSTAGE_API_KEY;
-  if (!apiKey) return jsonError("AI 서비스 설정이 완료되지 않았습니다.", 503);
 
   // 설정이 없는 갈래는 그 도구만 빠진다. 법령만 켜져 있으면 예전과 똑같이 돌고, 사내 자료만
   // 켜져 있으면 법적 판단 없이 현장 사실만 답한다. 전부 막혔을 때만 요청을 되돌린다.
@@ -358,10 +427,10 @@ export async function POST(request: Request) {
   const assessmentReady = isAssessmentIndexConfigured();
   const factsReady = isSiteFactsConfigured();
   if (!lawReady && !companyReady && !assessmentReady && !factsReady) {
-    return jsonError("법령·사내 자료 조회 서비스 설정이 완료되지 않았습니다.", 503);
+    throw new ChatHistoryUnavailableError("법령·사내 자료 조회 서비스 설정이 완료되지 않았습니다.");
   }
 
-  const messages: ChatMessage[] = [{ role: "system", content: "당신은 한국 건설현장 담당자를 돕는 자료 조사자입니다. 한국어로 답하세요. 근거는 네 갈래이며 갈래마다 할 수 있는 말이 다릅니다. 법적 주장·의무·기준은 반드시 read_official_law 가 반환한 공식 본문에서만 인용하고, 사내 문서로 법적 판단을 하지 마세요. 굴착공사처럼 필요한 서류를 묻는 질문은 문서를 단정하지 말고 먼저 '굴착면 작업계획서'처럼 넓은 키워드로 search_official_law 를 본문 검색한 뒤 가장 관련성 높은 후보를 읽으세요. 우리 회사가 실제로 무엇을 했는지, 어떤 서류가 있고 없는지는 search_company_context 로 찾아 read_company_document 로 읽으세요. 이미 식별한 위험과 대책은 search_assessments 로 찾아 read_assessment 로 읽으세요. 오늘 현장 상태(날씨·공정·TBM·문서 승인)는 read_site_facts 로 바로 읽으세요. 법령과 사내 자료를 함께 물어보면 두 갈래를 모두 확인하세요 — 법령 원문을 읽었다고 해서 사내 자료 확인을 건너뛰지 마세요. 검색 결과는 후보일 뿐이라 인용할 수 없고, 같은 요청의 검색이 만든 ref 만 읽을 수 있습니다. 더 확인할 것이 없으면 도구를 그만 부르세요. 최종 답변은 다음 단계가 작성하므로 여기서는 설명하는 글을 쓰지 말고 call:, result:, 첨부: 같은 내부 도구 메타데이터를 출력하지 마세요." }, { role: "user", content: question }];
+  const messages: ChatMessage[] = [{ role: "system", content: "당신은 한국 건설현장 담당자를 돕는 자료 조사자입니다. 한국어로 답하세요. 근거는 네 갈래이며 갈래마다 할 수 있는 말이 다릅니다. 법적 주장·의무·기준은 반드시 read_official_law 가 반환한 공식 본문에서만 인용하고, 사내 문서로 법적 판단을 하지 마세요. 굴착공사처럼 필요한 서류를 묻는 질문은 문서를 단정하지 말고 먼저 '굴착면 작업계획서'처럼 넓은 키워드로 search_official_law 를 본문 검색한 뒤 가장 관련성 높은 후보를 읽으세요. 우리 회사가 실제로 무엇을 했는지, 어떤 서류가 있고 없는지는 search_company_context 로 찾아 read_company_document 로 읽으세요. 이미 식별한 위험과 대책은 search_assessments 로 찾아 read_assessment 로 읽으세요. 오늘 현장 상태(날씨·공정·TBM·문서 승인)는 read_site_facts 로 바로 읽으세요. 법령과 사내 자료를 함께 물어보면 두 갈래를 모두 확인하세요 — 법령 원문을 읽었다고 해서 사내 자료 확인을 건너뛰지 마세요. 검색 결과는 후보일 뿐이라 인용할 수 없고, 같은 요청의 검색이 만든 ref 만 읽을 수 있습니다. 더 확인할 것이 없으면 도구를 그만 부르세요. 최종 답변은 다음 단계가 작성하므로 여기서는 설명하는 글을 쓰지 말고 call:, result:, 첨부: 같은 내부 도구 메타데이터를 출력하지 마세요." }, ...priorContext, { role: "user", content: question }];
 
   /** 계열마다 사전이 따로 있다. 요청이 끝나면 함께 사라지므로 다음 요청이 물려받지 않는다. */
   const refs = new Map<string, LawReference>();
@@ -371,137 +440,203 @@ export async function POST(request: Request) {
   let toolCount = 0;
   let halted = false;
 
-  try {
-    let turn = 0;
-    for (; turn < MAX_UPSTAGE_TURNS; turn += 1) {
-      // 시간 예산도 도구 호출 예산과 똑같이 halted 로 끊는다. 여기서 한 왕복을 더 시작하면
-      // 함수가 플랫폼 상한에 잘려 모아 둔 근거가 통째로 사라진다.
-      if (Date.now() - startedAt > INVESTIGATION_BUDGET_MS) { halted = true; break; }
+  let turn = 0;
+  for (; turn < MAX_UPSTAGE_TURNS; turn += 1) {
+    // 시간 예산도 도구 호출 예산과 똑같이 halted 로 끊는다. 여기서 한 왕복을 더 시작하면
+    // 함수가 플랫폼 상한에 잘려 모아 둔 근거가 통째로 사라진다.
+    if (Date.now() - startedAt > INVESTIGATION_BUDGET_MS) { halted = true; break; }
 
-      // 검색 도구와 현장 사실은 언제나 열어 둔다. 읽기 도구는 그 계열의 검색이 ref 를
-      // 만들었을 때만 연다 — 열려 있지 않은 도구는 지어낸 ref 로도 부를 수 없다.
-      const availableTools = [
-        ...(lawReady ? [searchTool] : []),
-        ...(companyReady ? [companySearchTool] : []),
-        ...(assessmentReady ? [assessmentSearchTool] : []),
-        ...(factsReady ? [factsTool] : []),
-        ...(refs.size > 0 ? [readTool] : []),
-        ...(docRefs.size > 0 ? [companyReadTool] : []),
-        ...(assessmentRefs.size > 0 ? [assessmentReadTool] : []),
-      ];
-      let response: UpstageResponse;
+    // 검색 도구와 현장 사실은 언제나 열어 둔다. 읽기 도구는 그 계열의 검색이 ref 를
+    // 만들었을 때만 연다 — 열려 있지 않은 도구는 지어낸 ref 로도 부를 수 없다.
+    const availableTools = [
+      ...(lawReady ? [searchTool] : []),
+      ...(companyReady ? [companySearchTool] : []),
+      ...(assessmentReady ? [assessmentSearchTool] : []),
+      ...(factsReady ? [factsTool] : []),
+      ...(refs.size > 0 ? [readTool] : []),
+      ...(docRefs.size > 0 ? [companyReadTool] : []),
+      ...(assessmentRefs.size > 0 ? [assessmentReadTool] : []),
+    ];
+    let response: UpstageResponse;
+    try {
+      response = await callUpstage(apiKey, {
+        model: "solar-pro4",
+        reasoning_effort: "none",
+        temperature: 0,
+        messages,
+        tools: availableTools,
+        // 첫 걸음만 도구를 강제한다. 어느 갈래를 열지는 모델이 고르고, 그 뒤로는 그만 부를
+        // 자유를 준다 — 강제로 묶어 두면 더 볼 것이 없는데도 엉뚱한 도구를 부른다.
+        tool_choice: turn === 0 ? "required" : "auto",
+        parallel_tool_calls: false,
+      }, { retryOnTimeout: false });
+    } catch (error) {
+      // 조사 왕복이 제한시간을 넘겼다. 여기서 던지면 바깥 catch 가 504 를 내면서 이미 읽어
+      // 둔 공식 원문과 사내 근거를 통째로 버린다 — 실측했다. "6월 위험성평가랑 조치 이력,
+      // 감사 제출용으로 묶어줘" 는 근거를 모으고도 두 번 다 504 로 죽었다. 도구 호출 예산·
+      // 시간 예산을 넘겼을 때와 같은 자리에 세워 모아 둔 근거로 답하게 한다.
+      //
+      // 재시도하지 않는 이유(retryOnTimeout: false): 늦어지는 원인은 대화가 길어진 것이고
+      // 재시도는 같은 크기의 대화를 다시 보낸다. 같은 자리에서 또 끊기면서 20초만 더 쓴다.
+      if (!isUpstageTimeout(error)) throw error;
+      halted = true;
+      break;
+    }
+    const assistant = response.choices?.[0]?.message;
+    if (!assistant) throw new Error("UPSTAGE_INVALID");
+    const calls = assistant.tool_calls ?? [];
+    // 도구를 그만 불렀다 = 조사 끝. 이 단계가 쓴 글은 근거 없이 나온 것이라 버리고,
+    // 답은 모아 둔 근거만 가지고 종합 단계가 새로 쓴다.
+    if (calls.length === 0) break;
+    if (calls.some((call) => call.type !== "function" || !call.id || !(TOOL_NAMES as readonly string[]).includes(call.function.name))) {
+      throw new Error("UPSTAGE_INVALID");
+    }
+    // 예산을 넘기면 502 로 되돌리지 않고 여기까지 모은 근거로 답한다. 이미 읽은 원문을
+    // 버리는 쪽이 사용자에게 더 나쁘다.
+    if (toolCount + calls.length > MAX_TOOL_CALLS) { halted = true; break; }
+    messages.push(assistant);
+    for (const call of calls) {
+      toolCount += 1;
+      const name = call.function.name as ToolName;
+      const args = parseArguments(call.function.arguments);
       try {
-        response = await callUpstage(apiKey, {
-          model: "solar-pro4",
-          reasoning_effort: "none",
-          temperature: 0,
-          messages,
-          tools: availableTools,
-          // 첫 걸음만 도구를 강제한다. 어느 갈래를 열지는 모델이 고르고, 그 뒤로는 그만 부를
-          // 자유를 준다 — 강제로 묶어 두면 더 볼 것이 없는데도 엉뚱한 도구를 부른다.
-          tool_choice: turn === 0 ? "required" : "auto",
-          parallel_tool_calls: false,
-        }, { retryOnTimeout: false });
-      } catch (error) {
-        // 조사 왕복이 제한시간을 넘겼다. 여기서 던지면 바깥 catch 가 504 를 내면서 이미 읽어
-        // 둔 공식 원문과 사내 근거를 통째로 버린다 — 실측했다. "6월 위험성평가랑 조치 이력,
-        // 감사 제출용으로 묶어줘" 는 근거를 모으고도 두 번 다 504 로 죽었다. 도구 호출 예산·
-        // 시간 예산을 넘겼을 때와 같은 자리에 세워 모아 둔 근거로 답하게 한다.
-        //
-        // 재시도하지 않는 이유(retryOnTimeout: false): 늦어지는 원인은 대화가 길어진 것이고
-        // 재시도는 같은 크기의 대화를 다시 보낸다. 같은 자리에서 또 끊기면서 20초만 더 쓴다.
-        if (!isUpstageTimeout(error)) throw error;
-        halted = true;
-        break;
-      }
-      const assistant = response.choices?.[0]?.message;
-      if (!assistant) return jsonError("AI 서비스 응답을 처리하지 못했습니다. 다시 시도해 주세요.", 502);
-      const calls = assistant.tool_calls ?? [];
-      // 도구를 그만 불렀다 = 조사 끝. 이 단계가 쓴 글은 근거 없이 나온 것이라 버리고,
-      // 답은 모아 둔 근거만 가지고 종합 단계가 새로 쓴다.
-      if (calls.length === 0) break;
-      if (calls.some((call) => call.type !== "function" || !call.id || !(TOOL_NAMES as readonly string[]).includes(call.function.name))) {
-        return jsonError("AI 서비스가 안전한 자료 조회 요청을 만들지 못했습니다. 다시 시도해 주세요.", 502);
-      }
-      // 예산을 넘기면 502 로 되돌리지 않고 여기까지 모은 근거로 답한다. 이미 읽은 원문을
-      // 버리는 쪽이 사용자에게 더 나쁘다.
-      if (toolCount + calls.length > MAX_TOOL_CALLS) { halted = true; break; }
-      messages.push(assistant);
-      for (const call of calls) {
-        toolCount += 1;
-        const name = call.function.name as ToolName;
-        const args = parseArguments(call.function.arguments);
-        try {
-          if (name === "search_official_law") {
-            const input = validSearchInput(args);
-            if (!input) throw new Error("INVALID_TOOL_INPUT");
-            const result = await searchOfficialLaw(input.query, input.search);
-            result.references.forEach((value, key) => refs.set(key, value));
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates, searchMode: result.searchMode, fallbackUsed: result.searchMode !== input.search }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, searchMode: result.searchMode, instruction: "후보는 법적 근거가 아닙니다. 가장 관련성 높은 후보 하나를 read_official_law로 읽으세요." }) });
-          } else if (name === "read_official_law") {
-            const input = validReadInput(args);
-            if (!input || !refs.has(input.ref)) throw new Error("INVALID_REFERENCE");
-            const result = await readOfficialLaw(refs.get(input.ref)!, input.provision);
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [result.source] });
-            // 다른 도구와 달리 여기만 안내 없이 원문만 돌려주고 있었다. 그래서 "법적으로 빠진
-            // 서류 있는지 확인해줘" 를 물으면 모델이 법령 검색·읽기만 반복해 여섯 턴을 다 쓰고
-            // 사내 문서를 한 번도 열지 않았다(실측 27초, 도구 호출 6회 전부 법령). 법이 무엇을
-            // 요구하는지는 법령이 답하지만 우리에게 그 서류가 있는지는 사내 자료만 답한다.
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ result, instruction: "법적 기준은 이것으로 확인됐습니다. 질문이 우리 회사에 무엇이 있는지·빠졌는지를 묻는다면 법령을 더 찾지 말고 search_company_context 로 실제 서류를 확인하세요. 법령만으로는 무엇이 빠졌는지 말할 수 없습니다." }) });
-          } else if (name === "search_company_context") {
-            const input = validCompanySearchInput(args);
-            if (!input) throw new Error("INVALID_TOOL_INPUT");
-            const result = await searchCompanyContext(input.query, input.kind ? { kind: input.kind } : undefined);
-            result.references.forEach((value, key) => docRefs.set(key, value));
-            // 사내 문서는 외부 공개 URL 이 없다. 링크는 화면이 output.result.url 로 만든다.
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, instruction: "후보는 근거가 아닙니다. 인용하려면 read_company_document 로 본문을 읽으세요. source 가 '합성' 인 문서는 시연용으로 만든 자료이며 그 사실을 답변에 밝혀야 합니다." }) });
-          } else if (name === "read_company_document") {
-            const input = validRefInput(args);
-            const reference = input && docRefs.get(input.ref);
-            if (!input || !reference) throw new Error("INVALID_REFERENCE");
-            const result = await readCompanyDocument(reference);
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
-          } else if (name === "search_assessments") {
-            const input = validQueryInput(args);
-            if (!input) throw new Error("INVALID_TOOL_INPUT");
-            const result = await searchAssessments(input.query);
-            result.references.forEach((value, key) => assessmentRefs.set(key, value));
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, instruction: "후보는 근거가 아닙니다. 인용하려면 read_assessment 로 해당 행을 읽으세요. 평가표 문장은 모델이 만든 합성 자료이며 그 사실을 답변에 밝혀야 합니다. 이 색인은 SAFEGRID 인스턴스 전체이고 현장 소속이 확인되지 않으므로 '우리 현장의 기록' 이라고 쓰지 마세요." }) });
-          } else if (name === "read_assessment") {
-            const input = validRefInput(args);
-            const reference = input && assessmentRefs.get(input.ref);
-            if (!input || !reference) throw new Error("INVALID_REFERENCE");
-            const result = await readAssessment(reference);
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
-          } else {
-            const input = validFactsInput(args);
-            if (!input) throw new Error("INVALID_TOOL_INPUT");
-            const facts = await readSiteFacts(input);
-            events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { facts }, sources: [] });
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ facts, instruction: "각 사실은 observedAt 의 관측 시각과 source 를 함께 인용해야 합니다. source 가 '합성' 으로 시작하면 시연용 자료입니다." }) });
-          }
-        } catch {
-          events.push({ type: "tool", name, status: "failed", input: eventInput(args ?? {}), output: { message: failureMessage(name) }, sources: [] });
-          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: `${failureMessage(name)} 이 결과를 근거로 사용하지 마세요.` }) });
+        if (name === "search_official_law") {
+          const input = validSearchInput(args);
+          if (!input) throw new Error("INVALID_TOOL_INPUT");
+          const result = await searchOfficialLaw(input.query, input.search);
+          result.references.forEach((value, key) => refs.set(key, value));
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates, searchMode: result.searchMode, fallbackUsed: result.searchMode !== input.search }, sources: [] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, searchMode: result.searchMode, instruction: "후보는 법적 근거가 아닙니다. 가장 관련성 높은 후보 하나를 read_official_law로 읽으세요." }) });
+        } else if (name === "read_official_law") {
+          const input = validReadInput(args);
+          if (!input || !refs.has(input.ref)) throw new Error("INVALID_REFERENCE");
+          const result = await readOfficialLaw(refs.get(input.ref)!, input.provision);
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [result.source] });
+          // 다른 도구와 달리 여기만 안내 없이 원문만 돌려주고 있었다. 그래서 "법적으로 빠진
+          // 서류 있는지 확인해줘" 를 물으면 모델이 법령 검색·읽기만 반복해 여섯 턴을 다 쓰고
+          // 사내 문서를 한 번도 열지 않았다(실측 27초, 도구 호출 6회 전부 법령). 법이 무엇을
+          // 요구하는지는 법령이 답하지만 우리에게 그 서류가 있는지는 사내 자료만 답한다.
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ result, instruction: "법적 기준은 이것으로 확인됐습니다. 질문이 우리 회사에 무엇이 있는지·빠졌는지를 묻는다면 법령을 더 찾지 말고 search_company_context 로 실제 서류를 확인하세요. 법령만으로는 무엇이 빠졌는지 말할 수 없습니다." }) });
+        } else if (name === "search_company_context") {
+          const input = validCompanySearchInput(args);
+          if (!input) throw new Error("INVALID_TOOL_INPUT");
+          const result = await searchCompanyContext(input.query, input.kind ? { kind: input.kind } : undefined);
+          result.references.forEach((value, key) => docRefs.set(key, value));
+          // 사내 문서는 외부 공개 URL 이 없다. 링크는 화면이 output.result.url 로 만든다.
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates }, sources: [] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, instruction: "후보는 근거가 아닙니다. 인용하려면 read_company_document 로 본문을 읽으세요. source 가 '합성' 인 문서는 시연용으로 만든 자료이며 그 사실을 답변에 밝혀야 합니다." }) });
+        } else if (name === "read_company_document") {
+          const input = validRefInput(args);
+          const reference = input && docRefs.get(input.ref);
+          if (!input || !reference) throw new Error("INVALID_REFERENCE");
+          const result = await readCompanyDocument(reference);
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+        } else if (name === "search_assessments") {
+          const input = validQueryInput(args);
+          if (!input) throw new Error("INVALID_TOOL_INPUT");
+          const result = await searchAssessments(input.query);
+          result.references.forEach((value, key) => assessmentRefs.set(key, value));
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { candidates: result.candidates }, sources: [] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ candidates: result.candidates, instruction: "후보는 근거가 아닙니다. 인용하려면 read_assessment 로 해당 행을 읽으세요. 평가표 문장은 모델이 만든 합성 자료이며 그 사실을 답변에 밝혀야 합니다. 이 색인은 SAFEGRID 인스턴스 전체이고 현장 소속이 확인되지 않으므로 '우리 현장의 기록' 이라고 쓰지 마세요." }) });
+        } else if (name === "read_assessment") {
+          const input = validRefInput(args);
+          const reference = input && assessmentRefs.get(input.ref);
+          if (!input || !reference) throw new Error("INVALID_REFERENCE");
+          const result = await readAssessment(reference);
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { result }, sources: [] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+        } else {
+          const input = validFactsInput(args);
+          if (!input) throw new Error("INVALID_TOOL_INPUT");
+          const facts = await readSiteFacts(input);
+          events.push({ type: "tool", name, status: "completed", input: eventInput(input), output: { facts }, sources: [] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ facts, instruction: "각 사실은 observedAt 의 관측 시각과 source 를 함께 인용해야 합니다. source 가 '합성' 으로 시작하면 시연용 자료입니다." }) });
         }
+      } catch {
+        events.push({ type: "tool", name, status: "failed", input: eventInput(args ?? {}), output: { message: failureMessage(name) }, sources: [] });
+        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: `${failureMessage(name)} 이 결과를 근거로 사용하지 마세요.` }) });
       }
     }
+  }
 
-    const evidence = collectEvidence(events);
-    // 한도에 걸려 멈췄는데 근거도 없으면 "왜 답이 없는지"가 다르다. 조회가 끝나지 않았다고
-    // 알려야 사용자가 질문을 좁힐 수 있다.
-    if (isEmptyEvidence(evidence) && (halted || turn >= MAX_UPSTAGE_TURNS)) {
-      return Response.json({ events: [...events, { type: "assistant", content: LIMIT_MESSAGE }] });
+  const evidence = collectEvidence(events);
+  // 한도에 걸려 멈췄는데 근거도 없으면 "왜 답이 없는지"가 다르다. 조회가 끝나지 않았다고
+  // 알려야 사용자가 질문을 좁힐 수 있다.
+  if (isEmptyEvidence(evidence) && (halted || turn >= MAX_UPSTAGE_TURNS)) {
+    return [...events, { type: "assistant", content: LIMIT_MESSAGE }];
+  }
+  const content = await synthesizeGroundedAnswer(apiKey, question, evidence, priorContext);
+  return [...events, { type: "assistant", content }];
+}
+
+/**
+ * 실패를 상태 코드로 옮긴다. 저장소가 말하는 실패(없음·충돌·설정 없음)와 모델 왕복의
+ * 실패(시간 초과·잘못된 응답)는 사용자가 할 수 있는 일이 다르므로 갈라서 알린다.
+ */
+function chatError(error: unknown): Response {
+  if (error instanceof TypeError) return jsonError(error.message, 400);
+  if (error instanceof ChatConversationNotFoundError) return jsonError(error.message, 404);
+  if (error instanceof ChatTurnInFlightError || error instanceof ChatTurnCommandReuseError || error instanceof ChatTurnTransitionConflictError) return jsonError(error.message, 409);
+  if (error instanceof ChatHistoryAccessUnavailableError || error instanceof ChatHistoryUnavailableError) return jsonError(error.message, 503);
+  const timeout = error instanceof DOMException && error.name === "AbortError";
+  return jsonError(timeout ? "AI 서비스 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." : "AI 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.", timeout ? 504 : 502);
+}
+
+export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const siteId = params.get("siteId")?.trim() ?? "";
+  const conversationId = params.get("conversationId")?.trim() ?? "";
+  try {
+    const access = chatHistoryAccess();
+    if (!access.siteIds.has(siteId)) throw new ChatConversationNotFoundError();
+    return Response.json(await hydrateChatHistory({ siteId, conversationId }), { headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" } });
+  } catch (error) { return chatError(error); }
+}
+
+export async function POST(request: Request) {
+  let body: unknown;
+  try { body = await request.json(); } catch { return jsonError("JSON 형식의 요청 본문이 필요합니다.", 400); }
+  const command = parseCommand(body);
+  if (!command) return jsonError(`siteId, commandId와 question은 필요하며 UUID와 ${MAX_QUESTION_LENGTH}자 제한을 지켜야 합니다.`, 400);
+
+  let access: ReturnType<typeof chatHistoryAccess> | undefined;
+  let conversationId: string | undefined;
+  let events: GeneratedEvent[] = [];
+  try {
+    access = chatHistoryAccess();
+    if (!access.siteIds.has(command.siteId)) throw new ChatConversationNotFoundError();
+    const begun = await beginChatTurn({ ...command, actor: access.actor });
+    conversationId = begun.conversation.conversationId;
+    if (begun.replayed) {
+      if (begun.turn.status === "pending") throw new ChatTurnInFlightError();
+      return Response.json({ conversationId, turn: begun.turn, replayed: true, events: eventsForTurn(begun.turn) });
     }
-    const content = await synthesizeGroundedAnswer(apiKey, question, evidence);
-    return Response.json({ events: [...events, { type: "assistant", content }] });
+    const history = await hydrateChatHistory({ siteId: command.siteId, conversationId });
+    const priorContext = buildPriorChatModelContext(history.turns.filter((turn) => turn.turnId !== begun.turn.turnId));
+    const modelContext: ChatMessage[] = priorContext.map((message) => ({ role: message.role, content: message.content }));
+    const apiKey = process.env.UPSTAGE_API_KEY;
+    if (!isTestGeneratorEnabled() && !apiKey) throw new ChatHistoryUnavailableError("AI 서비스 설정이 완료되지 않았습니다.");
+    events = await generateLawAnswer(apiKey ?? "", command.question, modelContext);
+    const assistant = events.find((event): event is AssistantEvent => event.type === "assistant");
+    if (!assistant) throw new Error("UPSTAGE_INVALID");
+    const completed = await completeChatTurn({ siteId: command.siteId, conversationId, commandId: command.commandId, actor: access.actor, assistantText: assistant.content, toolCalls: persistedToolCalls(events.filter((event): event is ToolEvent => event.type === "tool")) });
+    return Response.json({ conversationId, turn: completed.turn, replayed: completed.replayed, events: eventsForTurn(completed.turn) });
   } catch (error) {
-    const timeout = error instanceof DOMException && error.name === "AbortError";
-    return jsonError(timeout ? "AI 서비스 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." : "AI 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.", timeout ? 504 : 502);
+    // 실패도 기록에 남긴다. 남기지 않으면 새로고침한 사용자는 질문만 있고 답도 실패 표시도
+    // 없는 대화를 본다. 다만 "이미 도는 중"·"같은 명령 재사용"·"없는 대화" 는 이번 요청이
+    // 만든 턴이 아니므로 남의 턴을 실패로 덮지 않는다.
+    const shouldPersistFailure = !(error instanceof ChatTurnInFlightError || error instanceof ChatTurnCommandReuseError || error instanceof ChatConversationNotFoundError);
+    if (shouldPersistFailure && conversationId && access) {
+      try {
+        const failed = await failChatTurn({ siteId: command.siteId, conversationId, commandId: command.commandId, actor: access.actor, failureMessage: "AI 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.", toolCalls: persistedToolCalls(events.filter((event): event is ToolEvent => event.type === "tool")) });
+        const response = chatError(error);
+        const payload = await response.json() as { error?: { message?: string } };
+        return jsonChatError(payload.error?.message ?? failed.turn.failureMessage ?? "AI 서비스에 일시적인 문제가 발생했습니다.", response.status, { conversationId, turn: failed.turn });
+      } catch (persistError) {
+        if (!(persistError instanceof ChatTurnTransitionConflictError)) return chatError(persistError);
+      }
+    }
+    return chatError(error);
   }
 }

@@ -19,6 +19,18 @@ export type ToolCall = {
   sources: SourceLink[];
 };
 
+export type ChatTurn = {
+  id: string;
+  commandId: string;
+  conversationId: string;
+  seq: number;
+  question: string;
+  answer: string;
+  toolCalls: ToolCall[];
+  error: string;
+  status: string;
+};
+
 /** 도구 이름을 사람이 읽는 말로 바꾼다. 모르는 이름은 호출부가 기본값을 정한다. */
 export const TOOL_LABELS: Record<string, string> = {
   search_official_law: "공식 법령 후보 검색",

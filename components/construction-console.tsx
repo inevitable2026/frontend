@@ -136,15 +136,28 @@ export function ConstructionConsole({
   }, [urlState.siteId]);
 
   const uploadInput = useRef<HTMLInputElement>(null);
-  // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
-  const chat = useLawChat();
+  // 챗봇 탭의 대화. URL의 conversationId가 대화의 주소이므로 새로고침과 뒤로/앞으로도 복원된다.
+  const chat = useLawChat({
+    siteId: urlState.siteId,
+    conversationId: urlState.conversationId,
+    onConversationCreated: (conversationId) => updateUrl({ nav: "chat", conversationId }),
+    onNewConversation: () => updateUrl({ nav: "chat", conversationId: null }),
+  });
+  const hasChatContent = chat.turns.length > 0 || chat.pendingTurn !== null || chat.error.length > 0;
   // 답이 길어질 때 화면을 따라 내리는 규칙. 사용자가 위로 올라가 있으면 끌어내리지 않는다.
   const pin = useLatestPin({
-    enabled: urlState.nav === "chat" && chat.lastQuestion.length > 0,
+    enabled: urlState.nav === "chat" && hasChatContent,
     hasResponseContent:
-      chat.toolCalls.length > 0 || chat.answer.length > 0 || chat.error.length > 0,
-    revision: `${chat.toolCalls.length}:${chat.answer.length}:${chat.error.length}`,
+      chat.turns.length > 0 || (chat.pendingTurn?.toolCalls.length ?? 0) > 0 || (chat.pendingTurn?.answer.length ?? 0) > 0 || (chat.pendingTurn?.error.length ?? 0) > 0 || chat.error.length > 0,
+    revision: `${chat.turns.length}:${chat.pendingTurn?.toolCalls.length ?? 0}:${chat.pendingTurn?.answer.length ?? 0}:${chat.pendingTurn?.error.length ?? 0}:${chat.error.length}`,
   });
+  const {
+    anchorRef: chatAnchorRef,
+    composerRef: chatComposerRef,
+    hasUnseenContent,
+    isAwayFromLatest,
+    scrollToLatest,
+  } = pin;
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -337,8 +350,8 @@ export function ConstructionConsole({
             onUrlStateChange={updateUrl}
           />
         ) : (
-        <div className={`content-stack${chat.lastQuestion ? " is-chatting" : ""}`}>
-          {!chat.lastQuestion ? <>
+        <div className={`content-stack${hasChatContent ? " is-chatting" : ""}`}>
+          {!hasChatContent ? <>
           <header className="hero-copy">
             <div className="hero-title-group">
               <p className="eyebrow">관리자용 콘솔</p>
@@ -384,38 +397,56 @@ export function ConstructionConsole({
               </button>
             ))}
           </div>
-          </> : <ChatTranscript
-            answer={chat.answer}
-            assistantLabel={ASSISTANT_LABEL}
-            error={chat.error}
-            isSubmitting={chat.isSubmitting}
-            question={chat.lastQuestion}
-            toolCalls={chat.toolCalls}
-            anchorRef={pin.anchorRef}
-          />}
+          </> : <>
+            <div className="chat-thread-head">
+              <p>저장된 대화</p>
+              <button className="new-conversation-button" onClick={chat.newConversation} type="button" disabled={chat.isSubmitting}>
+                새 대화
+              </button>
+            </div>
+            {chat.turns.map((turn) => <ChatTranscript
+              key={turn.id || turn.commandId}
+              answer={turn.answer}
+              assistantLabel={ASSISTANT_LABEL}
+              error={turn.error}
+              isSubmitting={turn.status === "pending"}
+              question={turn.question}
+              toolCalls={turn.toolCalls}
+            />)}
+            {chat.pendingTurn ? <ChatTranscript
+              answer={chat.pendingTurn.answer}
+              assistantLabel={ASSISTANT_LABEL}
+              error={chat.pendingTurn.error}
+              isSubmitting={chat.isSubmitting}
+              question={chat.pendingTurn.question}
+              toolCalls={chat.pendingTurn.toolCalls}
+              anchorRef={chatAnchorRef}
+            /> : <div className="chat-latest-anchor" ref={chatAnchorRef} aria-hidden="true" />}
+            {chat.error && !chat.pendingTurn ? <p className="chat-error chat-load-error" role="alert">{chat.error}</p> : null}
+          </>}
 
           <div className="composer-dock">
             <div className="new-content-live">
-              {pin.isAwayFromLatest ? (
+              {isAwayFromLatest ? (
                 <button
-                  className={`new-content-pill${pin.hasUnseenContent ? " is-new" : ""}`}
-                  onClick={pin.scrollToLatest}
+                  className={`new-content-pill${hasUnseenContent ? " is-new" : ""}`}
+                  onClick={scrollToLatest}
                   type="button"
                 >
                   <span className="new-content-touch-target" aria-hidden="true" />
-                  {pin.hasUnseenContent ? <span className="new-content-dot" aria-hidden="true" /> : null}
-                  <span>{pin.hasUnseenContent ? "새 내용이 도착했어요" : "맨 아래로 이동"}</span>
+                  {hasUnseenContent ? <span className="new-content-dot" aria-hidden="true" /> : null}
+                  <span>{hasUnseenContent ? "새 내용이 도착했어요" : "맨 아래로 이동"}</span>
                   <span className="new-content-arrow" aria-hidden="true" />
                 </button>
               ) : null}
             </div>
             <span className="sr-only" aria-live="polite" aria-atomic="true">
-              {pin.hasUnseenContent ? "새 내용이 도착했습니다. 새 내용으로 이동 버튼을 이용할 수 있습니다." : ""}
+              {hasUnseenContent ? "새 내용이 도착했습니다. 새 내용으로 이동 버튼을 이용할 수 있습니다." : ""}
             </span>
 
             <ChatAskBar
               disabled={chat.isSubmitting}
-              formRef={pin.composerRef}
+              formRef={chatComposerRef}
               inputId="question"
               onChange={chat.setQuestion}
               onSubmit={chat.submit}

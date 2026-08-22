@@ -1,138 +1,197 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { isRecord, asText, parseEvent } from "./parse";
-import type { ToolCall } from "./types";
+import { asText, isRecord, parseEvent } from "./parse";
+import type { ChatTurn, ToolCall } from "./types";
 
-/**
- * `/api/chat` 한 번의 왕복을 쥐는 훅. **호출부마다 상태가 따로 생긴다** — 챗봇 탭과
- * 보드의 AI 사이드바는 같은 라우트를 쓰지만 대화는 서로 섞이지 않는다.
- *
- * 라우트는 지금 완성된 JSON 을 한 번에 돌려주고, 스트림 분기는 서버가 흘려보내기
- * 시작할 때를 대비해 남겨 둔 것이다. 두 경로 모두 `parseEvent` 로 들어간다.
- */
 export type LawChat = {
   question: string;
   setQuestion: (value: string) => void;
-  lastQuestion: string;
-  toolCalls: ToolCall[];
-  answer: string;
+  turns: ChatTurn[];
+  pendingTurn: ChatTurn | null;
   error: string;
   isSubmitting: boolean;
   submit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  newConversation: () => void;
 };
 
-async function readResponseError(response: Response): Promise<string> {
-  const fallback = `요청에 실패했습니다. (${response.status})`;
+type ChatOptions = {
+  siteId: string;
+  conversationId: string | null;
+  onConversationCreated: (conversationId: string) => void;
+  onNewConversation: () => void;
+};
 
+function makeCommandId(): string {
+  return crypto.randomUUID();
+}
+
+type ResponseFailure = Error & { conversationId?: string; turn?: ChatTurn };
+
+async function readResponseError(response: Response): Promise<ResponseFailure> {
+  const fallback = `요청에 실패했습니다. (${response.status})`;
   try {
     const payload: unknown = await response.json();
-    if (!isRecord(payload)) return fallback;
-
+    if (!isRecord(payload)) return new Error(fallback);
     const nestedError = payload.error;
-    const message = isRecord(nestedError)
-      ? asText(nestedError.message)
-      : asText(nestedError) ?? asText(payload.message);
-
-    return message ? `${message} (${response.status})` : fallback;
+    const message = isRecord(nestedError) ? asText(nestedError.message) : asText(nestedError) ?? asText(payload.message);
+    const error = new Error(message ? `${message} (${response.status})` : fallback) as ResponseFailure;
+    error.conversationId = asText(payload.conversationId);
+    error.turn = turnFrom(payload.turn) ?? undefined;
+    return error;
   } catch {
-    return fallback;
+    return new Error(fallback);
   }
 }
 
-export function useLawChat(): LawChat {
+function toolCallsFrom(value: unknown): ToolCall[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item, index) => {
+    const parsed = parseEvent({ type: "tool", ...(isRecord(item) ? item : {}) }, index).tool;
+    return parsed ? [parsed] : [];
+  });
+}
+
+function turnFrom(value: unknown): ChatTurn | null {
+  if (!isRecord(value) || typeof value.question !== "string") return null;
+  const status = asText(value.status) ?? "completed";
+  return {
+    id: asText(value.turnId ?? value.id) ?? "",
+    commandId: asText(value.commandId) ?? "",
+    conversationId: asText(value.conversationId) ?? "",
+    seq: typeof value.sequence === "number" ? value.sequence : typeof value.seq === "number" ? value.seq : 0,
+    question: value.question,
+    answer: asText(value.assistantText ?? value.answer) ?? "",
+    toolCalls: toolCallsFrom(value.toolCalls),
+    error: asText(value.failureMessage ?? value.error) ?? "",
+    status,
+  };
+}
+
+/** Stored conversation hydration and one in-flight request are kept separate. */
+export function useLawChat({ siteId, conversationId, onConversationCreated, onNewConversation }: ChatOptions): LawChat {
   const [question, setQuestion] = useState("");
-  const [lastQuestion, setLastQuestion] = useState("");
-  const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
-  const [answer, setAnswer] = useState("");
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [pendingTurn, setPendingTurn] = useState<ChatTurn | null>(null);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const epoch = useRef(0);
+  const activeConversationId = useRef(conversationId);
+  const canonicalizingConversation = useRef<{ siteId: string; conversationId: string } | null>(null);
+
+  useEffect(() => {
+    if (
+      conversationId !== null
+      && canonicalizingConversation.current?.siteId === siteId
+      && canonicalizingConversation.current.conversationId === conversationId
+      && activeConversationId.current === conversationId
+    ) {
+      canonicalizingConversation.current = null;
+      return;
+    }
+    const requestEpoch = ++epoch.current;
+    const controller = new AbortController();
+    activeConversationId.current = conversationId;
+    // This reset is the visible boundary between two URL-addressed resources;
+    // doing it before the fetch prevents the previous conversation flashing.
+    setTurns([]);
+    setPendingTurn(null);
+    setError("");
+    setIsSubmitting(false);
+    if (!conversationId) return () => controller.abort();
+
+    void fetch(`/api/chat?siteId=${encodeURIComponent(siteId)}&conversationId=${encodeURIComponent(conversationId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw await readResponseError(response);
+        const payload: unknown = await response.json();
+        if (!isRecord(payload) || !Array.isArray(payload.turns)) throw new Error("저장된 대화 응답 형식이 올바르지 않습니다.");
+        return payload.turns.map(turnFrom).filter((turn): turn is ChatTurn => turn !== null).sort((a, b) => a.seq - b.seq);
+      })
+      .then((loadedTurns) => {
+        if (epoch.current === requestEpoch) setTurns(loadedTurns);
+      })
+      .catch((loadError) => {
+        if (controller.signal.aborted || epoch.current !== requestEpoch) return;
+        setError(loadError instanceof Error ? loadError.message : "저장된 대화를 불러오지 못했습니다.");
+      });
+    return () => controller.abort();
+  }, [siteId, conversationId]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const trimmedQuestion = question.trim();
-
     if (!trimmedQuestion || isSubmitting) return;
 
-    setLastQuestion(trimmedQuestion);
+    const requestEpoch = epoch.current;
+    const submittedConversationId = activeConversationId.current;
+    const commandId = makeCommandId();
+    const initial: ChatTurn = { id: commandId, commandId, conversationId: submittedConversationId ?? "", seq: Number.MAX_SAFE_INTEGER, question: trimmedQuestion, answer: "", toolCalls: [], error: "", status: "pending" };
     setQuestion("");
-    setToolCalls([]);
-    setAnswer("");
     setError("");
+    setPendingTurn(initial);
     setIsSubmitting(true);
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmedQuestion }),
+        body: JSON.stringify({ siteId, conversationId: submittedConversationId, commandId, question: trimmedQuestion }),
       });
-
-      if (!response.ok) throw new Error(await readResponseError(response));
-
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        const payload: unknown = await response.json();
-        const events = isRecord(payload) && Array.isArray(payload.events) ? payload.events : [payload];
-        const results = events.map((item, index) => parseEvent(item, index));
-        const receivedTools = results.flatMap((result) => result.tool ? [result.tool] : []);
-        if (receivedTools.length) setToolCalls(receivedTools);
-        const receivedAnswer = results.flatMap((result) => result.answer ? [result.answer] : []).join("");
-        if (receivedAnswer) setAnswer(receivedAnswer);
-        const receivedError = results.find((result) => result.error)?.error;
-        if (receivedError) setError(receivedError);
-        return;
-      }
-
-      if (!response.body) throw new Error("응답 본문을 읽을 수 없습니다.");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let eventIndex = 0;
-
-      const applyPayload = (serialized: string) => {
-        if (!serialized.trim() || serialized === "[DONE]") return;
-        try {
-          const result = parseEvent(JSON.parse(serialized), eventIndex++);
-          if (result.tool) {
-            setToolCalls((current) => {
-              const matchingIndex = current.findIndex((item) => item.id === result.tool?.id);
-              if (matchingIndex === -1) return [...current, result.tool as ToolCall];
-              return current.map((item, itemIndex) => itemIndex === matchingIndex ? { ...item, ...result.tool } : item);
-            });
-          }
-          if (result.answer) setAnswer((current) => current + result.answer);
-          if (result.error) setError(result.error);
-        } catch {
-          setAnswer((current) => current + serialized);
-        }
+      if (!response.ok) throw await readResponseError(response);
+      const payload: unknown = await response.json();
+      if (!isRecord(payload) || typeof payload.conversationId !== "string") throw new Error("대화 식별자가 없는 응답입니다.");
+      const events = Array.isArray(payload.events) ? payload.events : [];
+      const results = events.map((item, index) => parseEvent(item, index));
+      const saved = turnFrom(payload.turn);
+      const completed: ChatTurn = saved ?? {
+        ...initial,
+        conversationId: payload.conversationId,
+        toolCalls: results.flatMap((result) => result.tool ? [result.tool] : []),
+        answer: results.flatMap((result) => result.answer ? [result.answer] : []).join(""),
+        error: results.find((result) => result.error)?.error ?? "",
+        status: "completed",
       };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim();
-          if (payload) applyPayload(payload);
-        }
-        if (done) break;
-      }
-
-      if (buffer.trim()) {
-        const payload = buffer.startsWith("data:") ? buffer.slice(5).trim() : buffer.trim();
-        applyPayload(payload);
+      if (epoch.current !== requestEpoch) return;
+      activeConversationId.current = payload.conversationId;
+      setTurns((current) => [...current.filter((turn) => turn.commandId !== commandId), completed].sort((a, b) => a.seq - b.seq));
+      setPendingTurn(null);
+      if (!submittedConversationId) {
+        canonicalizingConversation.current = { siteId, conversationId: payload.conversationId };
+        onConversationCreated(payload.conversationId);
       }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "응답을 가져오지 못했습니다.");
+      if (epoch.current !== requestEpoch) return;
+      const message = requestError instanceof Error ? requestError.message : "응답을 가져오지 못했습니다.";
+      const failure = requestError as ResponseFailure;
+      if (failure.turn) {
+        if (failure.conversationId) activeConversationId.current = failure.conversationId;
+        setTurns((current) => [...current.filter((turn) => turn.commandId !== failure.turn!.commandId), failure.turn!].sort((a, b) => a.seq - b.seq));
+        setPendingTurn(null);
+        if (!submittedConversationId && failure.conversationId) {
+          canonicalizingConversation.current = { siteId, conversationId: failure.conversationId };
+          onConversationCreated(failure.conversationId);
+        }
+      } else {
+        setPendingTurn((current) => current ? { ...current, error: message, status: "error" } : current);
+      }
+      setError(message);
     } finally {
-      setIsSubmitting(false);
+      if (epoch.current === requestEpoch) setIsSubmitting(false);
     }
   }
 
-  return { question, setQuestion, lastQuestion, toolCalls, answer, error, isSubmitting, submit };
+  function newConversation(): void {
+    epoch.current += 1;
+    activeConversationId.current = null;
+    canonicalizingConversation.current = null;
+    setQuestion("");
+    setTurns([]);
+    setPendingTurn(null);
+    setError("");
+    setIsSubmitting(false);
+    onNewConversation();
+  }
+
+  return { question, setQuestion, turns, pendingTurn, error, isSubmitting, submit, newConversation };
 }
