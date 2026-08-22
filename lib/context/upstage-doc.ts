@@ -16,6 +16,17 @@ export function upstageCallCount() {
   return callCount;
 }
 
+/**
+ * Studio(`/v2`) 쪽 호출도 같은 카운터에 담는다.
+ *
+ * 예전에는 이 카운터가 이 파일 안에서만 올라가서 `lib/context/studio.ts` 가 부른 것은
+ * 한 건도 세지 않았다. 잡이 "Upstage 3회 썼다"고 적으면서 실제로는 5회를 쓴 셈이라,
+ * 예산을 보고 판단할 수가 없었다.
+ */
+export function countUpstageCall(n = 1) {
+  callCount += n;
+}
+
 function apiKey(): string {
   const key = process.env.UPSTAGE_API_KEY;
   if (!key) throw new UpstageError("UPSTAGE_API_KEY 가 없습니다. 서버 환경변수를 확인하세요.");

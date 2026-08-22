@@ -1,7 +1,7 @@
 import { chunkElements } from "@/lib/context/chunk";
 import { db } from "@/lib/context/db";
 import { recommendSite } from "@/lib/context/site-match";
-import { runStudioParse } from "@/lib/context/studio";
+import { deleteFile, runStudioFields, runStudioParse, uploadFile } from "@/lib/context/studio";
 import type {
   DocumentKind,
   ExtractedFields,
@@ -11,7 +11,7 @@ import type {
   StageName,
 } from "@/lib/context/types";
 import { STAGE_ORDER } from "@/lib/context/types";
-import { embedPassages, extractFields, upstageCallCount } from "@/lib/context/upstage-doc";
+import { embedPassages, upstageCallCount } from "@/lib/context/upstage-doc";
 
 export const TOTAL_BUDGET_MS = 55_000;
 
@@ -74,16 +74,28 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
     return value;
   }
 
+  // 파일은 한 번만 올리고 두 실행이 같은 file_id 를 나눠 쓴다. 이유는 studio.ts 의
+  // 「한 번 올리고 두 번 돌린다」에 적어 두었다.
+  let fileId: string | null = null;
+
   try {
-    yield* stage("수신", async () => input.bytes.byteLength, (size) => ({
-      파일명: input.filename,
-      바이트: size,
-      mime: input.mime,
-    }));
+    yield* stage(
+      "수신",
+      async () => {
+        fileId = await uploadFile(input.bytes, input.filename, input.mime);
+        return input.bytes.byteLength;
+      },
+      (size) => ({
+        파일명: input.filename,
+        바이트: size,
+        mime: input.mime,
+        업로드: "1회 (레이아웃·필드가 같은 file_id 를 씁니다)",
+      }),
+    );
 
     const parsed = yield* stage(
       "레이아웃분석",
-      () => runStudioParse(input.kind, input.bytes, input.filename, input.mime, deadline),
+      () => runStudioParse(fileId!, deadline),
       (result) => ({
         agent: result.agent.name,
         agentId: result.agent.id,
@@ -91,6 +103,7 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
         요소수: result.elements.length,
         페이지수: result.pageCount,
         model: "upstage-studio/document-parse",
+        소요ms: result.elapsedMs,
         요소: result.elements.map((e) => ({ id: e.id, page: e.page, category: e.category, coordinates: e.coordinates })),
       }),
     );
@@ -105,11 +118,21 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
       }),
     );
 
-    const extracted: ExtractedFields = yield* stage(
+    // Studio 체인(parse→extract)이 여기서 돈다. 예전에는 v1 `/information-extraction` 이라
+    // 문서를 base64 로 다시 실어 보냈고, 같은 파일이 두 번 올라갔다.
+    const 필드결과 = yield* stage(
       "필드추출",
-      () => extractFields(input.bytes, input.mime, input.kind, { limitMs: STAGE_LIMITS.필드추출, deadline }),
-      (fields) => fields,
+      () => runStudioFields(input.kind, fileId!, Math.min(deadline, Date.now() + STAGE_LIMITS.필드추출)),
+      (r) => ({
+        ...r.fields,
+        agent: r.agent.name,
+        체인: r.chain.map((s) => s.name).join(" → "),
+        최종스텝: r.finalStep,
+        소요ms: r.elapsedMs,
+        캐시: r.cached,
+      }),
     );
+    const extracted = 필드결과.fields as ExtractedFields;
 
     const recommendation: SiteRecommendation | null = yield* stage(
       "프로젝트판정",
@@ -187,6 +210,9 @@ export async function* runIngest(jobId: string, input: IngestInput): AsyncGenera
        where id = ${jobId}
     `;
     yield { 종류: "실패", 단계: running?.이름 ?? null, 사유: reason };
+  } finally {
+    // 성공·실패·시간초과 모두에서 지운다. 올린 것은 현장 문서라 계약금액·담당자명이 들어 있다.
+    if (fileId) await deleteFile(fileId);
   }
 }
 
