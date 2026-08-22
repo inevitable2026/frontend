@@ -64,12 +64,19 @@ export default function RiskQueue({
   현장이름,
   선택,
   불러오는중,
+  기준시각,
 }: {
   항목들: WorkItem[];
   /** siteId → 현장 이름. 없으면 siteId 를 그대로 보인다. */
   현장이름: Map<string, string>;
   선택: (item: WorkItem) => void;
   불러오는중: boolean;
+  /**
+   * 기한 판정("16:30 지남")의 기준. **부모가 넘긴다.**
+   * 렌더 중에 `Date.now()` 를 부르면 리렌더마다 판정이 달라져 화면이 스스로 흔들린다
+   * (`react-hooks/purity` 가 잡아 준다). 시각은 렌더의 입력이지 렌더가 만드는 것이 아니다.
+   */
+  기준시각: number;
 }) {
   const 위험카드 = 항목들.filter(위험성평가카드인가);
 
@@ -86,7 +93,6 @@ export default function RiskQueue({
     );
   }
 
-  const 기준시각 = Date.now();
   const 제목찾기 = new Map(항목들.map((i) => [i.itemId, i.title]));
 
   return (

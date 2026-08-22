@@ -87,6 +87,8 @@ export function RiskAssessmentPanel() {
   const [대기열, set대기열] = useState<WorkItem[]>([]);
   const [현장이름, set현장이름] = useState<Map<string, string>>(new Map());
   const [대기열로딩, set대기열로딩] = useState(true);
+  // 기한 판정의 기준 시각. 대기열을 읽을 때 한 번 잡고 렌더 중에는 다시 재지 않는다.
+  const [기준시각, set기준시각] = useState(0);
   const [고른카드, set고른카드] = useState<WorkItem | null>(null);
 
   const [모드, set모드] = useState<생성모드>("데모");
@@ -172,6 +174,7 @@ export function RiskAssessmentPanel() {
           .flatMap((r) => r.value.items)
           .filter(위험성평가카드인가);
         set대기열(카드);
+        set기준시각(Date.now());
       } catch {
         // 대기열을 못 읽는 것과 대기열이 비어 있는 것은 다르다. 빈 목록으로 두고
         // 새 평가 경로는 계속 열어 둔다.
@@ -448,6 +451,7 @@ export function RiskAssessmentPanel() {
           항목들={대기열}
           현장이름={현장이름}
           불러오는중={대기열로딩}
+          기준시각={기준시각}
           선택={(item) => {
             set고른카드(item);
             set화면("작업장");
