@@ -5,7 +5,7 @@ import {
   type WorkItem,
   type WorkItemOrigin,
   type WorkItemStatus,
-} from "@/lib/board/types";
+} from "./types.ts";
 
 // 열 이동 규칙. 세 열은 진행 단계가 아니라 "지금 이 카드를 움직일 수 있는 주체"이므로
 // 전이 하나하나가 권한 이동을 뜻한다. 그래서 여기서 막는 것은 실수 방지가 아니라
@@ -23,6 +23,7 @@ export type TransitionErrorCode =
   | "notDelegable"
   | "alreadyConfirmed"
   | "confirmedLocked"
+  | "meetingDraftRequiresRowApproval"
   | "blocked";
 
 export class TransitionError extends Error {
@@ -129,6 +130,17 @@ export function planTransition(
     );
   }
   const to: WorkItemStatus = input.status;
+
+  // 위험성평가 회의록은 카드 하나를 끝내는 일이 아니라 각 위험성평가 행을 검토·승인하는
+  // 일이다. 일반 보드 PATCH가 done으로 옮기면 그 행별 판단을 건너뛰므로, 전용 행 승인
+  // 적용 경로만 완료를 만들 수 있게 이 공통 전이 경계에서 막는다.
+  if (to === "done" && item.draft?.form === "회의록") {
+    throw new TransitionError(
+      "meetingDraftRequiresRowApproval",
+      409,
+      "위험성평가 회의록은 행별 승인 적용으로만 완료할 수 있습니다.",
+    );
+  }
 
   // --- 값 검증 ---------------------------------------------------------------
 

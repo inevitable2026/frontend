@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ContextSearch from "@/components/context-search";
 import { DocumentViewer } from "@/components/document-viewer";
 import { MailAttachmentViewer } from "@/components/mail-attachment-viewer";
+import type { ConsoleUrlState } from "@/lib/console-url";
 import { ParseOverlay, type ParsedRegion } from "@/components/parse-overlay";
 import { formatExtractedField, hasExtractedDisplayValue } from "@/lib/context/extracted-display";
 import type { MailAttachment, MailThread } from "@/lib/context/mail-threads";
@@ -82,11 +83,21 @@ function emptyStages(): IngestStage[] {
   return STAGE_ORDER.map((name) => ({ 이름: name, 상태: "대기", 시작: null, 소요ms: null }));
 }
 
-export function SiteContextPanel() {
+export function SiteContextPanel({
+  siteId,
+  contextKind,
+  documentId,
+  onUrlStateChange,
+}: {
+  siteId: string;
+  contextKind: DocumentKind | null;
+  documentId: string | null;
+  onUrlStateChange: (patch: Partial<ConsoleUrlState>) => void;
+}) {
   const [sites, setSites] = useState<Site[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
-  const [siteFilter, setSiteFilter] = useState("");
-  const [kindFilter, setKindFilter] = useState("");
+  const siteFilter = siteId;
+  const kindFilter = contextKind ?? "";
 
   const [kind, setKind] = useState<DocumentKind>("하도급계약서");
   const [mode, setMode] = useState<"live" | "demo">("live");
@@ -104,7 +115,7 @@ export function SiteContextPanel() {
   const [ranAsDemo, setRanAsDemo] = useState(false);
   const [execution, setExecution] = useState<ExecutionDetails | null>(null);
   const [activeRegion, setActiveRegion] = useState<number | null>(null);
-  const [openedDocument, setOpenedDocument] = useState<string | null>(null);
+  const openedDocument = documentId;
   const [mailThreads, setMailThreads] = useState<MailThread[]>([]);
   const [openedThread, setOpenedThread] = useState<string | null>(null);
   const [demoRetryFile, setDemoRetryFile] = useState<File | null>(null);
@@ -686,14 +697,12 @@ export function SiteContextPanel() {
                                 <ul className="mail-attachments">
                                   {m.첨부.map((a) => (
                                     <li key={a.id}>
-                                      {/* 문서함에 적재된 첨부는 원본이 있으므로 문서 뷰어로,
-                                          아직 없는 첨부는 목업 미리보기로 연다. */}
                                       <button
                                         type="button"
                                         className="mail-file"
                                         onClick={() => {
                                           if (a.documentId) {
-                                            setOpenedDocument(a.documentId);
+                                            onUrlStateChange({ documentId: a.documentId });
                                             return;
                                           }
                                           setOpenedAttachment({
@@ -754,15 +763,21 @@ export function SiteContextPanel() {
         <header>
           <h2>문서함</h2>
           <div className="context-filters">
-            <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
-              <option value="">전체 현장</option>
+            <select value={siteFilter} onChange={(e) => {
+              const next = e.target.value;
+              if (!next) return;
+              onUrlStateChange({ siteId: next, documentId: null });
+            }}>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
             </select>
-            <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+            <select value={kindFilter} onChange={(e) => {
+              const next = e.target.value as DocumentKind | "";
+              onUrlStateChange({ contextKind: next || null });
+            }}>
               <option value="">전체 종류</option>
               {DOCUMENT_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -796,7 +811,9 @@ export function SiteContextPanel() {
                     <button
                       type="button"
                       className="context-doc-title"
-                      onClick={() => setOpenedDocument(doc.id)}
+                      onClick={() => {
+                        onUrlStateChange({ documentId: doc.id });
+                      }}
                     >
                       {doc.title}
                     </button>
@@ -807,7 +824,9 @@ export function SiteContextPanel() {
                     <button
                       type="button"
                       className="context-doc-open"
-                      onClick={() => setOpenedDocument(doc.id)}
+                      onClick={() => {
+                        onUrlStateChange({ documentId: doc.id });
+                      }}
                     >
                       열기
                     </button>
@@ -823,7 +842,10 @@ export function SiteContextPanel() {
         <DocumentViewer
           key={openedDocument}
           documentId={openedDocument}
-          onClose={() => setOpenedDocument(null)}
+          siteId={siteId}
+          onClose={() => {
+            onUrlStateChange({ documentId: null });
+          }}
         />
       ) : null}
 

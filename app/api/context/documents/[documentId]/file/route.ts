@@ -13,13 +13,19 @@ const TEXT_HEADERS = { "Content-Type": "text/plain; charset=utf-8", "X-Robots-Ta
 // 같은 출처에서 스크립트가 실행될 수 있다. 나머지는 첨부로 강제해 내려받게 한다.
 const INLINE_MIME = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 
-export async function GET(_req: Request, ctx: { params: Promise<{ documentId: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await ctx.params;
+  const siteId = new URL(req.url).searchParams.get("siteId");
   if (!UUID.test(documentId)) return new Response("문서 주소가 올바르지 않습니다. 문서함에서 다시 열어 주세요.", { status: 400, headers: TEXT_HEADERS });
+  if (!siteId || !UUID.test(siteId)) return new Response("현장 주소가 올바르지 않습니다. 문서함에서 다시 열어 주세요.", { status: 400, headers: TEXT_HEADERS });
 
   const sql = db();
   const [file] = await sql<Array<{ mime: string; original_filename: string; bytes: Buffer | null }>>`
-    select mime, original_filename, bytes from document_files where document_id = ${documentId} limit 1
+    select f.mime, f.original_filename, f.bytes
+      from document_files f
+      join documents d on d.id = f.document_id
+     where f.document_id = ${documentId} and d.site_id = ${siteId}
+     limit 1
   `;
   if (!file) return new Response("이 문서에는 원본 파일이 없습니다. 읽어낸 값과 검색 조각만 볼 수 있습니다.", { status: 404, headers: TEXT_HEADERS });
   if (!file.bytes) return new Response("원본 파일이 더 이상 보관되어 있지 않습니다. 읽어낸 값과 검색 조각만 볼 수 있습니다.", { status: 410, headers: TEXT_HEADERS });

@@ -39,7 +39,15 @@ function savedAt(value: string): string {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-export function DocumentViewer({ documentId, onClose }: { documentId: string; onClose: () => void }) {
+export function DocumentViewer({
+  documentId,
+  siteId,
+  onClose,
+}: {
+  documentId: string;
+  siteId: string;
+  onClose: () => void;
+}) {
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 청크를 고르면 원본에서 그 쪽으로 옮겨 간다. 브라우저 PDF 뷰어는 주소의
@@ -58,7 +66,8 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const res = await fetch(`/api/context/documents/${documentId}`);
+      const query = new URLSearchParams({ siteId });
+      const res = await fetch(`/api/context/documents/${documentId}?${query}`);
       if (cancelled) return;
       const body = await res.json();
       if (!res.ok) {
@@ -71,7 +80,7 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
     return () => {
       cancelled = true;
     };
-  }, [documentId]);
+  }, [documentId, siteId]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key === "Escape") {
@@ -108,7 +117,7 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
     onClose();
   }
 
-  const fileUrl = `/api/context/documents/${documentId}/file`;
+  const fileUrl = `/api/context/documents/${documentId}/file?${new URLSearchParams({ siteId })}`;
   const extracted = detail?.document.extracted ?? null;
   const filled = extracted
     ? Object.entries(extracted).filter(([, value]) => hasExtractedDisplayValue(value))

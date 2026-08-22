@@ -52,9 +52,14 @@ export function readEnv() {
       .filter((line) => line.includes("=") && !line.trim().startsWith("#"))
       .map((line) => {
         const i = line.indexOf("=");
-        return [line.slice(0, i).trim(), line.slice(i + 1).trim().replace(/^"|"$/g, "")];
+        return [line.slice(0, i).trim(), unquoteEnvValue(line.slice(i + 1).trim())];
       }),
   );
+}
+
+export function unquoteEnvValue(value) {
+  const match = /^(['"])(.*)\1$/.exec(value);
+  return match ? match[2] : value;
 }
 
 export function connect(env) {

@@ -19,6 +19,10 @@
     }
   },
   "include": [
+    "../lib/console-url.ts",
+    "../lib/board/scene.ts",
+    "../lib/board/site.ts",
+    "../lib/board/transition.ts",
     "../lib/context/chunk.ts",
     "../lib/context/types.ts",
     "../lib/context/stage-label.ts",
@@ -41,6 +45,10 @@
     "../lib/board/types.ts",
     "../components/chat/parse.ts",
     "../components/markdown-content.tsx",
-    "../app/api/chat/route.ts"
+    "../app/api/chat/route.ts",
+    "../lib/risk/row-review-access.ts",
+    "../lib/risk/row-review-types.ts",
+    "../lib/risk/row-application-types.ts",
+    "../lib/risk/row-application-client.ts"
   ]
 }

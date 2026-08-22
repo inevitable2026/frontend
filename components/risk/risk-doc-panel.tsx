@@ -7,6 +7,25 @@ import type { 문서차이 } from "@/lib/risk/diff";
 import type { WorkItem } from "@/lib/board/types";
 import { 문서이름, 문서이름확정, 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
 import {
+  loadRiskRowReviewStates,
+  RiskRowReviewRequestError,
+  saveRiskRowReview,
+} from "@/lib/risk/row-review-client";
+import {
+  applyRiskRows,
+  applicationResultMatchesDescriptor,
+  createLatestRiskRowApplicationLoader,
+  RiskRowApplicationRequestError,
+  type RiskRowApplicationCommand,
+  type RiskRowApplicationDescriptor,
+} from "@/lib/risk/row-application-client";
+import {
+  reviewAsState,
+  type RiskRowReviewCommand,
+  type RiskRowReviewDecision,
+  type RiskRowReviewState,
+} from "@/lib/risk/row-review-types";
+import {
   미확인행,
   불일치행,
   이행확인미비뺀것,
@@ -91,6 +110,19 @@ export default function RiskDocPanel({
   const [갈래, set갈래] = useState<갈래>("직접");
   const [미확인만, set미확인만] = useState(true);
   const [저장중, set저장중] = useState<Set<string>>(new Set());
+  const [검토, set검토] = useState<Map<string, RiskRowReviewState>>(new Map());
+  const [검토불러오는중, set검토불러오는중] = useState(false);
+  const [검토동기화됨, set검토동기화됨] = useState(false);
+  const [검토저장중, set검토저장중] = useState<Set<string>>(new Set());
+  const [검토오류, set검토오류] = useState<string | null>(null);
+  const [검토충돌, set검토충돌] = useState<string | null>(null);
+  const [반영정보, set반영정보] = useState<RiskRowApplicationDescriptor | null>(null);
+  const [반영정보불러오는중, set반영정보불러오는중] = useState(false);
+  const [반영오류, set반영오류] = useState<string | null>(null);
+  const 재시도명령 = useRef<Map<string, RiskRowReviewCommand>>(new Map());
+  const 반영재시도명령 = useRef<RiskRowApplicationCommand | null>(null);
+  const [반영정보로더] = useState(() => createLatestRiskRowApplicationLoader());
+  const 현재카드키 = useRef(`${siteId}\u001f${item.itemId}`);
   const 서랍 = useRef<HTMLDivElement>(null);
 
   /**
@@ -197,13 +229,126 @@ export default function RiskDocPanel({
     });
   }, [미확인만, 미확인, 행들]);
 
-  /**
-   * 이 카드가 **새로 제안한** 행. 기존 문서의 행과 섞지 않는다.
-   *
-   * 열한 장 가운데 초안 행을 든 카드는 `card_ra_draft_3rows` 하나뿐이지만, 그 하나를
-   * 안 보여 주면 그 카드는 열어도 아무것도 없는 카드가 된다.
-   */
-  const 초안행 = item.draft?.form === "회의록" ? item.draft.rows : [];
+  const 카드키 = `${siteId}\u001f${item.itemId}`;
+  const 검토할초안있음 = item.draft?.form === "회의록";
+  const 초안행 = useMemo(() => [...검토.values()].map((state) => state.row), [검토]);
+  const 승인된행수 = useMemo(
+    () => 초안행.reduce((count, row) => count + (검토.get(row.itemId)?.decision === "approved" ? 1 : 0), 0),
+    [검토, 초안행],
+  );
+  const 보류행수 = useMemo(
+    () => 초안행.reduce((count, row) => count + (검토.get(row.itemId)?.decision === "held" ? 1 : 0), 0),
+    [검토, 초안행],
+  );
+  const 대기행수 = Math.max(0, 초안행.length - 승인된행수 - 보류행수);
+  const 모두승인됨 = 검토동기화됨 && 초안행.length > 0 && 승인된행수 === 초안행.length;
+
+  const 반영정보새로고침 = useCallback(async (requestKey: string) => {
+    let 최신요청완료 = false;
+    set반영정보불러오는중(true);
+    set반영오류(null);
+    try {
+      const application = await 반영정보로더.load(siteId, item.itemId);
+      if (application === null || 현재카드키.current !== requestKey) return;
+      최신요청완료 = true;
+      set반영정보(application);
+    } catch (error) {
+      if (현재카드키.current !== requestKey) return;
+      최신요청완료 = true;
+      set반영정보(null);
+      set반영오류(error instanceof Error ? error.message : "원자적 반영 조건을 불러오지 못했습니다.");
+    } finally {
+      if (최신요청완료 && 현재카드키.current === requestKey) {
+        set반영정보불러오는중(false);
+      }
+    }
+  }, [item.itemId, siteId, 반영정보로더]);
+
+  const 검토불러오기 = useCallback(async (announce = false) => {
+    const requestKey = `${siteId}\u001f${item.itemId}`;
+    반영정보로더.invalidate();
+    set검토동기화됨(false);
+    set검토(new Map());
+    set검토저장중(new Set());
+    set검토오류(null);
+    set검토충돌(null);
+    set반영정보(null);
+    set반영오류(null);
+    set검토불러오는중(true);
+    try {
+      const states = await loadRiskRowReviewStates(siteId, item.itemId);
+      if (현재카드키.current !== requestKey) return;
+      set검토(new Map(states.map((state) => [state.rowId, state])));
+      set검토동기화됨(true);
+      if (announce) set검토충돌("다른 화면에서 먼저 저장했습니다. 서버의 현재 상태를 다시 불러왔습니다.");
+    } catch (error) {
+      if (현재카드키.current !== requestKey) return;
+      set검토오류(error instanceof Error ? error.message : "행 검토 상태를 불러오지 못했습니다.");
+    } finally {
+      if (현재카드키.current === requestKey) {
+        set검토불러오는중(false);
+      }
+    }
+    await 반영정보새로고침(requestKey);
+  }, [item.itemId, 반영정보로더, 반영정보새로고침, siteId]);
+
+  useEffect(() => {
+    현재카드키.current = 카드키;
+    재시도명령.current.clear();
+    반영재시도명령.current = null;
+    반영정보로더.invalidate();
+    if (!검토할초안있음) return;
+    void Promise.resolve().then(() => 검토불러오기());
+  }, [카드키, 검토불러오기, 검토할초안있음, 반영정보로더]);
+
+  async function 검토저장(rowId: string, decision: RiskRowReviewDecision) {
+    const requestKey = 카드키;
+    const state = 검토.get(rowId);
+    if (!state || 검토저장중.has(rowId) || state.decision === "approved") return;
+
+    const retained = 재시도명령.current.get(rowId);
+    const command = retained && retained.decision === decision
+      ? retained
+      : {
+          commandId: crypto.randomUUID(),
+          siteId,
+          workItemId: item.itemId,
+          rowId,
+          expectedRowFingerprint: state.rowFingerprint,
+          decision,
+          expectedVersion: state.version,
+        };
+    재시도명령.current.set(rowId, command);
+    반영정보로더.invalidate();
+    set반영정보(null);
+    set반영정보불러오는중(false);
+    set검토저장중((previous) => new Set(previous).add(rowId));
+    set검토오류(null);
+    set검토충돌(null);
+    try {
+      const result = await saveRiskRowReview(command);
+      if (현재카드키.current !== requestKey) return;
+      set검토((previous) => new Map(previous).set(rowId, reviewAsState(result.review, state.row)));
+      재시도명령.current.delete(rowId);
+      await 반영정보새로고침(requestKey);
+    } catch (error) {
+      if (현재카드키.current !== requestKey) return;
+      if (error instanceof RiskRowReviewRequestError && error.status === 409) {
+        재시도명령.current.delete(rowId);
+        await 검토불러오기(true);
+      } else {
+        set검토오류(`${error instanceof Error ? error.message : "행 검토를 저장하지 못했습니다."} 같은 버튼을 다시 누르면 같은 명령으로 재시도합니다.`);
+      }
+    } finally {
+      if (현재카드키.current === requestKey) {
+        set검토저장중((previous) => {
+          const next = new Set(previous);
+          next.delete(rowId);
+          return next;
+        });
+      }
+    }
+  }
 
   /**
    * 행 하나를 저장한다. 같은 key 로 팩트를 **덧붙이면** 마지막 것이 이긴다 —
@@ -245,16 +390,9 @@ export default function RiskDocPanel({
   );
 
   /**
-   * 초안 3행을 문서에 반영하고 카드를 확정한다.
-   *
-   * 이게 없으면 **카드를 열어도 끝낼 방법이 없다.** 초안 행이 보이기만 하고 아무
-   * 동작이 없어서, 대기열에서 영영 안 없어진다. 예전 작업장에는 행 단위 승인이
-   * 있었는데 서랍으로 바꾸면서 같이 사라졌다.
-   *
-   * 순서가 중요하다 — **행을 먼저 쓰고, 다 들어간 뒤에 카드를 확정한다.** 반대로 하면
-   * 카드는 끝났다고 적혀 있는데 행은 문서에 없는 상태가 남는다.
-   *
-   * 새 행의 이행확인은 비워 둔다. 방금 만든 행이 현장에서 실행됐을 리 없다.
+   * 초안 행 반영과 카드 완료는 하나의 서버 명령이다. 사실을 N번 쓰고 마지막에 카드를
+   * 끝내면 중간 실패가 중복 행을 남긴다. 서버는 이 commandId로 행·카드·감사 이력을
+   * 함께 확정하고, 같은 명령은 재생한다.
    */
   const [반영중, set반영중] = useState(false);
 
@@ -265,69 +403,39 @@ export default function RiskDocPanel({
   const 카드확정됨 = item.confirmedAt !== null || item.status === "done";
 
   async function 초안반영() {
-    if (!docId || 초안행.length === 0 || 반영중) return;
+    if (!docId || 초안행.length === 0 || 반영중 || !모두승인됨 || !반영정보?.eligible || !반영정보.applicationFingerprint) return;
+    const requestKey = 카드키;
+    const retained = 반영재시도명령.current;
+    const command = retained ?? {
+      commandId: crypto.randomUUID(),
+      siteId,
+      workItemId: item.itemId,
+      expectedApplicationFingerprint: 반영정보.applicationFingerprint,
+    };
+    반영재시도명령.current = command;
     set반영중(true);
+    set오류(null);
     try {
-      for (const [i, r] of 초안행.entries()) {
-        const 행: 평가행 = {
-          회의록: docId,
-          행id: r.itemId || `NEW-${String(i + 1).padStart(2, "0")}`,
-          공종분류: r.hazardClass,
-          단위작업: r.process,
-          위험요인: r.hazard,
-          대책: r.measures.map((m) => m.text),
-          개선전: { 빈도: r.risk.likelihood, 강도: r.risk.severity, 위험도: r.risk.score },
-          개선후: {
-            빈도: r.residualRisk.likelihood,
-            강도: r.residualRisk.severity,
-            위험도: r.residualRisk.score,
-          },
-          // 이행확인은 비운다. 방금 만든 행이다.
-        };
-        const 됐다 = await 저장(행);
-        if (!됐다) {
-          console.error("[위험성평가] 평가 항목 추가 실패", 행.행id);
-          throw new Error(
-            "평가 항목을 문서에 추가하지 못했습니다. 이 할 일은 그대로 두었으니 잠시 뒤 다시 시도해 주세요.",
-          );
-        }
+      const result = await applyRiskRows(command);
+      if (!applicationResultMatchesDescriptor(result, 반영정보)) {
+        throw new RiskRowApplicationRequestError(502, null, "반영 완료 응답이 요청한 문서·행과 일치하지 않습니다.");
       }
-
-      // 행이 전부 들어간 뒤에만 카드를 확정한다.
-      //
-      // **이미 확정된 카드는 건드리지 않는다.** `transition.ts:185-187` 이 확정된 카드의
-      // 재확정을 409 로 막는다. 그걸 모르고 그냥 보내다가 "행은 들어갔지만 카드를
-      // 확정하지 못했습니다: 이미 확정된 카드입니다" 라는, 사용자가 할 수 있는 일이
-      // 아무것도 없는 오류를 띄웠다. 행은 이미 들어갔으므로 이건 실패가 아니다.
-      if (카드확정됨) {
-        카드끝남?.(item.itemId);
-        닫기();
-        return;
-      }
-
-      const res = await fetch(`/api/board/items/${encodeURIComponent(item.itemId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "done", confirmedBy: "user_park" }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        console.error("[위험성평가] 할 일 확정 실패", item.itemId, res.status, body.error);
-        throw new Error(
-          "평가 항목은 문서에 추가했지만 이 할 일을 닫지 못했습니다. 목록에서 다시 시도해 주세요.",
-        );
-      }
-      // 대기열에서 빼 달라고 알린다. 이게 없으면 서버는 확정했는데 화면에는 카드가
-      // 그대로 남아, 사용자가 보기엔 아무 일도 안 일어난 것과 같다.
+      if (현재카드키.current !== requestKey) return;
+      반영재시도명령.current = null;
       카드끝남?.(item.itemId);
       닫기();
     } catch (e) {
-      console.error("[위험성평가] 초안 반영 실패", item.itemId, e);
-      set오류(
-        e instanceof Error
-          ? e.message
-          : "평가 항목을 추가하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
-      );
+      if (현재카드키.current !== requestKey) return;
+      if (e instanceof RiskRowApplicationRequestError && e.status === 409) {
+        // 이 명령은 현재 검토 집합에는 쓸 수 없다. 새 상태에서 새 commandId를 만든다.
+        반영재시도명령.current = null;
+        await 검토불러오기();
+        if (현재카드키.current === requestKey) {
+          set검토충돌(`${e.message} 서버의 현재 검토·반영 조건을 다시 불러왔습니다.`);
+        }
+      } else {
+        set오류(`${e instanceof Error ? e.message : "반영하지 못했습니다."} 다시 누르면 같은 명령으로 안전하게 재시도합니다.`);
+      }
     } finally {
       set반영중(false);
     }
@@ -566,7 +674,7 @@ export default function RiskDocPanel({
               </p>
             ) : null}
 
-            {갈래 === "직접" && 초안행.length > 0 ? (
+            {갈래 === "직접" && 검토할초안있음 ? (
               <section className="risk-drawer-draft">
                 <h3>
                   추가할 평가 항목 <b>{초안행.length}</b>건
@@ -582,31 +690,94 @@ export default function RiskDocPanel({
                     </>
                   ) : null}
                 </p>
+
+                {검토불러오는중 ? (
+                  <p className="risk-drawer-review-notice" aria-live="polite">
+                    저장된 행 검토를 불러오는 중입니다…
+                  </p>
+                ) : null}
+                {검토오류 ? (
+                  <p className="risk-drawer-review-notice is-error" role="alert">{검토오류}</p>
+                ) : null}
+                {반영오류 ? (
+                  <p className="risk-drawer-review-notice is-error" role="alert">{반영오류}</p>
+                ) : null}
+                {검토충돌 ? (
+                  <p className="risk-drawer-review-notice is-conflict" role="status">{검토충돌}</p>
+                ) : null}
                 <ol>
-                  {초안행.map((r) => (
-                    <li key={r.itemId}>
-                      <p className="risk-drawer-work">{r.hazard}</p>
-                      <p className="risk-drawer-hazard">{r.process}</p>
-                      {/* 초안은 등급(level)을 스스로 들고 온다. 그건 그대로 보인다 —
-                          지어낸 값이 아니라 만든 쪽이 정한 값이다. */}
-                      <span className="risk-drawer-score">
-                        발생 가능성 {r.risk.likelihood} × 피해 크기 {r.risk.severity} → 위험도{" "}
-                        <b>{r.risk.score}</b> ({r.risk.level})
-                      </span>
-                    </li>
-                  ))}
+                  {초안행.map((r) => {
+                    const state = 검토.get(r.itemId);
+                    const approved = state?.decision === "approved";
+                    const held = state?.decision === "held";
+                    const saving = 검토저장중.has(r.itemId);
+                    const disabled = !검토동기화됨 || !state || saving;
+                    return (
+                      <li
+                        key={r.itemId}
+                        data-row-id={r.itemId}
+                        data-review-state={state?.decision ?? "loading"}
+                        className={approved ? "is-approved" : held ? "is-held" : "is-pending"}
+                      >
+                        <div className="risk-drawer-review-head">
+                          <b>{r.itemId}</b>
+                          <span>{approved ? "승인됨 · 잠김" : held ? "보류됨" : "검토 대기"}</span>
+                        </div>
+                        <p className="risk-drawer-work">{r.hazard}</p>
+                        <p className="risk-drawer-hazard">{r.process}</p>
+                        {/* 초안은 등급(level)을 스스로 들고 온다. 그건 그대로 보인다 —
+                            지어낸 값이 아니라 만든 쪽이 정한 값이다. */}
+                        <span className="risk-drawer-score">
+                          발생 가능성 {r.risk.likelihood} × 피해 크기 {r.risk.severity} → 위험도{" "}
+                          <b>{r.risk.score}</b> ({r.risk.level})
+                        </span>
+                        <div className="risk-drawer-review-actions">
+                          <button
+                            type="button"
+                            className="is-hold"
+                            disabled={disabled || approved || held}
+                            onClick={() => void 검토저장(r.itemId, "held")}
+                          >
+                            {saving ? "저장 중…" : held ? "보류됨" : "보류"}
+                          </button>
+                          <button
+                            type="button"
+                            className="is-approve"
+                            disabled={disabled || approved}
+                            onClick={() => void 검토저장(r.itemId, "approved")}
+                          >
+                            {saving ? "저장 중…" : approved ? "승인됨 · 잠김" : "이 행 승인"}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ol>
 
                 {/* 카드를 끝낼 수 있는 유일한 자리. 이게 없으면 열어 봐도 대기열에서
                     안 없어진다. */}
                 <div className="risk-drawer-draft-acts">
-                  <button type="button" onClick={() => void 초안반영()} disabled={반영중 || !docId}>
+                  <button
+                    type="button"
+                    onClick={() => void 초안반영()}
+                    disabled={반영중 || !docId || !모두승인됨 || !반영정보?.eligible}
+                  >
                     {반영중
-                      ? "추가하는 중…"
+                      ? "반영 중…"
                       : `새 평가 항목 ${초안행.length}건을 ${문서표시(docId, 결재)}에 추가하고 이 할 일 닫기`}
                   </button>
                   <span>
-                    새 항목의 이행확인은 비워 둡니다. 현장에서 실제로 조치한 뒤에 직접 체크해 주세요.
+                    {!검토동기화됨
+                      ? "저장된 검토 상태를 확인한 뒤 반영할 수 있습니다."
+                      : 반영정보불러오는중 || !반영정보
+                        ? 반영오류 ?? "원자적 반영 조건을 확인하는 중입니다."
+                        : !반영정보.eligible
+                          ? "서버의 최신 반영 조건이 바뀌었습니다. 검토 상태를 다시 확인하세요."
+                      : 보류행수 > 0
+                        ? `보류된 ${보류행수}행이 있어 반영할 수 없습니다.`
+                        : 대기행수 > 0
+                          ? `아직 승인하지 않은 ${대기행수}행이 있습니다.`
+                          : "모든 행이 승인됐습니다. 반영해도 새 행의 이행확인은 비워 둡니다."}
                   </span>
                 </div>
               </section>

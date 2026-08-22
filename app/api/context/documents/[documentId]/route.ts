@@ -7,10 +7,14 @@ export const dynamic = "force-dynamic";
 const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(_req: Request, ctx: { params: Promise<{ documentId: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await ctx.params;
+  const siteId = new URL(req.url).searchParams.get("siteId");
   if (!UUID.test(documentId)) {
     return Response.json({ error: "문서 주소가 올바르지 않습니다. 문서함에서 다시 열어 주세요." }, { status: 400, headers: HEADERS });
+  }
+  if (!siteId || !UUID.test(siteId)) {
+    return Response.json({ error: "siteId 가 올바르지 않습니다." }, { status: 400, headers: HEADERS });
   }
 
   const sql = db();
@@ -33,7 +37,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ documentId: st
            d.source_filename, d.mime, d.page_count, d.extracted, d.created_at
       from documents d
       join sites s on s.id = d.site_id
-     where d.id = ${documentId}
+     where d.id = ${documentId} and d.site_id = ${siteId}
      limit 1
   `;
   if (!doc) return Response.json({ error: "문서를 찾지 못했습니다. 문서함을 새로 고친 뒤 다시 열어 주세요." }, { status: 404, headers: HEADERS });
@@ -47,7 +51,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ documentId: st
 
   const chunks = await sql<Array<{ id: string; seq: number; page: number | null; text: string }>>`
     select id, seq, page, text from document_chunks
-     where document_id = ${documentId}
+     where document_id = ${documentId} and site_id = ${siteId}
      order by seq
   `;
 

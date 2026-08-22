@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
 import { useLatestPin } from "./chat/use-latest-pin";
@@ -11,46 +12,27 @@ import { ASSISTANT_LABEL, isActivePrompt, PROMPT_CARDS } from "@/components/chat
 import { useLawChat } from "@/components/chat/use-law-chat";
 import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
 import { 재평가건수 } from "@/components/risk/risk-queue";
-import { BOARD_SITE_ID } from "@/lib/board/site";
 import type { BoardPage } from "@/lib/board/types";
 import { SiteContextPanel } from "@/components/site-context-panel";
 import { TaskBoard } from "@/components/task-board/task-board";
 import type { BoardSources } from "@/components/task-board/board-data";
+import {
+  type ConsoleNav,
+  type ConsoleUrlState,
+  patchConsoleUrlState,
+  serializeConsoleUrlState,
+} from "@/lib/console-url";
 
 /**
- * 사이드바 차례. **첫 항목이 태스크 보드**이므로 아래 인덱스가 곧 화면이다.
- * 0 태스크 보드 · 1 우리 회사 챗봇 · 2 현장 맥락 관리 · 3 TBM 기록 · 4 위험성평가 기록.
- * 순서를 바꾸면 `NAV_BOARD` · `NAV_SITE_CONTEXT` · `NAV_RISK` 세 상수도 같이 옮겨야 한다.
- * 날숫자로 비교하면 안 된다 — 실제로 위험성평가를 `=== 3` 으로 두었다가 태스크 보드가
- * 앞에 끼면서 조용히 TBM 탭을 가리켰다. 자동 병합은 인덱스의 의미를 모른다.
+ * URL 에 적는 값이 화면의 정체성이다. 배열 순서를 상태로 쓰지 않는다 — 메뉴가 숨겨지거나
+ * 끼어들어도 주소와 화면이 엇갈리지 않아야 한다.
  */
-const navigation: readonly { label: string; icon: string; badge?: number }[] = [
-  { label: "태스크 보드", icon: "/assets/file-check.svg", badge: 11 },
-  { label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
-  { label: "현장 맥락 관리", icon: "/assets/database.svg" },
-  // TBM 기록 숨기기
-  // { label: "TBM 기록 목록", icon: "/assets/file-user.svg" },
-  { label: "위험성평가 기록", icon: "/assets/file-exclamation.svg" },
+const navigation: readonly { value: ConsoleNav; label: string; icon: string; badge?: number }[] = [
+  { value: "board", label: "태스크 보드", icon: "/assets/file-check.svg", badge: 11 },
+  { value: "chat", label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
+  { value: "context", label: "현장 맥락 관리", icon: "/assets/database.svg" },
+  { value: "risk", label: "위험성평가 기록", icon: "/assets/file-exclamation.svg" },
 ];
-
-const NAV_BOARD = 0;
-const NAV_CHAT = 1;
-const NAV_SITE_CONTEXT = 2;
-const NAV_RISK = 3;
-
-/**
- * 배지를 세는 현장. **태스크 보드와 반드시 같은 값이어야 한다.**
- *
- * 예전에는 `"site_gimpo_gochon_01"` 리터럴이었다. 그건 `data/board/seed-*.json` 이
- * 쓰는 사람이 읽는 이름이고, 보드는 `BOARD_SITE_ID`(uuid)를 쓴다. 둘이 갈라져 있어서
- * **어느 설정에서도 하나는 반드시 깨졌다** — `BOARD_STORE=pg` 면 배지 요청이
- * uuid 컬럼에 문자열을 넣어 400 을 맞고(아래 `.catch()` 가 조용히 삼켜 배지가 영영
- * 안 뜬다), JSON 저장소면 반대로 보드가 404 였다.
- *
- * 같은 상수를 가리키게 해서 둘의 운명을 묶는다. 하나가 깨지면 둘 다 깨지므로
- * 적어도 **한쪽만 조용히 죽는 일**은 없어진다.
- */
-const BADGE_SITE = BOARD_SITE_ID;
 
 const appAssets = [
   { src: "/assets/document-app.svg", className: "asset-square" },
@@ -88,6 +70,7 @@ function AssetCarousel({ blurred = false }: { blurred?: boolean }) {
 
 export function ConstructionConsole({
   initialBoard = null,
+  initialUrlState,
 }: {
   /**
    * 서버가 첫 그림 전에 읽어 둔 보드 재료. 태스크 보드가 처음 열리는 화면이라 이것을 들고
@@ -95,8 +78,22 @@ export function ConstructionConsole({
    * 보드가 예전처럼 마운트 뒤에 직접 읽는다.
    */
   initialBoard?: BoardSources | null;
+  initialUrlState: ConsoleUrlState;
 }) {
-  const [activeNav, setActiveNav] = useState(NAV_BOARD);
+  const router = useRouter();
+  const urlState = initialUrlState;
+  const incomingUrlRef = useRef(serializeConsoleUrlState(urlState));
+  const pendingUrlStateRef = useRef(urlState);
+  const incomingUrl = serializeConsoleUrlState(urlState);
+
+  // A navigation may not have re-rendered this component before another control
+  // emits a patch. Only replace our pending state when the server-provided URL
+  // actually changes (including browser back/forward).
+  useEffect(() => {
+    if (incomingUrl === incomingUrlRef.current) return;
+    incomingUrlRef.current = incomingUrl;
+    pendingUrlStateRef.current = urlState;
+  }, [incomingUrl, urlState]);
   /**
    * 위험성평가 탭 배지 — 재평가가 필요한 건수.
    * 상수로 박지 않는다. 배지가 실제와 어긋나면 그 자체로 거짓말이다.
@@ -104,10 +101,16 @@ export function ConstructionConsole({
   const [riskBadge, setRiskBadge] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const updateUrl = useCallback((patch: Partial<ConsoleUrlState>): void => {
+    const next = patchConsoleUrlState(pendingUrlStateRef.current, patch);
+    pendingUrlStateRef.current = next;
+    router.push(serializeConsoleUrlState(next), { scroll: false });
+  }, [router]);
+
   // 사이드바 배지는 탭을 열기 전에도 맞아야 한다. 그래서 콘솔이 직접 센다.
   useEffect(() => {
     let 살아있음 = true;
-    fetch(`/api/board/items?siteId=${encodeURIComponent(BADGE_SITE)}`)
+    fetch(`/api/board/items?siteId=${encodeURIComponent(urlState.siteId)}`)
       // 실패를 `null` 로 바꾸지 않는다. 그러면 아래 catch 가 영영 안 불려서
       // 400 을 맞아도 "카드가 0장" 과 똑같아 보인다.
       .then((r) => {
@@ -130,14 +133,14 @@ export function ConstructionConsole({
     return () => {
       살아있음 = false;
     };
-  }, []);
+  }, [urlState.siteId]);
 
   const uploadInput = useRef<HTMLInputElement>(null);
   // 챗봇 탭의 대화. 보드의 AI 사이드바는 같은 훅을 따로 부르므로 상태가 섞이지 않는다.
   const chat = useLawChat();
   // 답이 길어질 때 화면을 따라 내리는 규칙. 사용자가 위로 올라가 있으면 끌어내리지 않는다.
   const pin = useLatestPin({
-    enabled: activeNav === NAV_CHAT && chat.lastQuestion.length > 0,
+    enabled: urlState.nav === "chat" && chat.lastQuestion.length > 0,
     hasResponseContent:
       chat.toolCalls.length > 0 || chat.answer.length > 0 || chat.error.length > 0,
     revision: `${chat.toolCalls.length}:${chat.answer.length}:${chat.error.length}`,
@@ -239,14 +242,14 @@ export function ConstructionConsole({
         </div>
 
         <nav className="nav-panel">
-          {navigation.map((item, index) => (
+          {navigation.map((item) => (
             <button
-              className={`nav-item${activeNav === index ? " is-active" : ""}`}
+              className={`nav-item${urlState.nav === item.value ? " is-active" : ""}`}
               key={item.label}
               type="button"
-              aria-current={activeNav === index ? "page" : undefined}
+              aria-current={urlState.nav === item.value ? "page" : undefined}
               onClick={() => {
-                setActiveNav(index);
+                updateUrl({ nav: item.value });
                 setSidebarOpen(false);
               }}
             >
@@ -258,7 +261,7 @@ export function ConstructionConsole({
               <span className="nav-item-label">{item.label}</span>
               {(() => {
                 // 위험성평가 배지는 실측값이라 navigation 상수가 아니라 상태에서 온다.
-                const badge = index === NAV_RISK ? riskBadge : item.badge;
+                const badge = item.value === "risk" ? riskBadge : item.badge;
                 return badge === undefined ? null : <span className="nav-badge">{badge}</span>;
               })()}
             </button>
@@ -306,13 +309,33 @@ export function ConstructionConsole({
         </div>
       </aside>
 
-      <section className={`workspace${activeNav === NAV_BOARD ? " is-board" : ""}`}>
-        {activeNav === NAV_BOARD ? (
-          <TaskBoard initialSources={initialBoard} />
-        ) : activeNav === NAV_SITE_CONTEXT ? (
-          <SiteContextPanel />
-        ) : activeNav === NAV_RISK ? (
-          <RiskAssessmentPanel />
+      <section className={`workspace${urlState.nav === "board" ? " is-board" : ""}`}>
+        {urlState.nav === "board" ? (
+          <TaskBoard
+            key={`${urlState.siteId}:${urlState.boardDate}:${urlState.boardFilterDate ?? "all"}:${urlState.boardView}`}
+            initialSources={initialBoard}
+            siteId={urlState.siteId}
+            boardDate={urlState.boardDate}
+            selectedDate={urlState.boardFilterDate}
+            viewMode={urlState.boardView}
+            onUrlStateChange={updateUrl}
+          />
+        ) : urlState.nav === "context" ? (
+          <SiteContextPanel
+            siteId={urlState.siteId}
+            contextKind={urlState.contextKind}
+            documentId={urlState.documentId}
+            onUrlStateChange={updateUrl}
+          />
+        ) : urlState.nav === "risk" ? (
+          <RiskAssessmentPanel
+            siteId={urlState.siteId}
+            riskScreen={urlState.riskScreen}
+            riskSiteId={urlState.riskSiteId}
+            cardId={urlState.cardId}
+            assessmentId={urlState.assessmentId}
+            onUrlStateChange={updateUrl}
+          />
         ) : (
         <div className={`content-stack${chat.lastQuestion ? " is-chatting" : ""}`}>
           {!chat.lastQuestion ? <>

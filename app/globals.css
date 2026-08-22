@@ -7094,8 +7094,89 @@ button {
 
 .risk-drawer-draft li {
   padding: 9px 11px;
+  border: 1px solid transparent;
   border-radius: 9px;
   background: #ffffff;
+}
+
+.risk-drawer-draft li.is-held {
+  border-color: #e4c98f;
+  background: #fffbef;
+}
+
+.risk-drawer-draft li.is-approved {
+  border-color: #b8dcc8;
+  background: #f4fbf7;
+}
+
+.risk-drawer-review-notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px dashed #e4c98f;
+  border-radius: 8px;
+  background: #fffbef;
+  color: #75510b;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.risk-drawer-review-notice.is-error {
+  border-color: #f4c7c7;
+  background: #fff6f6;
+  color: #a33;
+}
+
+.risk-drawer-review-notice.is-conflict {
+  border-color: var(--purple-primary);
+  background: #f4f3ff;
+  color: var(--purple-copy);
+}
+
+.risk-drawer-review-head,
+.risk-drawer-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.risk-drawer-review-head {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.risk-drawer-review-head b {
+  color: var(--text-sidebar);
+}
+
+.risk-drawer-review-actions {
+  justify-content: flex-end;
+  margin-top: 9px;
+}
+
+.risk-drawer-review-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.risk-drawer-review-actions button.is-approve {
+  border-color: var(--purple-primary);
+  background: var(--purple-primary);
+  color: #ffffff;
+}
+
+.risk-drawer-review-actions button:disabled {
+  border-color: var(--border-soft);
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  cursor: default;
 }
 
 /* ── 행 목록 ── */

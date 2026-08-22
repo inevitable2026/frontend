@@ -14,6 +14,7 @@ import { BOARD_SITE_ID, BOARD_SITE_NAME } from "@/lib/board/site";
 import { 합치기 } from "@/lib/risk/vocab";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
 import type { 평가일자 } from "@/lib/risk/safegrid";
+import type { ConsoleUrlState, RiskScreen } from "@/lib/console-url";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
 
 /**
@@ -113,8 +114,26 @@ const 보드기본현장 = [{ id: BOARD_SITE_ID, name: BOARD_SITE_NAME }];
 /** 이 탭이 지금 무엇을 보이고 있는가. 대기열이 기본이다. */
 type 화면 = "대기열" | "타임라인" | "새평가";
 
-export function RiskAssessmentPanel() {
-  const [화면, set화면] = useState<화면>("대기열");
+export function RiskAssessmentPanel({
+  siteId,
+  riskScreen,
+  riskSiteId,
+  cardId,
+  assessmentId,
+  onUrlStateChange,
+}: {
+  siteId: string;
+  riskScreen: RiskScreen;
+  riskSiteId: string | null;
+  cardId: string | null;
+  assessmentId: string | null;
+  onUrlStateChange: (patch: Partial<ConsoleUrlState>) => void;
+}) {
+  const 화면: 화면 = riskScreen === "new-assessment"
+    ? "새평가"
+    : riskScreen === "timeline"
+      ? "타임라인"
+      : "대기열";
   const [대기열, set대기열] = useState<WorkItem[]>([]);
   const [현장이름, set현장이름] = useState<Map<string, string>>(new Map());
   const [대기열로딩, set대기열로딩] = useState(true);
@@ -123,8 +142,6 @@ export function RiskAssessmentPanel() {
   const [기록, set기록] = useState<평가일자[]>([]);
   const [기록로딩, set기록로딩] = useState(true);
   const [기록펼침, set기록펼침] = useState(false);
-  const [고른카드, set고른카드] = useState<WorkItem | null>(null);
-  const [고른현장, set고른현장] = useState<string | null>(null);
 
   const [모드, set모드] = useState<생성모드>("데모");
   const [어휘, set어휘] = useState<어휘>(기본어휘);
@@ -152,6 +169,26 @@ export function RiskAssessmentPanel() {
   const 저장타이머 = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 미리보기 URL 은 컴포넌트가 사라질 때 반드시 회수한다. 안 하면 페이지를 오래 열어 둘수록 샌다.
   const 미리보기들 = useRef<string[]>([]);
+
+  /**
+   * 저장에 실패했을 때 되돌아갈 자리. **마지막으로 저쪽이 받아 준 상태**다.
+   *
+   * 이게 없으면 PATCH 가 실패해도 화면은 켜진 체크와 「이행확인 9 / 9 · 100%」 를
+   * 그대로 들고 있는다. 사용자는 빨간 줄 하나를 지나치고 엑셀을 내려받는데, 저쪽
+   * DB 에서 만들어진 파일은 8행만 채워져 있다. 결재 상신 가능이라고 말한 화면과
+   * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
+   */
+  const 마지막저장본 = useRef<Assessment | null>(null);
+
+  function 주소화면(
+    next: 화면,
+    patch: Partial<ConsoleUrlState> = {},
+  ): void {
+    onUrlStateChange({
+      riskScreen: next === "새평가" ? "new-assessment" : next === "타임라인" ? "timeline" : "queue",
+      ...patch,
+    });
+  }
 
   useEffect(() => {
     fetch("/api/risk/vocabulary")
@@ -191,7 +228,10 @@ export function RiskAssessmentPanel() {
         .then((v) => v?.sites ?? [])
         .catch(() => []);
 
-      const 목록 = sites.length > 0 ? sites : 보드기본현장;
+      const 모든현장 = sites.length > 0 ? sites : 보드기본현장;
+      // 주소가 가리키는 현장만 읽는다. 콘솔은 한 번에 한 현장을 열고 있고, 다른 현장 카드가
+      // 섞이면 주소와 화면이 갈라진다.
+      const 목록 = 모든현장.filter((site) => site.id === siteId);
       set현장이름(new Map(목록.map((s) => [s.id, s.name])));
 
       // 한 현장이 실패해도 나머지 대기열은 보여야 한다.
@@ -216,7 +256,7 @@ export function RiskAssessmentPanel() {
     } finally {
       set대기열로딩(false);
     }
-  }, []);
+  }, [siteId]);
 
   /**
    * 지금까지 만든 평가서 목록. **보드 카드와 다른 곳에 있다** —
@@ -319,40 +359,49 @@ export function RiskAssessmentPanel() {
     setAssessment(null);
     마지막저장본.current = null;
     set오류(null);
-    set화면("새평가");
+    주소화면("새평가", { cardId: null, assessmentId: null });
   }
 
-  /** 저장된 평가서를 연다. 새로 만드는 것이 아니라 SAFEGRID 에서 읽어 온다. */
-  async function 기록열기(id: string) {
-    set오류(null);
-    set화면("새평가");
-    try {
-      const res = await fetch(`/api/risk/${id}`);
-      const body = await res.json();
-      if (!res.ok) {
-        console.error("[risk] assessment fetch failed", { id, status: res.status, error: body?.error });
-        throw new Error("평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+  /** 저장된 평가서의 ID를 주소에 남긴다. 읽기는 아래 effect 한 곳에서 맡는다. */
+  function 기록열기(id: string) {
+    주소화면("새평가", { cardId: null, assessmentId: id });
+  }
+
+  // 주소로 연 SAFEGRID 평가서도 버튼으로 연 것과 똑같은 입력 상태까지 되살린다.
+  useEffect(() => {
+    if (riskScreen !== "new-assessment" || !assessmentId) return;
+    let 살아있음 = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/risk/${assessmentId}`);
+        const body = await res.json();
+        if (!res.ok) {
+          console.error("[risk] assessment fetch failed", {
+            id: assessmentId,
+            status: res.status,
+            error: body?.error,
+          });
+          throw new Error("평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+        }
+        if (!살아있음) return;
+        const a = body.assessment as Assessment;
+        setAssessment(a);
+        마지막저장본.current = a;
+        set공종(a.work_types ?? []);
+        set장비(a.equipment ?? []);
+        set자재(a.materials ?? []);
+        if (a.matrix) set매트릭스(a.matrix);
+        if (a.method) set평가방법(a.method);
+        set현장(a.site ?? "");
+        set오류(null);
+      } catch (err) {
+        if (살아있음) set오류(실패문구(err, "평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요."));
       }
-      const a = body.assessment as Assessment;
-      setAssessment(a);
-      // 방금 저쪽에서 읽어 온 것이므로 이것이 되돌아갈 자리다.
-      마지막저장본.current = a;
-
-      // 평가서가 들고 있는 조건을 입력칸에 되돌려 놓는다.
-      //
-      // 예전에는 `setAssessment` 만 했다. 그러면 표에는 "철근콘크리트공사 · 절단작업"이
-      // 보이는데 위쪽 공종·장비·자재는 **전부 0**이었다 — 화면이 방금 연 평가서를
-      // 새 평가처럼 취급하고, 다시 생성하면 그 조건이 통째로 날아갔다.
-      set공종(a.work_types ?? []);
-      set장비(a.equipment ?? []);
-      set자재(a.materials ?? []);
-      if (a.matrix) set매트릭스(a.matrix);
-      if (a.method) set평가방법(a.method);
-      set현장(a.site ?? "");
-    } catch (err) {
-      set오류(실패문구(err, "평가서를 읽지 못했습니다. 잠시 뒤 다시 시도해 주세요."));
-    }
-  }
+    })();
+    return () => {
+      살아있음 = false;
+    };
+  }, [assessmentId, riskScreen]);
 
   const 미리보기만들기 = useCallback((file: File) => {
     const url = URL.createObjectURL(file);
@@ -607,16 +656,6 @@ export function RiskAssessmentPanel() {
     [저장예약],
   );
 
-  /**
-   * 저장에 실패했을 때 되돌아갈 자리. **마지막으로 저쪽이 받아 준 상태**다.
-   *
-   * 이게 없으면 PATCH 가 실패해도 화면은 켜진 체크와 「이행확인 9 / 9 · 100%」 를
-   * 그대로 들고 있는다. 사용자는 빨간 줄 하나를 지나치고 엑셀을 내려받는데, 저쪽
-   * DB 에서 만들어진 파일은 8행만 채워져 있다. 결재 상신 가능이라고 말한 화면과
-   * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
-   */
-  const 마지막저장본 = useRef<Assessment | null>(null);
-
   /** 대기열에 카드가 실제로 있는 현장만. 빈 현장 버튼은 누를 이유가 없다. */
   const 현장있는것: Array<[string, string]> = [...new Set(대기열.map((i) => i.siteId))].map((id) => [
     id,
@@ -624,6 +663,8 @@ export function RiskAssessmentPanel() {
   ]);
 
   const 입력있음 = 공종.length > 0 || 장비.length > 0 || 자재.length > 0;
+  const 고른카드 = cardId ? 대기열.find((item) => item.itemId === cardId) ?? null : null;
+  const 고른현장 = riskSiteId;
 
   /**
    * 고른 카드의 평가서 서랍. **화면을 갈아치우지 않고 위에 얹는다.**
@@ -634,13 +675,17 @@ export function RiskAssessmentPanel() {
   const 서랍 =
     고른카드 !== null ? (
       <RiskDocPanel
+        key={`${고른카드.siteId}:${고른카드.itemId}`}
         item={고른카드}
         siteId={고른카드.siteId}
         현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
-        닫기={() => set고른카드(null)}
+        닫기={() => onUrlStateChange({ cardId: null })}
         // 낙관적으로 빼지 않는다. 서버가 확정한 뒤 다시 읽어야 새로고침해도 같은
         // 화면이 나온다 — 예전에는 배열에서만 빠져서 새로고침하면 카드가 돌아왔다.
-        카드끝남={() => void 대기열읽기()}
+        카드끝남={() => {
+          void 대기열읽기();
+          onUrlStateChange({ cardId: null });
+        }}
       />
     ) : null;
 
@@ -652,12 +697,9 @@ export function RiskAssessmentPanel() {
           항목들={대기열.filter((i) => i.siteId === 고른현장)}
           현장이름={현장이름.get(고른현장) ?? 고른현장}
           기준시각={기준시각}
-          뒤로={() => {
-            set화면("대기열");
-            set고른현장(null);
-          }}
+          뒤로={() => 주소화면("대기열", { riskSiteId: null, cardId: null })}
           // 시간축 위에 그대로 서랍이 열린다. 시간축을 벗어나지 않는다.
-          선택={(item) => set고른카드(item)}
+          선택={(item) => onUrlStateChange({ cardId: item.itemId })}
         />
         {서랍}
       </div>
@@ -674,7 +716,7 @@ export function RiskAssessmentPanel() {
             <h1>지금 손봐야 할 것</h1>
             <p className="risk-sub">
               태스크 보드가 찾아낸 것 가운데 위험성평가에 해당하는 것입니다. 여기서 열어
-              평가 항목마다 승인하면 TBM 자료와 공문이 함께 만들어집니다.
+              제안된 평가 항목을 하나씩 검토하고, 모두 승인해야 위험성평가서에 반영할 수 있습니다.
             </p>
           </div>
           <button type="button" className="risk-generate" onClick={새평가시작}>
@@ -690,10 +732,7 @@ export function RiskAssessmentPanel() {
               <button
                 key={id}
                 type="button"
-                onClick={() => {
-                  set고른현장(id);
-                  set화면("타임라인");
-                }}
+                onClick={() => 주소화면("타임라인", { riskSiteId: id, cardId: null })}
               >
                 {이름}
                 <em>{대기열.filter((i) => i.siteId === id).length}</em>
@@ -708,7 +747,7 @@ export function RiskAssessmentPanel() {
           불러오는중={대기열로딩}
           기준시각={기준시각}
           // 대기열은 그대로 두고 오른쪽에 평가서가 열린다. 다음 카드로 바로 넘어갈 수 있다.
-          선택={(item) => set고른카드(item)}
+          선택={(item) => onUrlStateChange({ cardId: item.itemId })}
           감지={감지돌리기}
         />
 
@@ -717,7 +756,7 @@ export function RiskAssessmentPanel() {
         <RiskRecords
           일자별={기록}
           불러오는중={기록로딩}
-          열기={(id) => void 기록열기(id)}
+          열기={기록열기}
           펼침={기록펼침}
           펼치기={() => set기록펼침(true)}
         />
@@ -732,7 +771,11 @@ export function RiskAssessmentPanel() {
       <header className="risk-head">
         <div>
           <p className="eyebrow">
-            <button type="button" className="risk-ws-back" onClick={() => set화면("대기열")}>
+            <button
+              type="button"
+              className="risk-ws-back"
+              onClick={() => 주소화면("대기열", { cardId: null, assessmentId: null })}
+            >
               ← 할 일 목록
             </button>
           </p>

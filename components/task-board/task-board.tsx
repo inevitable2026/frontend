@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 
-import { BOARD_AT, BOARD_DATE } from "@/lib/board/scene";
-import { BOARD_SITE_ID } from "@/lib/board/site";
+import { BOARD_AT } from "@/lib/board/scene";
 import type { WorkItem } from "@/lib/board/types";
+import type { BoardView, ConsoleUrlState } from "@/lib/console-url";
 
 import { AssistantFab, AssistantPanel, type BoardBridge } from "./assistant-panel";
 import { BoardHeader } from "./board-header";
@@ -42,9 +42,6 @@ import type {
  * 스크립트와 board.* 세 테이블의 site_id 가 같은 상수를 읽는다. 여기서 값을 다시 적지 않고
  * lib/board/site.ts 를 불러 쓰는 이유는 세 곳이 갈라지는 것을 막기 위해서다.
  */
-const SITE_ID = BOARD_SITE_ID;
-
-
 
 /**
  * 두 카드 사이에 끼울 자리를 만드는 간격.
@@ -222,6 +219,11 @@ function 처음펼칠조건(snapshot: BoardSnapshot | null): string[] {
 
 export function TaskBoard({
   initialSources = null,
+  siteId,
+  boardDate: requestedDate,
+  selectedDate: requestedSelectedDate,
+  viewMode: requestedViewMode,
+  onUrlStateChange,
 }: {
   /**
    * 서버가 첫 그림 전에 이미 읽어 둔 보드 재료다.
@@ -231,7 +233,30 @@ export function TaskBoard({
    * 첫 요청이 나가므로 데이터베이스 왕복 앞에 대기가 한 겹 더 붙는다.
    */
   initialSources?: BoardSources | null;
+  siteId: string;
+  boardDate: string;
+  selectedDate: string | null;
+  viewMode: BoardView;
+  onUrlStateChange: (patch: Partial<ConsoleUrlState>) => void;
 }): JSX.Element {
+  /**
+   * 서버가 미리 읽어 둔 재료 중, 주소가 가리키는 현장·날짜와 맞는 것만 쓴다.
+   *
+   * 주소에 다른 현장이나 다른 날이 적힌 채로 들어오면 선독해 둔 것은 다른 보드다. 그것을
+   * 그대로 그리면 주소와 화면이 갈라지므로, 맞지 않으면 없는 것으로 치고 아래 효과가 읽게
+   * 둔다.
+   */
+  const 선독재료 = useMemo(
+    () => (
+      initialSources === null ||
+      initialSources.siteId !== siteId ||
+      initialSources.date !== requestedDate
+        ? null
+        : initialSources
+    ),
+    [initialSources, requestedDate, siteId],
+  );
+
   /**
    * 화면이 드는 것은 뷰모델이 아니라 **재료**다.
    *
@@ -241,7 +266,7 @@ export function TaskBoard({
    * 경로(app/page.tsx → construction-console.tsx)가 넘겨 주는 것도 같은 BoardSources 라
    * 두 길이 여기서 같은 모양으로 합쳐진다.
    */
-  const [sources, setSources] = useState<BoardSources | null>(initialSources);
+  const [sources, setSources] = useState<BoardSources | null>(선독재료);
 
   // 재료를 뷰모델로 옮기는 일은 재료가 바뀔 때 한 번이면 된다.
   const snapshot = useMemo(
@@ -260,8 +285,8 @@ export function TaskBoard({
   const [loadError, setLoadError] = useState<string | null>(null);
   /** 다시 시도 단추가 올리는 값. 바뀌면 읽기 효과가 한 번 더 돈다. */
   const [attempt, setAttempt] = useState(0);
-  const [selectedDate, setSelectedDate] = useState<string | null>(snapshot?.selectedDate ?? null);
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
+  const [selectedDate, setSelectedDate] = useState<string | null>(requestedSelectedDate);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(requestedViewMode);
   const [openConditionIds, setOpenConditionIds] = useState<string[]>(() =>
     처음펼칠조건(snapshot),
   );
@@ -306,12 +331,12 @@ export function TaskBoard({
   // setState 는 await 경계 뒤에서만 부른다.
   useEffect(() => {
     // 첫 회차에 서버가 준 보드가 이미 서 있으면 같은 것을 한 번 더 받아 올 이유가 없다.
-    if (initialSources !== null && attempt === 0) return;
+    if (선독재료 !== null && attempt === 0) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const next = await loadBoard(SITE_ID, BOARD_DATE, BOARD_AT);
+        const next = await loadBoard(siteId, requestedDate, `${requestedDate}${BOARD_AT.slice(10)}`);
         if (cancelled) return;
         // 같은 변환이 위 memo 에서 한 번 더 돌지만, 순수 함수 한 번이 재료와 뷰모델을 두 벌의
         // 상태로 갈라 두는 것보다 싸다. 두 벌이면 어느 한쪽만 갱신되는 길이 생긴다.
@@ -319,7 +344,7 @@ export function TaskBoard({
         setSources(next);
         setCards(view.cards);
         setLoadError(null);
-        setSelectedDate(view.selectedDate);
+        setSelectedDate(requestedSelectedDate);
         setOpenConditionIds(처음펼칠조건(view));
       } catch (error) {
         if (cancelled) return;
@@ -336,7 +361,7 @@ export function TaskBoard({
     return () => {
       cancelled = true;
     };
-  }, [attempt, initialSources]);
+  }, [attempt, 선독재료, siteId, requestedDate, requestedSelectedDate]);
 
   // Ctrl+K 로 열고 Esc 로 닫는다 (아티팩트 317줄). 효과는 리스너만 걸고 상태는 핸들러가 바꾼다.
   //
@@ -366,7 +391,7 @@ export function TaskBoard({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [rejectTarget, 열린카드]);
 
-  const boardDate = snapshot === null ? BOARD_DATE : snapshot.selectedDate;
+  const boardDate = snapshot === null ? requestedDate : snapshot.selectedDate;
 
   /** 캘린더가 어느 카드를 어느 날 칸에 놓았는지. 날짜 거르기가 이 배치를 그대로 따른다. */
   const 날짜별카드 = useMemo(() => {
@@ -810,7 +835,10 @@ export function TaskBoard({
       handleReject({ itemId, reason });
     },
     onFocusCard: setFocusedCardId,
-    onSelectDate: setSelectedDate,
+    onSelectDate: (date) => {
+      setSelectedDate(date);
+      onUrlStateChange({ boardFilterDate: date });
+    },
   };
 
   return (
@@ -829,8 +857,14 @@ export function TaskBoard({
         calendar={snapshot.calendar}
         onNextRange={() => undefined}
         onPrevRange={() => undefined}
-        onSelectDate={setSelectedDate}
-        onViewModeChange={setViewMode}
+        onSelectDate={(date) => {
+          setSelectedDate(date);
+          onUrlStateChange({ boardFilterDate: date });
+        }}
+        onViewModeChange={(mode) => {
+          setViewMode(mode);
+          onUrlStateChange({ boardView: mode });
+        }}
         selectedDate={selectedDate}
         viewMode={viewMode}
       />
@@ -841,7 +875,10 @@ export function TaskBoard({
         draggingCardId={draggingCardId}
         focusedCardId={focusedCardId}
         onApprove={handleApprove}
-        onClearDateFilter={() => setSelectedDate(null)}
+        onClearDateFilter={() => {
+          setSelectedDate(null);
+          onUrlStateChange({ boardFilterDate: null });
+        }}
         onDragStateChange={setDraggingCardId}
         onFocusCard={setFocusedCardId}
         onMove={handleMove}
