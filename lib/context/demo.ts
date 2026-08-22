@@ -56,6 +56,15 @@ function withKindContract(stage: IngestStage, definition: DemoDefinition): Inges
     };
   }
   if (stage.이름 === "필드추출") return { ...stage, 산출: definition.extracted };
+  // 합성 픽스처는 자기 이벤트가 없어 녹화 계약서의 이벤트를 빌려 쓴다(demoStages). 거기 실린
+  // 현장 판정은 그 계약서를 보고 내린 남의 결론이라, 그대로 흘리면 바로 위에서 교체한 필드추출의
+  // 현장명과 다른 현장을 확신 100% 로 단정하게 된다. 단계는 남겨 진행 표시가 멈춘 것처럼 보이지
+  // 않게 하고, 이 문서로는 뒷받침되지 않는 산출만 지운다.
+  if (stage.이름 === "프로젝트판정" && definition.source !== "recorded") {
+    const 판정없음 = { ...stage };
+    delete 판정없음.산출;
+    return 판정없음;
+  }
   return stage;
 }
 
@@ -73,7 +82,11 @@ export async function* replayDemo(
 ): AsyncGenerator<IngestEvent, void> {
   const definition = demoFixture(kind);
   if (!definition) {
-    yield { 종류: "실패", 단계: "필드추출", 사유: `${kind} 데모 픽스처가 없어 재생하지 않았습니다.` };
+    yield {
+      종류: "실패",
+      단계: "필드추출",
+      사유: `${kind} 예시 자료가 없어 시연을 시작하지 못했습니다. 다른 문서 종류를 골라 주세요.`,
+    };
     return;
   }
   for (const event of demoStages(definition)) {

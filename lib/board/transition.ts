@@ -196,9 +196,9 @@ export function planTransition(
 
   if (item.confirmedAt !== null) {
     if (to === "done") {
-      throw new TransitionError("alreadyConfirmed", 409, "이미 확정된 카드입니다.");
+      throw new TransitionError("alreadyConfirmed", 409, "이미 확정된 할 일입니다.");
     }
-    throw new TransitionError("confirmedLocked", 409, "이미 확정된 카드는 되돌릴 수 없습니다.");
+    throw new TransitionError("confirmedLocked", 409, "이미 확정된 할 일은 되돌릴 수 없습니다.");
   }
 
   // --- 전이별 규칙 ------------------------------------------------------------

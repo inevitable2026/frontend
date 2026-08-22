@@ -2,7 +2,7 @@
   "설명": "2026년 8월 19일 김포 고촌 물류센터 보드의 시드 카드 11건입니다. 회사·인물·문서는 모두 허구이며 docs/scenario-gimpo-logistics.md 의 이름과 수치를 그대로 씁니다.",
   "siteId": "site_gimpo_gochon_01",
   "기준시각": "2026-08-19T08:10:00+09:00",
-  "total": 11,
+  "total": 16,
   "items": [
     {
       "itemId": "card_photo_3f",
@@ -630,6 +630,221 @@
       "blockedBy": [],
       "laneOrder": 3000,
       "createdAt": "2026-08-18T14:35:12+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_openings",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "3층 개구부 덮개 규격 변경 재평가",
+      "summary": "개구부 덮개가 합판에서 유공강판으로 바뀌었습니다. 등재된 대책이 합판 기준이라 고정 방식과 표기가 함께 바뀝니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "개구부 덮개 자재가 MAT_PLY_COVER 에서 MAT_STEEL_COVER 로 바뀌고, 그 자재가 붙은 task_3f_slab 이 착수 예정입니다.",
+        "sourceDocRefs": [
+          "doc_2_k3f9x1qm"
+        ],
+        "confidence": 0.9,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_08_regular",
+          "scope": "개구부 관련 행 4건",
+          "reason": "덮개 자재가 바뀌어 등재된 고정 방식이 그대로 성립하지 않습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 4,
+          "into": "ra_2026_08_regular"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-20T16:00:00+09:00",
+      "estimatedMinutes": 60,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_night_pour",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "야간 타설 구간 조도 기준 재평가",
+      "summary": "야간 타설이 3개 구간으로 늘었습니다. 등재된 조도 대책은 1개 구간 기준이라 가설등 수량과 배치를 다시 봅니다.",
+      "trigger": {
+        "ruleId": "T-01",
+        "condition": "야간 작업 구간이 1곳에서 3곳으로 늘고, 해당 구간의 등재 대책이 조도 75럭스 기준으로 적혀 있습니다.",
+        "sourceDocRefs": [
+          "tbm_20260818_pour"
+        ],
+        "confidence": 0.9,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_08_regular",
+          "scope": "야간작업 관련 행 3건",
+          "reason": "작업 구간이 늘어 등재된 조도 확보 대책의 전제가 달라졌습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 3,
+          "into": "ra_2026_08_regular"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-20T09:00:00+09:00",
+      "estimatedMinutes": 40,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_crane_radius",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "이동식크레인 작업반경 축소 재평가",
+      "summary": "인접 부지 경계가 물러나며 크레인 작업반경이 좁아졌습니다. 선회 구간 출입통제 범위를 다시 정합니다.",
+      "trigger": {
+        "ruleId": "T-03",
+        "condition": "이동식크레인 설치 위치가 바뀌어 선회반경이 18m 에서 12m 로 줄었고, 등재된 출입통제 범위가 18m 기준입니다.",
+        "sourceDocRefs": [
+          "doc_5_p8w2zzt1"
+        ],
+        "confidence": 0.9,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_08_regular",
+          "scope": "양중 관련 행 2건",
+          "reason": "선회반경이 바뀌어 등재된 출입금지 구역 치수가 현장과 맞지 않습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 2,
+          "into": "ra_2026_08_regular"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-21T14:00:00+09:00",
+      "estimatedMinutes": 35,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_temp_power",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "approval",
+      "origin": "machine",
+      "title": "가설 분전반 이설에 따른 감전 위험 재평가",
+      "summary": "가설 분전반이 지하 1층으로 옮겨졌습니다. 침수 이력이 있는 구간이라 누전차단기와 접지 대책을 다시 봅니다.",
+      "trigger": {
+        "ruleId": "T-05",
+        "condition": "가설 분전반 인근 감전 아차사고가 접수됐고 같은 위험요인이 회의록 RI-17 행에 이미 등재되어 있습니다.",
+        "sourceDocRefs": [
+          "nearmiss_ledger_2026q3"
+        ],
+        "confidence": 0.9,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_08_regular",
+          "scope": "전기 관련 행 2건",
+          "reason": "등재된 대책이 지상 설치를 전제로 적혀 있어 이설 후 구간에 그대로 쓸 수 없습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 2,
+          "into": "ra_2026_08_regular"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-20T11:00:00+09:00",
+      "estimatedMinutes": 50,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
+      "updatedAt": "2026-08-19T08:10:00+09:00"
+    },
+    {
+      "itemId": "card_reeval_july_carryover",
+      "siteId": "site_gimpo_gochon_01",
+      "timing": "trigger",
+      "status": "todo",
+      "origin": "machine",
+      "title": "7월 회의록 미이월 행 재평가",
+      "summary": "7월 회의록에서 이월되지 않은 행 5건이 8월 관리기간에도 그대로 유효합니다. 이월 여부를 판정해 회의록에 반영합니다.",
+      "trigger": {
+        "ruleId": "T-02",
+        "condition": "7월 정기 위험성평가 회의록의 행 5건이 8월 회의록으로 이월되지 않았고, 해당 공정이 8월에도 계속됩니다.",
+        "sourceDocRefs": [
+          "ra_2026_07_regular"
+        ],
+        "confidence": 0.9,
+        "requiresHumanConfirmation": true
+      },
+      "invalidates": [
+        {
+          "docId": "ra_2026_07_regular",
+          "scope": "이월되지 않은 행 5건",
+          "reason": "공정이 이어지는데 행이 이월되지 않아 8월 기간의 근거가 비어 있습니다."
+        }
+      ],
+      "produces": [
+        {
+          "form": "회의록",
+          "count": 5,
+          "into": "ra_2026_08_regular"
+        }
+      ],
+      "draft": null,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "dueBy": "2026-08-21T17:00:00+09:00",
+      "estimatedMinutes": 70,
+      "assignee": "user_park",
+      "delegable": false,
+      "blockedBy": [],
+      "laneOrder": 3000,
+      "createdAt": "2026-08-19T06:00:00+09:00",
       "updatedAt": "2026-08-19T08:10:00+09:00"
     }
   ]

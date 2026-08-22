@@ -65,7 +65,7 @@ export default function VocabPicker({
         {선택된.map((v) => (
           <span className="risk-chip" key={v}>
             {v}
-            <button type="button" aria-label={`${v} 빼기`} onClick={() => 바꾸기(선택된.filter((x) => x !== v))}>
+            <button type="button" aria-label={`${v} 삭제`} onClick={() => 바꾸기(선택된.filter((x) => x !== v))}>
               ×
             </button>
           </span>

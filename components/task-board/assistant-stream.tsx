@@ -130,6 +130,7 @@ export function citationSourcesOf(message: UIMessage): CitationSource[] {
     if (!url || !title) return [];
 
     return [{
+      kind: "법령" as const,
       title,
       url,
       authority: asText(part.output.authority ?? source?.authority),

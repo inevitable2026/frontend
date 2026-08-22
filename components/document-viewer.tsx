@@ -71,7 +71,8 @@ export function DocumentViewer({
       if (cancelled) return;
       const body = await res.json();
       if (!res.ok) {
-        setError(body.error ?? "문서를 불러오지 못했습니다.");
+        console.error("문서 조회 실패", res.status, body.error);
+        setError("문서를 불러오지 못했습니다. 창을 닫고 다시 열어 주세요.");
         return;
       }
       setDetail(body as DocumentDetail);
@@ -170,7 +171,7 @@ export function DocumentViewer({
                 <iframe key={page} src={`${fileUrl}#page=${page}`} title={detail.document.title} />
               ) : (
                 <p className="context-empty">
-                  원본 파일이 남아 있지 않은 문서입니다. 읽어낸 값과 청크만 볼 수 있습니다.
+                  원본 파일이 남아 있지 않은 문서입니다. 읽어낸 값과 검색 조각만 볼 수 있습니다.
                 </p>
               )}
             </div>
@@ -191,12 +192,14 @@ export function DocumentViewer({
               ) : null}
 
               <section className="docview-chunks">
-                <h3>검색 청크 {detail.chunks.length}개</h3>
+                <h3>검색 조각 {detail.chunks.length}개</h3>
                 {detail.chunks.length === 0 ? (
-                  <p className="context-empty">이 문서에는 저장된 청크가 없습니다.</p>
+                  <p className="context-empty">
+                    저장된 검색 조각이 없어 맥락 검색에서는 이 문서가 나오지 않습니다.
+                  </p>
                 ) : (
                   <ol>
-                    {detail.chunks.map((chunk) => (
+                    {detail.chunks.map((chunk, i) => (
                       <li key={chunk.id}>
                         <button
                           type="button"
@@ -207,7 +210,7 @@ export function DocumentViewer({
                           }}
                         >
                           <span className="docview-chunk-meta">
-                            #{chunk.seq}
+                            {i + 1}번째 조각
                             {chunk.page ? ` · ${chunk.page}쪽` : ""}
                           </span>
                           <span className="docview-chunk-text">{chunk.text}</span>

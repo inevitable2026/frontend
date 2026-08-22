@@ -573,6 +573,98 @@ do $$ begin
 end $$;
 
 
+-- ============================================================================
+-- [9] board.context_chunks — 공유 Postgres 밖에 있는 출처의 임베딩 색인 (2026-08-23 추가)
+--
+-- 사내 문서는 여기 넣지 않는다. public.documents · public.document_chunks 가 이미
+-- 4096차원 임베딩까지 들고 있고 그 표의 주인은 tbm-check 다. 챗봇은 그것을 읽기만 한다.
+--
+-- 딱 한 종류가 그 저장소에 없다 — 위험성평가다. 그 기록은 공유 Postgres 가 아니라
+-- SAFEGRID(lib/risk/safegrid.ts · SAFEGRID_API_URL)라는 별개 서비스의 DB 에 있고
+-- 임베딩이 붙어 있지 않다. 그래서 이 표가 필요하다.
+--
+-- 이름을 assessment_chunks 로 하지 않은 이유. 지금 들어가는 source_kind 는
+-- '위험성평가' 하나뿐이지만, 공유 Postgres 밖의 출처가 하나 더 생길 때마다 표를 새로
+-- 만들면 검색 질의를 출처 수만큼 늘려야 한다. 한 표에 담고 source_kind 로 거른다.
+--
+-- ▶ public.document_chunks 에 섞어 넣는 선택지는 버렸다. 저 표는 tbm-check 소유이고,
+--   여기서 INSERT 하면 저쪽의 문서 수·인제스트 통계가 이 레포가 만든 행만큼 조용히
+--   어긋난다. 이 파일의 원칙(기존 테이블은 읽고 참조만 한다)과도 정면으로 어긋난다.
+-- ============================================================================
+
+-- halfvec 은 pgvector 확장이 만드는 타입이다. 확장이 없거나 search_path 밖에 있으면
+-- 아래 create table 이 42704 로 죽는데, 그 메시지만 보고는 "확장이 없다" 인지 "오타" 인지
+-- 구분이 안 된다. [0] 과 같은 이유로 먼저 확인하고 무엇이 깨졌는지 말하며 멈춘다.
+do $$
+begin
+  if to_regtype('halfvec') is null then
+    raise exception '[board] halfvec 타입이 보이지 않습니다. pgvector 확장(소유: tbm-check)이 이 연결의 search_path 안에 없습니다.';
+  end if;
+end $$;
+
+create table if not exists board.context_chunks (
+  id           bigint generated always as identity primary key,
+
+  -- 출처 종류. lib/agent/assessment-index.ts 의 SOURCE_KIND 와 **글자까지 같아야** 한다
+  -- (scripts/index-assessments.mjs 가 실행할 때마다 그 파일을 읽어 대조하고 다르면 멈춘다).
+  --
+  -- check 로 값을 묶지 않는다. 종류가 하나 늘 때마다 공유 DB 에 ALTER 를 쳐야 하는데,
+  -- 이 표에 쓰는 것은 색인 스크립트 하나뿐이라 스키마로 막아서 얻는 것이 그 비용보다 적다.
+  source_kind  text        not null,
+
+  -- 저쪽 서비스의 식별자를 그대로 둔다. 위험성평가는 SAFEGRID 의 assessment id 다.
+  -- uuid 로 굳히지 않는 이유는 저쪽이 그 형식을 보장하지 않기 때문이다 —
+  -- lib/risk/types.ts 의 Assessment.id 도 `string | null` 이다.
+  source_id    text        not null,
+
+  -- 현장. **위험성평가에서는 언제나 null 이다.** SAFEGRID 의 Assessment.site 는 자유
+  -- 문자열이고 public.sites.id 로 이어지지 않는다(app/api/risk/list/route.ts 의 「필터가
+  -- 없다」). 그래서 외래 키도 걸지 않는다. 값이 없다고 자리까지 없애면 저쪽에 현장 개념이
+  -- 붙는 날 표를 고쳐야 하므로 열은 지금 만들어 둔다.
+  site_id      uuid,
+
+  -- 사람이 목록에서 보는 이름. 위험성평가는 SAFEGRID 의 `GET /assessments` 가 주는
+  -- 값이다. **평가 본문(Assessment)에는 title 이 없다** — 목록에만 있으므로 색인
+  -- 스크립트가 목록에서 받아 여기 적어 둔다. 그러지 않으면 검색 결과에 이름을 못 붙인다.
+  title        text        not null,
+
+  -- 원본 안에서의 자리. 위험성평가는 Hazard 배열의 **0부터 세는 인덱스**다.
+  -- 본문에는 사람이 세는 'N행'(1부터)으로 적히므로 둘이 1 차이 난다. 그 차이는 의도한
+  -- 것이다 — seq 를 배열 인덱스 그대로 두어야 읽기 결과를 받아 `hazards[seq]` 로 원본
+  -- 행을 되짚을 수 있다. Hazard 에는 행 번호 필드가 없고 정체성이 배열 순서뿐이다.
+  seq          int         not null,
+
+  text         text        not null,
+  embedding    halfvec(4096) not null,
+  created_at   timestamptz not null default now(),
+
+  -- 재색인이 upsert 로 돌기 위한 열쇠. scripts/index-assessments.mjs 가
+  -- `on conflict (source_kind, source_id, seq) do update` 로 덮는다. 이것이 없으면
+  -- 평가를 다시 색인할 때마다 같은 행이 한 벌씩 쌓여 검색 결과가 중복으로 찬다.
+  constraint context_chunks_source_uk unique (source_kind, source_id, seq)
+);
+
+comment on table  board.context_chunks             is '공유 Postgres 밖에 있는 출처의 임베딩 색인. 사내 문서는 넣지 않는다 — public.document_chunks 가 정본이다.';
+comment on column board.context_chunks.source_kind is '지금은 위험성평가 한 종류. lib/agent/assessment-index.ts 의 SOURCE_KIND 와 같아야 한다.';
+comment on column board.context_chunks.site_id     is '위험성평가에서는 언제나 null. SAFEGRID 의 site 는 자유 문자열이라 public.sites 로 이어지지 않는다.';
+comment on column board.context_chunks.seq         is 'Hazard 배열의 0부터 세는 인덱스. 본문의 N행(1부터)과 1 차이 나는 것이 맞다.';
+
+-- 조회 인덱스를 따로 만들지 않는다. 검색은 언제나 source_kind 로 거르고 읽기는
+-- (source_kind, source_id, seq) 로 한 행을 집는데, 위의 unique 제약이 만드는 인덱스가
+-- 그 두 경로를 그대로 덮는다. 같은 열 조합으로 하나 더 만들면 쓰기만 두 배로 든다.
+
+-- ▶ embedding 에는 인덱스를 만들지 않는다. **파일 머리말과 같은 이유다.**
+--
+--   4096 차원은 pgvector 0.8 의 hnsw 상한(vector 2000 · halfvec 4000) 밖이라
+--   create index 가 그 자리에서 실패한다. 우회하려면 binary_quantize(embedding)::bit(4096)
+--   위의 표현식 인덱스여야 하는데, 그것은 recall 을 깎는 근사 검색이다.
+--
+--   지금 규모에서 순차 스캔이 옳은 선택이다. 색인 대상은 평가 수십 건 × 행 6~12줄,
+--   즉 수백 행이다. 그 크기에서는 전 행을 훑어도 recall 100% 이면서 충분히 빠르고,
+--   근사 인덱스는 느려지지도 빨라지지도 않으면서 정확도만 잃는다.
+--   행이 수만 줄이 되면 그때 다시 본다.
+
+
 commit;
 
 -- ============================================================================
@@ -587,6 +679,10 @@ commit;
 -- ▸ public.document_chunks.embedding 인덱스. 4096 차원이라 hnsw 상한 밖이다.
 --   붙이려면 표현식 인덱스여야 하고(binary_quantize → bit(4096) bit_hamming_ops),
 --   그건 public 테이블을 건드리는 일이라 이 파일의 범위가 아니다.
+--
+-- ▸ board.context_chunks.embedding 인덱스. 바로 위와 같은 이유다 — 4096 차원이
+--   hnsw 상한 밖이고, 수백 행 규모에서는 순차 스캔이 recall 100% 로 더 낫다.
+--   [9] 가 그 자리에 이유만 주석으로 남겨 두었다.
 --
 -- ▸ board.sites · board.sources · board.conditions · board.cards · board.card_events.
 --   docs/plan-task-board.md 3절의 이름이다. lib/board/types.ts 가 확정되면서

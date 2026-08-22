@@ -26,11 +26,11 @@ export async function GET(req: Request) {
   let siteCode: string | null = null;
   if (siteId) {
     if (!UUID.test(siteId)) {
-      return Response.json({ error: "siteId 가 올바르지 않습니다." }, { status: 400, headers: HEADERS });
+      return Response.json({ error: "현장 주소가 올바르지 않습니다. 현장을 다시 선택해 주세요." }, { status: 400, headers: HEADERS });
     }
     const sql = db();
     const [site] = await sql<Array<{ code: string }>>`select code from sites where id = ${siteId} limit 1`;
-    if (!site) return Response.json({ error: "그런 현장이 없습니다." }, { status: 404, headers: HEADERS });
+    if (!site) return Response.json({ error: "현장을 찾지 못했습니다. 현장 목록에서 다시 선택해 주세요." }, { status: 404, headers: HEADERS });
     siteCode = site.code;
   }
 

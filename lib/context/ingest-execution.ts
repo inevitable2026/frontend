@@ -28,7 +28,10 @@ export function deriveIngestDeadlines(
     cleanupDeadline <= processingDeadline ||
     hostDeadline <= cleanupDeadline
   ) {
-    throw new StudioError("HOST_BUDGET_INVALID", "Studio 준비 영수증의 호스트 예산이 일관되지 않습니다.");
+    throw new StudioError(
+      "HOST_BUDGET_INVALID",
+      "문서 분석 시간 배분이 잘못 설정되어 있습니다. 시스템 담당자에게 문의해 주세요.",
+    );
   }
   return { hostDeadline, processingDeadline, cleanupDeadline };
 }

@@ -1,6 +1,15 @@
 import { Fragment, type ReactNode } from "react";
 
+/**
+ * 각주가 어느 계열의 근거인지. 계열을 지우면 화면이 거짓말을 한다 — 사내 문서 본문에도
+ * "제334조(콘크리트의 타설작업)" 같은 조문 문자열이 그대로 들어 있어(시드 문서 16건이
+ * 그렇다), 계열을 보지 않으면 합성 사내 문서가 "국가법령정보센터 원문" 링크를 달고
+ * 공식 법령으로 둔갑한다. 그래서 선택 필드가 아니라 필수다.
+ */
+export type CitationKind = "법령" | "사내문서" | "위험성평가";
+
 export type CitationSource = {
+  kind: CitationKind;
   title: string;
   url: string;
   authority?: string;
@@ -51,17 +60,31 @@ function normalizeReference(value: string): string {
   return value.replace(/\s+/g, "");
 }
 
+/**
+ * 조문 각주가 딛고 설 근거를 고른다. 순서가 규약이다.
+ *
+ * 1. 법령 출처 가운데 그 조문을 실제로 담은 원문. 법적 주장의 각주는 여기서만 나와야 한다.
+ * 2. 법령 출처가 하나뿐이면 그것. 읽은 원문이 조문 제목만 담고 번호를 안 담는 경우가 있어
+ *    남겨 둔 폴백이다. **법령 출처에만** 적용한다 — 사내 문서 한 건뿐인 답변에 이 폴백을
+ *    허용하면 답변의 모든 조문 언급이 그 합성 문서로 연결된다.
+ * 3. 그래도 없으면 그 조문을 글자 그대로 담은 사내·평가 근거. 여기는 "법이 이렇다" 가
+ *    아니라 "우리 자료가 이 조문을 언급한다" 는 각주이므로 링크 문구도 갈라진다.
+ */
 function findCitationSource(
   reference: string,
   sources: CitationSource[],
 ): CitationMatch | undefined {
   const normalizedReference = normalizeReference(reference);
-  const directSource = sources.find((source) =>
-    source.excerpt && normalizeReference(source.excerpt).includes(normalizedReference)
-  );
+  const mentions = (source: CitationSource) =>
+    Boolean(source.excerpt) && normalizeReference(source.excerpt!).includes(normalizedReference);
+  const official = sources.filter((source) => source.kind === "법령");
 
-  if (directSource) return { source: directSource, directlyMentioned: true };
-  if (sources.length === 1) return { source: sources[0], directlyMentioned: false };
+  const officialSource = official.find(mentions);
+  if (officialSource) return { source: officialSource, directlyMentioned: true };
+  if (official.length === 1) return { source: official[0], directlyMentioned: false };
+
+  const companySource = sources.find((source) => source.kind !== "법령" && mentions(source));
+  if (companySource) return { source: companySource, directlyMentioned: true };
   return undefined;
 }
 
@@ -89,6 +112,20 @@ function collectCitationNumbers(
   return numbers;
 }
 
+/** 링크가 실제로 가는 곳. 사내 근거는 이 앱 안의 원본 보기이지 법령 원문이 아니다. */
+const CITATION_LINK_LABEL: Record<CitationKind, string> = {
+  법령: "국가법령정보센터 원문",
+  사내문서: "사내 문서 본문",
+  위험성평가: "위험성평가 원본",
+};
+
+/** 스크린리더가 읽을 각주의 성격. "공식 원문" 은 법령 계열에만 쓴다. */
+const CITATION_ROLE_LABEL: Record<CitationKind, string> = {
+  법령: "확인한 공식 원문",
+  사내문서: "조문을 언급한 사내 문서",
+  위험성평가: "조문을 언급한 위험성평가 기록",
+};
+
 function CitationNote({
   context,
   keyPrefix,
@@ -112,7 +149,7 @@ function CitationNote({
       <button
         className="citation-trigger"
         type="button"
-        aria-label={`각주 ${number}: ${reference} 내용을 확인한 공식 원문`}
+        aria-label={`각주 ${number}: ${CITATION_ROLE_LABEL[source.kind]}, ${reference}`}
         aria-describedby={tooltipId}
       >
         {number}
@@ -125,7 +162,7 @@ function CitationNote({
         </span>
         {metadata ? <span className="citation-popover-meta">{metadata}</span> : null}
         <a href={source.url} target="_blank" rel="noreferrer">
-          국가법령정보센터 원문
+          {CITATION_LINK_LABEL[source.kind]}
           <span aria-hidden="true">↗</span>
         </a>
       </span>

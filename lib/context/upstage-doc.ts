@@ -8,7 +8,10 @@ export class UpstageError extends Error {}
 
 function apiKey(): string {
   const key = process.env.UPSTAGE_API_KEY;
-  if (!key) throw new UpstageError("UPSTAGE_API_KEY 가 없습니다. 서버 환경변수를 확인하세요.");
+  if (!key) {
+    console.error("[upstage] UPSTAGE_API_KEY is not set");
+    throw new UpstageError("문서 분석 서버에 연결할 설정이 없습니다. 관리자에게 문의해 주세요.");
+  }
   return key;
 }
 
@@ -23,7 +26,9 @@ export type Budget = {
 export function budgetTimeoutMs({ limitMs, deadline }: Budget, now = Date.now()): number {
   const left = deadline ? deadline - now : limitMs;
   const timeout = Math.min(limitMs, left);
-  if (!Number.isFinite(timeout) || timeout <= 0) throw new UpstageError("Upstage 처리 예산이 만료되었습니다.");
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    throw new UpstageError("문서 분석에 주어진 시간이 다 됐습니다. 문서를 다시 올려 주세요.");
+  }
   return Math.max(1, Math.floor(timeout));
 }
 
@@ -33,7 +38,8 @@ function signal(budget: Budget): AbortSignal {
 
 async function fail(res: Response, what: string): Promise<never> {
   const body = await res.text().catch(() => "");
-  throw new UpstageError(`${what} 실패 (${res.status}) ${body.slice(0, 300)}`);
+  console.error("[upstage] request failed", { what, status: res.status, body: body.slice(0, 300) });
+  throw new UpstageError(`${what} 문서를 다시 올려 주세요.`);
 }
 
 async function embed(model: string, input: string | string[], budget: Budget): Promise<number[][]> {
@@ -46,17 +52,19 @@ async function embed(model: string, input: string | string[], budget: Budget): P
     cache: "no-store",
     signal: signal(budget),
   });
-  if (!res.ok) await fail(res, "임베딩");
+  if (!res.ok) await fail(res, "검색 준비에 실패했습니다.");
 
   const data = (await res.json()) as { data?: Array<{ embedding: number[]; index: number }> };
   const rows = data.data ?? [];
-  if (rows.length === 0) throw new UpstageError("임베딩 응답이 비었습니다.");
+  if (rows.length === 0) {
+    console.error("[upstage] embedding response had no rows");
+    throw new UpstageError("검색 준비에 실패했습니다. 문서를 다시 올려 주세요.");
+  }
   const ordered = [...rows].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
   const dimensions = ordered[0].embedding.length;
   if (dimensions !== EMBEDDING_DIMENSIONS) {
-    throw new UpstageError(
-      `임베딩 차원이 ${dimensions} 입니다. 저장소는 halfvec(${EMBEDDING_DIMENSIONS}) 이라 그대로 넣으면 실패합니다.`,
-    );
+    console.error("[upstage] embedding dimension mismatch", { got: dimensions, want: EMBEDDING_DIMENSIONS });
+    throw new UpstageError("검색 준비 결과가 저장소 형식과 맞지 않습니다. 관리자에게 문의해 주세요.");
   }
   return ordered.map((r) => r.embedding);
 }

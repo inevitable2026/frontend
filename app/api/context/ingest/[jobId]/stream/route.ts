@@ -128,12 +128,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ jobId: string }
           select mime, original_filename, bytes from document_files where job_id = ${jobId} limit 1
         `;
         if (!file || !file.bytes) {
-          await send({ 종류: "실패", 단계: "수신", 사유: "업로드된 파일을 찾지 못했습니다." });
+          await send({ 종류: "실패", 단계: "수신", 사유: "올린 파일을 찾지 못했습니다. 문서를 다시 올려 주세요." });
           if (liveLease) {
-            liveLease = await failIngestLease(liveLease, "파일 없음", [], 0);
+            liveLease = await failIngestLease(liveLease, "올린 파일을 찾지 못했습니다. 문서를 다시 올려 주세요.", [], 0);
             liveLease = await scrubStagingBytes(liveLease);
           } else {
-            await sql`update ingest_jobs set status = 'failed', error = '파일 없음', finished_at = now() where id = ${jobId} and status = 'running'`;
+            await sql`update ingest_jobs set status = 'failed', error = '올린 파일을 찾지 못했습니다. 문서를 다시 올려 주세요.', finished_at = now() where id = ${jobId} and status = 'running'`;
           }
           return;
         }

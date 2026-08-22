@@ -67,7 +67,18 @@ export type StudioLiveReadinessReceipt = {
 
 export type StudioLiveReadiness =
   | { enabled: true; receipt: StudioLiveReadinessReceipt }
-  | { enabled: false; code: "STUDIO_LIVE_DISABLED"; reason: string };
+  | {
+      enabled: false;
+      code: "STUDIO_LIVE_DISABLED";
+      /** 화면에 그대로 나가는 문장. 사유마다 서로 다르게 둔다. */
+      reason: string;
+      /** 화면에 내보내지 않는 원인. 로그·디버깅용. */
+      detail: string;
+    };
+
+function disabled(reason: string, detail: string): StudioLiveReadiness {
+  return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason, detail };
+}
 
 const MIN_CLEANUP_RESERVE_MS = 15_000;
 const STREAM_MAX_DURATION_MS = 300_000;
@@ -251,39 +262,66 @@ export function parseStudioLiveReadinessReceipt(raw: string): StudioLiveReadines
 
 export function getStudioLiveReadiness(now = Date.now()): StudioLiveReadiness {
   if (process.env.STUDIO_LIVE_INGEST_ENABLED !== "true") {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "Studio 라이브 적재 플래그가 꺼져 있습니다." };
+    return disabled(
+      "문서 분석 기능이 꺼져 있습니다. 시스템 담당자에게 문의해 주세요.",
+      "STUDIO_LIVE_INGEST_ENABLED is not 'true'.",
+    );
   }
   const rawReceipt = process.env.STUDIO_LIVE_READINESS_RECEIPT_JSON;
   if (!rawReceipt) {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "검증된 Gate C 준비 영수증이 없습니다." };
+    return disabled(
+      "문서 분석 사용 승인 정보가 등록되어 있지 않습니다. 시스템 담당자에게 문의해 주세요.",
+      "STUDIO_LIVE_READINESS_RECEIPT_JSON is unset.",
+    );
   }
   const receipt = parseStudioLiveReadinessReceipt(rawReceipt);
   if (!receipt) {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "Gate C 준비 영수증 형식이 올바르지 않습니다." };
+    return disabled(
+      "문서 분석 사용 승인 정보를 읽지 못했습니다. 시스템 담당자에게 문의해 주세요.",
+      "Readiness receipt failed schema validation.",
+    );
   }
   if (receipt.manifestSha !== STUDIO_MANIFEST_SHA) {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "배포 매니페스트와 준비 영수증이 다릅니다." };
+    return disabled(
+      "문서 분석 사용 승인 정보가 지금 설치된 버전과 맞지 않습니다. 시스템 담당자에게 문의해 주세요.",
+      "Receipt manifestSha does not match the deployed manifest.",
+    );
   }
   const requiredMigration = process.env.STUDIO_REQUIRED_CLEANUP_MIGRATION;
   if (!requiredMigration) {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "필수 정리 마이그레이션 버전이 배포에 고정되지 않았습니다." };
+    return disabled(
+      "문서 정리 기능의 필수 버전이 서버에 지정되어 있지 않습니다. 시스템 담당자에게 문의해 주세요.",
+      "STUDIO_REQUIRED_CLEANUP_MIGRATION is unset.",
+    );
   }
   if (receipt.scope === "production-project") {
     const expectedProjectId = process.env.STUDIO_EXPECTED_PROJECT_ID;
     if (!expectedProjectId || receipt.projectIdentity?.projectId !== expectedProjectId) {
-      return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "배포 대상 Studio 프로젝트가 준비 영수증과 일치하지 않습니다." };
+      return disabled(
+        "문서 분석 서비스 계정이 사용 승인 정보와 다릅니다. 시스템 담당자에게 문의해 주세요.",
+        "Receipt projectIdentity does not match STUDIO_EXPECTED_PROJECT_ID.",
+      );
     }
   } else if (process.env.NODE_ENV === "production" || process.env.STUDIO_LOCAL_CREDENTIAL_SCOPE_ENABLED !== "true") {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "localhost credential scope는 개발 환경의 명시적 활성화가 필요합니다." };
+    return disabled(
+      "이 서버에서는 개발용 접속 설정으로 문서를 분석할 수 없습니다. 시스템 담당자에게 문의해 주세요.",
+      "localhost credential scope needs an explicit non-production opt-in.",
+    );
   } else {
     const key = process.env.UPSTAGE_API_KEY;
     const expectedFingerprint = key ? `sha256:${createHash("sha256").update(key).digest("hex")}` : "";
     if (!expectedFingerprint || receipt.credentialScope?.keyFingerprint !== expectedFingerprint) {
-      return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "localhost Studio 자격 증명 범위가 현재 키와 일치하지 않습니다." };
+      return disabled(
+        "문서 분석 서비스 접속 정보가 사용 승인 정보와 다릅니다. 시스템 담당자에게 문의해 주세요.",
+        "Receipt credentialScope keyFingerprint does not match the current key.",
+      );
     }
   }
   if (receipt.cleanupMigrationVersion !== requiredMigration) {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "필수 정리·바이트 삭제 마이그레이션이 확인되지 않았습니다." };
+    return disabled(
+      "문서 정리·삭제 기능이 필수 버전과 다릅니다. 시스템 담당자에게 문의해 주세요.",
+      "Receipt cleanupMigrationVersion does not match the required migration.",
+    );
   }
   if (
     Date.parse(receipt.issuedAt) > now + 60_000 ||
@@ -292,7 +330,10 @@ export function getStudioLiveReadiness(now = Date.now()): StudioLiveReadiness {
     Date.parse(receipt.sweeper.checkedAt) > now + 60_000 ||
     Date.parse(receipt.sweeper.checkedAt) < now - 15 * 60_000
   ) {
-    return { enabled: false, code: "STUDIO_LIVE_DISABLED", reason: "준비 영수증 또는 sweeper 상태가 만료되었습니다." };
+    return disabled(
+      "문서 분석 사용 승인 기한이 지났습니다. 시스템 담당자에게 문의해 주세요.",
+      "Receipt window or sweeper heartbeat is out of range.",
+    );
   }
   return { enabled: true, receipt };
 }

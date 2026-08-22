@@ -38,7 +38,7 @@ export function matchesStudioIngestProvenance(
 
 export class IngestLeaseLostError extends Error {
   constructor() {
-    super("이 적재 작업의 실행 소유권이 다른 실행기로 넘어갔습니다.");
+    super("이 문서 분석은 다른 곳에서 이어서 진행 중입니다. 잠시 뒤 다시 확인해 주세요.");
     this.name = "IngestLeaseLostError";
   }
 }
