@@ -36,3 +36,5 @@ pnpm-debug.log*
 # 커밋하면 각자의 데모 조작이 시드로 굳어져 다음 사람이 다른 화면을 본다.
 data/board/facts.json
 data/board/items.json
+
+tmp
