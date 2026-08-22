@@ -3,6 +3,9 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import { JsonViewer } from "@/components/json-viewer";
+import { MarkdownContent } from "@/components/markdown-content";
+
 const navigation = [
   { label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
   { label: "현장 맥락 관리", icon: "/assets/database.svg" },
@@ -54,8 +57,8 @@ type ToolCall = {
   id: string;
   name: string;
   status: "running" | "completed" | "error";
-  input?: string;
-  output?: string;
+  input?: unknown;
+  output?: unknown;
   sources: SourceLink[];
 };
 
@@ -116,8 +119,8 @@ function parseEvent(payload: unknown, index: number): { tool?: ToolCall; answer?
         id: asText(toolPayload.id ?? toolPayload.call_id ?? toolPayload.tool_call_id) ?? `${name}-${index}`,
         name,
         status: normalizeStatus(toolPayload.status),
-        input: asText(toolPayload.input ?? toolPayload.arguments ?? toolPayload.args),
-        output: asText(toolPayload.output ?? toolPayload.result ?? toolPayload.content),
+        input: toolPayload.input ?? toolPayload.arguments ?? toolPayload.args,
+        output: toolPayload.output ?? toolPayload.result ?? toolPayload.content,
         sources: toSourceLinks(toolPayload.sources ?? toolPayload.source_links ?? toolPayload.links),
       },
     };
@@ -489,32 +492,27 @@ export function ConstructionConsole() {
                   </strong>
                   <span className="tool-card-meta">
                     <span className={`tool-status is-${tool.status}`}>{tool.status === "completed" ? "완료" : tool.status === "error" ? "오류" : "실행 중"}</span>
-                    {tool.name === "search_official_law" ? <span className="tool-chevron" aria-hidden="true" /> : null}
+                    <span className="tool-chevron" aria-hidden="true" />
                   </span>
                 </>;
                 const body = <>
-                  {tool.input ? <div className="tool-card-section"><span>입력</span><pre>{tool.input}</pre></div> : null}
-                  {tool.output ? <div className="tool-card-section"><span>출력</span><pre>{tool.output}</pre></div> : null}
+                  {tool.input !== undefined ? <div className="tool-card-section"><span>입력</span><JsonViewer label={`${TOOL_LABELS[tool.name] ?? tool.name} 입력 JSON`} value={tool.input} /></div> : null}
+                  {tool.output !== undefined ? <div className="tool-card-section"><span>출력</span><JsonViewer label={`${TOOL_LABELS[tool.name] ?? tool.name} 출력 JSON`} value={tool.output} /></div> : null}
                   {tool.sources.length > 0 ? <div className="tool-card-section tool-sources"><span>{tool.name === "search_official_law" ? "검색 후보 · 아직 법적 인용 불가" : "확인한 공식 원문 · 인용 가능"}</span>{tool.sources.map((source) => <a href={source.url} key={source.url} target="_blank" rel="noreferrer">{source.label}</a>)}</div> : null}
                 </>;
 
-                return tool.name === "search_official_law" ? (
+                return (
                   <details className="tool-card tool-card-accordion" key={tool.id}>
                     <summary className="tool-card-header">{header}</summary>
                     <div className="tool-card-body">{body}</div>
                   </details>
-                ) : (
-                  <article className="tool-card" key={tool.id}>
-                    <div className="tool-card-header">{header}</div>
-                    {body}
-                  </article>
                 );
               })}
             </section> : null}
 
             <article className="chat-message chat-message-assistant" aria-busy={isSubmitting}>
               <p className="chat-message-label">현장 법령 체크 에이전트</p>
-              {answer ? <p className="assistant-answer">{answer}</p> : isSubmitting ? <p className="assistant-pending">답변을 준비하고 있습니다…</p> : null}
+              {answer ? <MarkdownContent content={answer} /> : isSubmitting ? <p className="assistant-pending">답변을 준비하고 있습니다…</p> : null}
               {error ? <p className="chat-error" role="alert">{error}</p> : null}
             </article>
           </section>}

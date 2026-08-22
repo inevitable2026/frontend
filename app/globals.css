@@ -658,6 +658,109 @@ button {
   line-height: 1.65;
 }
 
+.assistant-answer > :first-child {
+  margin-top: 0;
+}
+
+.assistant-answer > :last-child {
+  margin-bottom: 0;
+}
+
+.assistant-answer p {
+  margin: 0 0 16px;
+  white-space: normal;
+}
+
+.assistant-answer h2,
+.assistant-answer h3,
+.assistant-answer h4,
+.assistant-answer h5,
+.assistant-answer h6 {
+  margin: 24px 0 8px;
+  color: #242338;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.65px;
+  line-height: 1.45;
+}
+
+.assistant-answer ol,
+.assistant-answer ul {
+  margin: 10px 0 20px;
+  padding-left: 1.55em;
+}
+
+.assistant-answer li {
+  padding-left: 0.25em;
+  margin: 10px 0;
+}
+
+.assistant-answer li::marker {
+  color: var(--purple-primary);
+  font-weight: 700;
+}
+
+.assistant-answer strong {
+  color: #242338;
+  font-weight: 700;
+}
+
+.assistant-answer a {
+  color: var(--purple-primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.assistant-answer a:hover {
+  color: #554bc2;
+}
+
+.assistant-answer code {
+  padding: 0.12em 0.36em;
+  border: 1px solid #e5e3f5;
+  border-radius: 5px;
+  background: #f5f4ff;
+  color: #5148b8;
+  font: 0.86em/1.5 "Instrument Sans", monospace;
+  letter-spacing: 0;
+}
+
+.assistant-answer pre {
+  margin: 14px 0 18px;
+  overflow-x: auto;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #242338;
+}
+
+.assistant-answer pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f4f3ff;
+}
+
+.assistant-answer blockquote {
+  margin: 14px 0 18px;
+  padding: 10px 14px;
+  border-left: 3px solid #aaa4f1;
+  border-radius: 0 8px 8px 0;
+  background: #f8f7ff;
+  color: #55546a;
+}
+
+.assistant-answer blockquote p {
+  margin: 0;
+}
+
+.assistant-answer hr {
+  height: 1px;
+  margin: 22px 0;
+  border: 0;
+  background: #eceaf6;
+}
+
 .assistant-pending {
   color: var(--text-muted);
 }
@@ -795,15 +898,65 @@ button {
   font-weight: 600;
 }
 
-.tool-card pre {
+.json-viewer {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #e4e6ef;
+  border-radius: 10px;
+  background: #f8f9fc;
+  box-shadow: inset 0 1px 2px rgba(36, 55, 87, 0.025);
+}
+
+.tool-card .json-viewer pre {
   margin: 0;
-  overflow-x: auto;
-  padding: 10px;
-  border-radius: 8px;
-  background: #f6f8fb;
+  padding: 9px 0;
+  background: transparent;
   color: #404156;
   font: 13px/1.5 "Instrument Sans", monospace;
+  letter-spacing: 0;
+}
+
+.json-line {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  width: 100%;
+}
+
+.json-line-number {
+  padding-right: 10px;
+  border-right: 1px solid #e4e6ef;
+  color: #a6a9b7;
+  text-align: right;
+  user-select: none;
+}
+
+.json-line-content {
+  min-width: 0;
+  padding: 0 12px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.json-viewer .is-key {
+  color: #6259c9;
+}
+
+.json-viewer .is-string {
+  color: #17705b;
+}
+
+.json-viewer .is-boolean {
+  color: #b14b86;
+  font-weight: 600;
+}
+
+.json-viewer .is-number {
+  color: #9a5d0f;
+}
+
+.json-viewer .is-null {
+  color: #858798;
+  font-style: italic;
 }
 
 .tool-sources {
