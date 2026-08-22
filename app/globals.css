@@ -4533,6 +4533,8 @@ button {
 }
 
 /* --- 조치 대기열 --------------------------------------------------------- */
+/* 카드 생김새는 `.board-card` 를 그대로 쓴다. 여기서는 묶음 머리와,
+   버튼으로 감싸면서 달라지는 것(정렬·커서)만 손본다. */
 
 .risk-queue {
   display: grid;
@@ -4573,70 +4575,30 @@ button {
 
 .risk-queue-group ul {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.risk-queue-group button {
-  display: grid;
-  grid-template-columns: minmax(0, 180px) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
+/* `.board-card` 는 div 를 전제로 쓰였다. 버튼으로 감싸면서 필요한 것만 되돌린다. */
+.risk-queue-card {
   width: 100%;
-  min-height: 56px;
-  padding: 14px 18px;
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  background: #ffffff;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.risk-queue-group button:hover {
+.risk-queue-card:hover {
   border-color: var(--purple-primary);
 }
 
-.risk-queue-group.is-재평가 button {
-  border-color: color-mix(in srgb, var(--risk-high) 35%, transparent);
-  background: color-mix(in srgb, var(--risk-high) 4%, transparent);
-}
-
+/* 보드에는 없는 것 하나 — 어느 현장인지. 대기열은 현장이 섞이기 때문이다. */
 .risk-queue-site {
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.risk-queue-title {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.risk-queue-meta,
-.risk-queue-invalidates,
-.risk-queue-blocked {
-  grid-column: 2;
+  margin-inline-start: auto;
   color: var(--text-muted);
   font-size: 12px;
-  line-height: 1.5;
-}
-
-.risk-queue-invalidates { color: var(--risk-high); }
-.risk-queue-blocked { color: var(--risk-mid); }
-
-.risk-queue-go {
-  grid-row: 1;
-  grid-column: 3;
-  color: var(--text-muted);
-  font-size: 18px;
+  font-weight: 600;
 }
 
 /* --- 작업장 --------------------------------------------------------------- */
