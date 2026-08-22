@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import AgentPanel, { type 패널상태, type 필드 } from "@/components/risk/agent-panel";
+import RiskQueue, { 위험성평가카드인가 } from "@/components/risk/risk-queue";
 import RiskTable from "@/components/risk/risk-table";
+import RiskWorkspace from "@/components/risk/risk-workspace";
+import type { BoardPage, WorkItem } from "@/lib/board/types";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
 
 /**
@@ -67,7 +70,25 @@ function 문서필드(r: Record<string, unknown>): 필드[] {
   ].filter((f) => f.값);
 }
 
+/**
+ * 태스크 보드가 지금 쓰는 현장. 보드 컴포넌트의 `SITE_ID` 와 같은 값이다
+ * (`components/task-board/task-board.tsx:26`).
+ *
+ * 현장 목록 API 가 Postgres 를 타는데 보드는 JSON 저장소로 돌기 때문에, DB 가 없는
+ * 환경에서도 대기열이 비지 않으려면 알고 있는 현장 하나가 필요하다. 목록이 오면 이건 안 쓴다.
+ */
+const 보드기본현장 = [{ id: "site_gimpo_gochon_01", name: "김포 고촌 현장" }];
+
+/** 이 탭이 지금 무엇을 보이고 있는가. 대기열이 기본이다. */
+type 화면 = "대기열" | "작업장" | "새평가";
+
 export function RiskAssessmentPanel() {
+  const [화면, set화면] = useState<화면>("대기열");
+  const [대기열, set대기열] = useState<WorkItem[]>([]);
+  const [현장이름, set현장이름] = useState<Map<string, string>>(new Map());
+  const [대기열로딩, set대기열로딩] = useState(true);
+  const [고른카드, set고른카드] = useState<WorkItem | null>(null);
+
   const [모드, set모드] = useState<생성모드>("데모");
   const [어휘, set어휘] = useState<어휘>(기본어휘);
 
@@ -108,6 +129,60 @@ export function RiskAssessmentPanel() {
     return () => {
       urls.forEach((u) => URL.revokeObjectURL(u));
       if (타이머.current) clearTimeout(타이머.current);
+    };
+  }, []);
+
+  /**
+   * 대기열을 채운다. **감지는 여기서 하지 않는다** — 태스크 보드가 이미 만들어 둔
+   * 카드를 현장별로 읽어 위험성평가에 해당하는 것만 고른다. 출처가 하나여야
+   * 두 화면이 서로 다른 말을 하지 않는다.
+   *
+   * 보드 API 는 `siteId` 를 필수로 요구한다(다른 현장 카드가 섞이면 담당자 이름과
+   * 하도급사 상호가 그대로 노출되기 때문이다). 그래서 현장을 먼저 읽고 현장마다 부른다.
+   */
+  useEffect(() => {
+    let 살아있음 = true;
+
+    (async () => {
+      try {
+        // 현장 목록은 Postgres 에서 온다. 그런데 태스크 보드는 지금 JSON 저장소로 돌아서
+        // DB 가 없어도 카드가 있다. 현장 조회 실패가 대기열을 통째로 비우면 안 된다 —
+        // 실제로 그렇게 만들었다가 "손볼 것 없음"이 거짓으로 떴다.
+        const sites = await fetch("/api/context/sites")
+          .then((r) => (r.ok ? (r.json() as Promise<{ sites: Array<{ id: string; name: string }> }>) : null))
+          .then((v) => v?.sites ?? [])
+          .catch(() => []);
+        if (!살아있음) return;
+
+        const 목록 = sites.length > 0 ? sites : 보드기본현장;
+        set현장이름(new Map(목록.map((s) => [s.id, s.name])));
+
+        // 한 현장이 실패해도 나머지 대기열은 보여야 한다.
+        const 결과 = await Promise.allSettled(
+          목록.map((s) =>
+            fetch(`/api/board/items?siteId=${encodeURIComponent(s.id)}`).then((r) =>
+              r.ok ? (r.json() as Promise<BoardPage>) : Promise.reject(new Error(String(r.status))),
+            ),
+          ),
+        );
+        if (!살아있음) return;
+
+        const 카드 = 결과
+          .filter((r): r is PromiseFulfilledResult<BoardPage> => r.status === "fulfilled")
+          .flatMap((r) => r.value.items)
+          .filter(위험성평가카드인가);
+        set대기열(카드);
+      } catch {
+        // 대기열을 못 읽는 것과 대기열이 비어 있는 것은 다르다. 빈 목록으로 두고
+        // 새 평가 경로는 계속 열어 둔다.
+        if (살아있음) set대기열([]);
+      } finally {
+        if (살아있음) set대기열로딩(false);
+      }
+    })();
+
+    return () => {
+      살아있음 = false;
     };
   }, []);
 
@@ -330,11 +405,68 @@ export function RiskAssessmentPanel() {
 
   const 입력있음 = 공종.length > 0 || 장비.length > 0 || 자재.length > 0;
 
+  // 작업장 — 대기열에서 고른 카드를 연 상태.
+  if (화면 === "작업장" && 고른카드) {
+    return (
+      <div className="risk-panel">
+        <RiskWorkspace
+          item={고른카드}
+          현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
+          닫기={() => {
+            set화면("대기열");
+            set고른카드(null);
+          }}
+          승인={() => {
+            // 지금은 화면 안에서만 잠근다. 서버 반영은 보드의 승인 경로를 쓰는 것이
+            // 맞는데, 그쪽 계약을 확인하기 전까지 여기서 임의로 PATCH 하지 않는다 —
+            // 두 곳이 같은 카드를 다르게 바꾸면 보드와 이 화면이 어긋난다.
+          }}
+        />
+      </div>
+    );
+  }
+
+  // 대기열 — 이 탭의 첫 화면.
+  if (화면 === "대기열") {
+    return (
+      <div className="risk-panel">
+        <header className="risk-head">
+          <div>
+            <p className="eyebrow">위험성평가</p>
+            <h1>지금 손봐야 할 것</h1>
+            <p className="risk-sub">
+              태스크 보드가 찾아낸 조건 가운데 위험성평가에 해당하는 것입니다. 여기서 열어
+              행 단위로 승인하면 TBM 자료와 공문이 파생됩니다.
+            </p>
+          </div>
+          <button type="button" className="risk-generate" onClick={() => set화면("새평가")}>
+            새 평가 만들기
+          </button>
+        </header>
+
+        <RiskQueue
+          항목들={대기열}
+          현장이름={현장이름}
+          불러오는중={대기열로딩}
+          선택={(item) => {
+            set고른카드(item);
+            set화면("작업장");
+          }}
+        />
+      </div>
+    );
+  }
+
+  // 새 평가 — 문서·사진을 올려 평가표를 만드는 기존 경로.
   return (
     <div className="risk-panel">
       <header className="risk-head">
         <div>
-          <p className="eyebrow">위험성평가</p>
+          <p className="eyebrow">
+            <button type="button" className="risk-ws-back" onClick={() => set화면("대기열")}>
+              ← 대기열
+            </button>
+          </p>
           <h1>문서와 사진을 올리면 평가표를 만듭니다</h1>
           <p className="risk-sub">
             Upstage 가 계약서·자재표에서 공종과 장비를 읽고, 위험요인마다 산업안전보건기준에 관한
