@@ -185,6 +185,14 @@ export type SiteRecommendation = {
   code: string;
   name: string;
   confidence: number;
+  /**
+   * 이 추천을 **화면이 대신 골라도 되는지.** `CONFIDENCE_THRESHOLD` 를 넘었는지다.
+   *
+   * `confidence` 숫자만 내려보내면 읽는 쪽마다 임계값을 다시 정하게 되고, 실제로
+   * 아무도 안 읽어서 12% 짜리 추천이 그대로 선택되고 있었다. 판정을 만든 쪽에서
+   * 내린다.
+   */
+  충분함: boolean;
   reason: string;
 };
 

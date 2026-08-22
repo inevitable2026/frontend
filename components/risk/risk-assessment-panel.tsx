@@ -9,7 +9,9 @@ import RiskComposer, { type 대화항목 } from "@/components/risk/risk-composer
 import RiskTimeline from "@/components/risk/risk-timeline";
 import VocabPicker from "@/components/risk/vocab-picker";
 import RiskTable from "@/components/risk/risk-table";
-import RiskWorkspace from "@/components/risk/risk-workspace";
+import RiskDocPanel from "@/components/risk/risk-doc-panel";
+import { BOARD_SITE_ID, BOARD_SITE_NAME } from "@/lib/board/site";
+import { 합치기 } from "@/lib/risk/vocab";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
 import type { 평가일자 } from "@/lib/risk/safegrid";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
@@ -77,16 +79,17 @@ function 문서필드(r: Record<string, unknown>): 필드[] {
 }
 
 /**
- * 태스크 보드가 지금 쓰는 현장. 보드 컴포넌트의 `SITE_ID` 와 같은 값이다
- * (`components/task-board/task-board.tsx:26`).
+ * 현장 목록을 못 읽었을 때 기대는 현장 하나. 목록이 오면 이건 안 쓴다.
  *
- * 현장 목록 API 가 Postgres 를 타는데 보드는 JSON 저장소로 돌기 때문에, DB 가 없는
- * 환경에서도 대기열이 비지 않으려면 알고 있는 현장 하나가 필요하다. 목록이 오면 이건 안 쓴다.
+ * **리터럴을 쓰지 않는다.** 예전에 `"site_gimpo_gochon_01"` 로 박아 두었는데, 그건
+ * `data/board/seed-*.json` 이 쓰는 사람이 읽는 이름이고 보드·배지는 `BOARD_SITE_ID`
+ * (uuid)를 쓴다. 폴백만 다른 값을 가리키면 현장 목록 조회가 실패한 순간 대기열이
+ * 조용히 빈다 — 실패한 것과 손볼 것이 없는 것이 화면에서 똑같아 보인다.
  */
-const 보드기본현장 = [{ id: "site_gimpo_gochon_01", name: "김포 고촌 현장" }];
+const 보드기본현장 = [{ id: BOARD_SITE_ID, name: BOARD_SITE_NAME }];
 
 /** 이 탭이 지금 무엇을 보이고 있는가. 대기열이 기본이다. */
-type 화면 = "대기열" | "타임라인" | "작업장" | "새평가";
+type 화면 = "대기열" | "타임라인" | "새평가";
 
 export function RiskAssessmentPanel() {
   const [화면, set화면] = useState<화면>("대기열");
@@ -223,6 +226,33 @@ export function RiskAssessmentPanel() {
     };
   }, []);
 
+  /**
+   * 빈 종이에서 시작한다.
+   *
+   * 예전에는 「새 평가 만들기」가 화면만 바꿨다. 그래서 앞 평가에서 올린 문서로 쌓인
+   * 공종·장비·자재가 그대로 남았고, 문서를 올릴수록 합집합이 계속 불어나
+   * 장비 14·자재 16 처럼 **아무도 고르지 않은 것들이 골라진 채로** 생성이 돌았다.
+   *
+   * 열어 둔 미리보기 URL 도 여기서 회수한다. 안 그러면 새 평가를 시작할 때마다 샌다.
+   */
+  function 새평가시작() {
+    미리보기들.current.forEach((u) => URL.revokeObjectURL(u));
+    미리보기들.current = [];
+
+    set공종([]);
+    set장비([]);
+    set자재([]);
+    set사진단서([]);
+    set패널들([]);
+    set대화([]);
+    set문서근거([]);
+    set현장("");
+    setAssessment(null);
+    마지막저장본.current = null;
+    set오류(null);
+    set화면("새평가");
+  }
+
   /** 저장된 평가서를 연다. 새로 만드는 것이 아니라 SAFEGRID 에서 읽어 온다. */
   async function 기록열기(id: string) {
     set오류(null);
@@ -231,7 +261,22 @@ export function RiskAssessmentPanel() {
       const res = await fetch(`/api/risk/${id}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? `평가를 읽지 못했습니다 (${res.status})`);
-      setAssessment(body.assessment as Assessment);
+      const a = body.assessment as Assessment;
+      setAssessment(a);
+      // 방금 저쪽에서 읽어 온 것이므로 이것이 되돌아갈 자리다.
+      마지막저장본.current = a;
+
+      // 평가서가 들고 있는 조건을 입력칸에 되돌려 놓는다.
+      //
+      // 예전에는 `setAssessment` 만 했다. 그러면 표에는 "철근콘크리트공사 · 절단작업"이
+      // 보이는데 위쪽 공종·장비·자재는 **전부 0**이었다 — 화면이 방금 연 평가서를
+      // 새 평가처럼 취급하고, 다시 생성하면 그 조건이 통째로 날아갔다.
+      set공종(a.work_types ?? []);
+      set장비(a.equipment ?? []);
+      set자재(a.materials ?? []);
+      if (a.matrix) set매트릭스(a.matrix);
+      if (a.method) set평가방법(a.method);
+      set현장(a.site ?? "");
     } catch (err) {
       set오류((err as Error).message);
     }
@@ -284,9 +329,9 @@ export function RiskAssessmentPanel() {
             ),
           );
           // 뽑아낸 값을 입력에 합친다. 사용자가 지운 것을 되살리지 않도록 합집합만 만든다.
-          set공종((v) => Array.from(new Set([...v, ...((r.work_types as string[]) ?? [])])));
-          set장비((v) => Array.from(new Set([...v, ...((r.equipment as string[]) ?? [])])));
-          set자재((v) => Array.from(new Set([...v, ...((r.materials as string[]) ?? [])])));
+          set공종((v) => 합치기(v, (r.work_types as string[]) ?? []));
+          set장비((v) => 합치기(v, (r.equipment as string[]) ?? []));
+          set자재((v) => 합치기(v, (r.materials as string[]) ?? []));
           if (r.site) set현장((v) => v || String(r.site));
           // 근거를 버리지 않는다 — 나중에 "이 표가 어느 문서에서 나왔나" 에 답할 유일한 수단이다.
           set문서근거((v) => [
@@ -380,8 +425,8 @@ export function RiskAssessmentPanel() {
           ].filter((f) => f.값),
         },
       ]);
-      set공종((v) => Array.from(new Set([...v, ...((r.work_types as string[]) ?? [])])));
-      set장비((v) => Array.from(new Set([...v, ...((r.equipment as string[]) ?? [])])));
+      set공종((v) => 합치기(v, (r.work_types as string[]) ?? []));
+      set장비((v) => 합치기(v, (r.equipment as string[]) ?? []));
     } catch (err) {
       const 소요 = performance.now() - 시작;
       set패널들((p) =>
@@ -412,7 +457,9 @@ export function RiskAssessmentPanel() {
       const body = await res.json();
       // 실패를 표로 덮지 않는다. 라이브가 실패했으면 그렇게 말한다.
       if (!res.ok) throw new Error(body?.error ?? `생성 실패 (${res.status})`);
-      setAssessment(body.assessment as Assessment);
+      const 만든것 = body.assessment as Assessment;
+      setAssessment(만든것);
+      마지막저장본.current = 만든것;
     } catch (err) {
       set오류((err as Error).message);
     } finally {
@@ -456,6 +503,16 @@ export function RiskAssessmentPanel() {
     [저장예약],
   );
 
+  /**
+   * 저장에 실패했을 때 되돌아갈 자리. **마지막으로 저쪽이 받아 준 상태**다.
+   *
+   * 이게 없으면 PATCH 가 실패해도 화면은 켜진 체크와 「이행확인 9 / 9 · 100%」 를
+   * 그대로 들고 있는다. 사용자는 빨간 줄 하나를 지나치고 엑셀을 내려받는데, 저쪽
+   * DB 에서 만들어진 파일은 8행만 채워져 있다. 결재 상신 가능이라고 말한 화면과
+   * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
+   */
+  const 마지막저장본 = useRef<Assessment | null>(null);
+
   async function 저장하기(next: Assessment) {
     if (!next.id) {
       set저장중(false);
@@ -469,10 +526,16 @@ export function RiskAssessmentPanel() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        set오류(body?.error ?? "이행확인을 저장하지 못했습니다.");
+        throw new Error(body?.error ?? "이행확인을 저장하지 못했습니다.");
       }
+      마지막저장본.current = next;
+      set오류(null);
     } catch (err) {
-      set오류((err as Error).message);
+      set오류(
+        `${(err as Error).message} — 화면을 저장 전 상태로 되돌렸습니다.`,
+      );
+      // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
+      if (마지막저장본.current) setAssessment(마지막저장본.current);
     } finally {
       set저장중(false);
     }
@@ -486,26 +549,22 @@ export function RiskAssessmentPanel() {
 
   const 입력있음 = 공종.length > 0 || 장비.length > 0 || 자재.length > 0;
 
-  // 작업장 — 대기열에서 고른 카드를 연 상태.
-  if (화면 === "작업장" && 고른카드) {
-    return (
-      <div className="risk-panel">
-        <RiskWorkspace
-          item={고른카드}
-          현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
-          닫기={() => {
-            set화면("대기열");
-            set고른카드(null);
-          }}
-          승인={() => {
-            // 지금은 화면 안에서만 잠근다. 서버 반영은 보드의 승인 경로를 쓰는 것이
-            // 맞는데, 그쪽 계약을 확인하기 전까지 여기서 임의로 PATCH 하지 않는다 —
-            // 두 곳이 같은 카드를 다르게 바꾸면 보드와 이 화면이 어긋난다.
-          }}
-        />
-      </div>
-    );
-  }
+  /**
+   * 고른 카드의 평가서 서랍. **화면을 갈아치우지 않고 위에 얹는다.**
+   *
+   * 예전에는 `화면 === "작업장"` 으로 페이지를 통째로 바꿨다. 그러면 대기열이 사라져
+   * "몇 건 남았는지" 를 잃고, 다음 카드로 가려면 뒤로 갔다가 다시 눌러야 했다.
+   */
+  const 서랍 =
+    고른카드 !== null ? (
+      <RiskDocPanel
+        item={고른카드}
+        siteId={고른카드.siteId}
+        현장이름={현장이름.get(고른카드.siteId) ?? 고른카드.siteId}
+        닫기={() => set고른카드(null)}
+        카드끝남={(itemId) => set대기열((v) => v.filter((i) => i.itemId !== itemId))}
+      />
+    ) : null;
 
   // 시간축 — 현장 하나에 무슨 일이 있었는가.
   if (화면 === "타임라인" && 고른현장) {
@@ -519,11 +578,10 @@ export function RiskAssessmentPanel() {
             set화면("대기열");
             set고른현장(null);
           }}
-          선택={(item) => {
-            set고른카드(item);
-            set화면("작업장");
-          }}
+          // 시간축 위에 그대로 서랍이 열린다. 시간축을 벗어나지 않는다.
+          선택={(item) => set고른카드(item)}
         />
+        {서랍}
       </div>
     );
   }
@@ -541,7 +599,7 @@ export function RiskAssessmentPanel() {
               행 단위로 승인하면 TBM 자료와 공문이 파생됩니다.
             </p>
           </div>
-          <button type="button" className="risk-generate" onClick={() => set화면("새평가")}>
+          <button type="button" className="risk-generate" onClick={새평가시작}>
             새 평가 만들기
           </button>
         </header>
@@ -571,10 +629,8 @@ export function RiskAssessmentPanel() {
           현장이름={현장이름}
           불러오는중={대기열로딩}
           기준시각={기준시각}
-          선택={(item) => {
-            set고른카드(item);
-            set화면("작업장");
-          }}
+          // 대기열은 그대로 두고 오른쪽에 평가서가 열린다. 다음 카드로 바로 넘어갈 수 있다.
+          선택={(item) => set고른카드(item)}
         />
 
         {/* 감지 카드와 만든 평가서는 **다른 곳에 산다.** 탭이 "기록 목록"을 표방하므로
@@ -586,6 +642,7 @@ export function RiskAssessmentPanel() {
           펼침={기록펼침}
           펼치기={() => set기록펼침(true)}
         />
+        {서랍}
       </div>
     );
   }
@@ -660,6 +717,24 @@ export function RiskAssessmentPanel() {
           </select>
         </label>
       </section>
+
+      {/*
+        연 평가서에 조건이 하나도 안 붙어 있을 때의 경고.
+
+        표에는 위험요인이 여러 줄 보이는데 공종·장비·자재가 전부 0 이면, 이 화면에서
+        「다시 만들기」를 누르는 순간 **아무 조건도 없이** 새로 생성된다. 지금 보이는
+        행들과 아무 관계 없는 표가 나오고, 그게 원래 평가서를 밀어낸다.
+
+        버튼이 비활성이라 실제로 그렇게 되지는 않지만, 왜 눌리지 않는지를 말해 주지
+        않으면 사용자는 화면이 고장 났다고 읽는다.
+      */}
+      {assessment && !입력있음 ? (
+        <p className="risk-warn" role="status">
+          이 평가서에는 <b>공종·장비·자재가 저장되어 있지 않습니다.</b> 표의 행은 그대로
+          보이지만 어떤 조건으로 만든 것인지가 남아 있지 않아, 이 상태로는 다시 만들 수
+          없습니다. 아래에서 조건을 채우면 그때부터 편집·재생성이 됩니다.
+        </p>
+      ) : null}
 
       <section className="risk-chips">
         {/* 문서에서 채워진 값 위에 **더할 수 있어야** 한다. 어휘는 장비 78·자재 50 종이라

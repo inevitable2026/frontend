@@ -17,6 +17,7 @@ export type TransitionErrorCode =
   | "invalidAssignee"
   | "invalidConfirmedBy"
   | "rejectReasonRequired"
+  | "invalidRejectReason"
   | "confirmedByRequired"
   | "invalidEdits"
   | "notDelegable"
@@ -229,6 +230,27 @@ export function planTransition(
       "invalidEdits",
       400,
       "초안 수정분은 승인 확정에만 실을 수 있습니다.",
+    );
+  }
+
+  /*
+   * 기각 사유를 받았는데 기각이 아니면 **거절한다.**
+   *
+   * 예전에는 조용히 버리고 200 을 돌려줬다. `isRejection` 이 `origin === "machine"`
+   * 을 요구하므로, 한 번 기각되어 origin 이 human 으로 바뀐 카드를 다시 승인 열로
+   * 옮겼다가 기각하면 `kind` 가 "move" 가 되고 사유가 사라진다. 호출한 쪽은 200 을
+   * 받았으니 기록된 줄 안다.
+   *
+   * 바로 위 `edits` 는 같은 상황에서 400 을 던진다. 한쪽만 조용한 이유가 없다 —
+   * 기각 사유는 왜 되돌렸는지를 남기는 유일한 자리라 오히려 더 시끄러워야 한다.
+   */
+  if (rejectReason && kind !== "reject") {
+    throw new TransitionError(
+      "invalidRejectReason",
+      400,
+      item.origin !== "machine"
+        ? "사람이 만든 카드는 기각할 수 없습니다. 기각 사유는 기계가 올린 카드를 되돌릴 때만 남길 수 있습니다."
+        : "기각 사유는 승인 대기 카드를 할 일로 되돌릴 때만 실을 수 있습니다.",
     );
   }
 
