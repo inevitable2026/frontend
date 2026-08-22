@@ -111,11 +111,17 @@ export function boardSnapshotOf(sources: BoardSources): BoardSnapshot {
  * 반쪽 보드는 만들지 않는다. 무엇이 없는지 사용자가 알 수 없어 더 나쁘기 때문에, 재료 중
  * 하나라도 못 읽으면 보드 전체를 실패로 그린다. 다만 현장 이름과 문서함은 뼈대가 아니라
  * 곁들이라 서버 쪽에서 실패를 삼키고 대체 값으로 간다.
+ *
+ * **재료를 그대로 돌려준다.** 예전에는 여기서 뷰모델로 옮겨 BoardSnapshot 만 내보냈는데,
+ * 그러면 원본 WorkItem 이 화면 어디에도 남지 않는다. 증거 서랍은 그 원본을 요구한다 —
+ * 카드로 옮기는 과정에서 produces 가 빈 배열이 되고 trigger.condition 이 뭉개진다
+ * (view-model.ts 의 카드옮기기). 변환은 부르는 쪽이 바로 아래 boardSnapshotOf 로 한다.
+ * 서버 선독 경로(app/page.tsx → construction-console.tsx)가 이미 BoardSources 를 그대로
+ * 넘기고 있어, 두 길이 오히려 같은 모양으로 합쳐진다.
  */
-export async function loadBoard(siteId: string, date: string, at: string): Promise<BoardSnapshot> {
+export async function loadBoard(siteId: string, date: string, at: string): Promise<BoardSources> {
   const query = new URLSearchParams({ siteId, date, at });
-  const sources = await 읽기<BoardSources>(`/api/board/snapshot?${query}`, "보드");
-  return toBoardSnapshot(sources);
+  return 읽기<BoardSources>(`/api/board/snapshot?${query}`, "보드");
 }
 
 /* ------------------------------------------------------------------ *
