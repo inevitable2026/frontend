@@ -98,11 +98,11 @@ export async function POST(request: Request) {
           estimated_minutes, assignee, delegable, blocked_by, lane_order, created_at, updated_at
         ) values (
           ${item.itemId}, ${item.siteId}::uuid, ${item.timing}, ${item.status}, ${item.origin},
-          ${item.title}, ${item.summary ?? null}, ${JSON.stringify(item.trigger)}::jsonb,
-          ${JSON.stringify(item.invalidates ?? [])}::jsonb, ${JSON.stringify(item.produces ?? [])}::jsonb,
-          ${JSON.stringify(item.draft)}::jsonb, ${item.confirmedBy ?? null}, ${item.confirmedAt ?? null},
+          ${item.title}, ${item.summary ?? null}, ${item.trigger === null ? null : JSON.stringify(item.trigger)}::text::jsonb,
+          ${JSON.stringify(item.invalidates ?? [])}::text::jsonb, ${JSON.stringify(item.produces ?? [])}::text::jsonb,
+          ${item.draft === null ? null : JSON.stringify(item.draft)}::text::jsonb, ${item.confirmedBy ?? null}, ${item.confirmedAt ?? null},
           ${item.dueBy ?? null}, ${item.estimatedMinutes ?? null}, ${item.assignee ?? null},
-          ${item.delegable ?? true}, ${JSON.stringify(item.blockedBy ?? [])}::jsonb,
+          ${item.delegable ?? true}, ${JSON.stringify(item.blockedBy ?? [])}::text::jsonb,
           ${item.laneOrder ?? 0}, ${item.createdAt}, ${item.updatedAt}
         )
       `;
