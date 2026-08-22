@@ -29,14 +29,15 @@ const navigation: readonly { label: string; icon: string; badge?: number }[] = [
   { label: "태스크 보드", icon: "/assets/file-check.svg", badge: 11 },
   { label: "우리 회사 챗봇", icon: "/assets/messages-square.svg" },
   { label: "현장 맥락 관리", icon: "/assets/database.svg" },
-  { label: "TBM 기록 목록", icon: "/assets/file-user.svg" },
-  { label: "위험성평가 기록 목록", icon: "/assets/file-exclamation.svg" },
+  // TBM 기록 숨기기
+  // { label: "TBM 기록 목록", icon: "/assets/file-user.svg" },
+  { label: "위험성평가 기록", icon: "/assets/file-exclamation.svg" },
 ];
 
 const NAV_BOARD = 0;
 const NAV_CHAT = 1;
 const NAV_SITE_CONTEXT = 2;
-const NAV_RISK = 4;
+const NAV_RISK = 3;
 
 /** 배지를 세는 현장. 태스크 보드의 `SITE_ID` 와 같다. 현장 선택이 붙으면 그걸 따른다. */
 const BADGE_SITE = "site_gimpo_gochon_01";
