@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const moduleUrl = new URL("../tmp/test-dist/lib/console-url.js", import.meta.url).href;
-const { DEFAULT_CONSOLE_URL_STATE, parseConsoleUrlState, serializeConsoleUrlState } = await import(moduleUrl);
+const { DEFAULT_CONSOLE_URL_STATE, parseConsoleUrlState, patchConsoleUrlState, serializeConsoleUrlState } = await import(moduleUrl);
 
 test("console URL state round-trips all addressable selections", () => {
   const state = parseConsoleUrlState(new URLSearchParams("nav=context&siteId=0198a1d4-6c3f-4b2a-9e51-3f8c6b0d21ae&date=2026-08-20&filterDate=2026-08-22&view=month&kind=%EB%A9%94%EC%9D%BC&documentId=0198a1d4-6c3f-4b2a-9e51-3f8c6b0d21af&risk=timeline&riskSiteId=0198a1d4-6c3f-4b2a-9e51-3f8c6b0d21ae&cardId=card_456&assessmentId=risk_123"));
@@ -24,6 +24,14 @@ test("console URL state preserves an explicitly cleared board date filter", () =
   const state = parseConsoleUrlState(new URLSearchParams("date=2026-08-20&filterDate=all"));
   assert.equal(state.boardFilterDate, null);
   assert.equal(new URL(serializeConsoleUrlState(state), "https://console.test").searchParams.get("filterDate"), "all");
+});
+
+test("back-to-back URL patches compose against the latest pending state", () => {
+  const afterNavigation = patchConsoleUrlState(DEFAULT_CONSOLE_URL_STATE, { nav: "context" });
+  const afterSelection = patchConsoleUrlState(afterNavigation, { contextKind: "메일" });
+
+  assert.equal(afterSelection.nav, "context");
+  assert.equal(afterSelection.contextKind, "메일");
 });
 
 test("legacy removed screens fall back without being emitted again", () => {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatAskBar } from "@/components/chat/chat-ask-bar";
 import { useLatestPin } from "./chat/use-latest-pin";
@@ -21,6 +21,7 @@ import type { BoardWatch } from "@/components/task-board/types";
 import {
   type ConsoleNav,
   type ConsoleUrlState,
+  patchConsoleUrlState,
   serializeConsoleUrlState,
 } from "@/lib/console-url";
 
@@ -83,6 +84,18 @@ export function ConstructionConsole({
 }) {
   const router = useRouter();
   const urlState = initialUrlState;
+  const incomingUrlRef = useRef(serializeConsoleUrlState(urlState));
+  const pendingUrlStateRef = useRef(urlState);
+  const incomingUrl = serializeConsoleUrlState(urlState);
+
+  // A navigation may not have re-rendered this component before another control
+  // emits a patch. Only replace our pending state when the server-provided URL
+  // actually changes (including browser back/forward).
+  useEffect(() => {
+    if (incomingUrl === incomingUrlRef.current) return;
+    incomingUrlRef.current = incomingUrl;
+    pendingUrlStateRef.current = urlState;
+  }, [incomingUrl, urlState]);
   /**
    * 위험성평가 탭 배지 — 재평가가 필요한 건수.
    * 상수로 박지 않는다. 배지가 실제와 어긋나면 그 자체로 거짓말이다.
@@ -95,17 +108,11 @@ export function ConstructionConsole({
    */
   const [watch, setWatch] = useState<BoardWatch | null>(null);
 
-  function updateUrl(patch: Partial<ConsoleUrlState>): void {
-    const next = { ...urlState, ...patch };
-    if (patch.siteId !== undefined && patch.siteId !== urlState.siteId) {
-      next.documentId = null;
-      next.riskSiteId = null;
-      next.cardId = null;
-      next.assessmentId = null;
-      next.riskScreen = "queue";
-    }
+  const updateUrl = useCallback((patch: Partial<ConsoleUrlState>): void => {
+    const next = patchConsoleUrlState(pendingUrlStateRef.current, patch);
+    pendingUrlStateRef.current = next;
     router.push(serializeConsoleUrlState(next), { scroll: false });
-  }
+  }, [router]);
 
   // 사이드바 배지는 탭을 열기 전에도 맞아야 한다. 그래서 콘솔이 직접 센다.
   useEffect(() => {
