@@ -68,17 +68,45 @@ export async function GET(req: Request) {
 }
 
 /**
- * 이 라우트가 **쓸 수 있는 유일한 종류.**
+ * 이 라우트가 **쓸 수 있는 종류.**
  *
- * 처음에는 `FACT_TYPES` 14종을 전부 받았다. 그런데 화면이 쓰는 것은 평가행 하나뿐이고,
- * 팩트 전량은 `app/api/board/detect` 가 규칙 엔진에 그대로 먹인다. 즉 열어 둔 13종은
- * 쓰는 사람 없이 **감지 결과를 임의로 흔들 수 있는 입구**로만 남는다.
+ * 처음에는 `FACT_TYPES` 14종을 전부 받았다. 그런데 팩트 전량은 `app/api/board/detect`
+ * 가 규칙 엔진에 그대로 먹이므로, 쓰는 사람 없이 열어 둔 종류는 **감지 결과를 임의로
+ * 흔들 수 있는 입구**로만 남는다.
  *
  * 이 콘솔에 인증이 없다는 것은 문서화된 결정이지만(`docs/board-contract.md:425`,
  * `docs/handoff-board.md:309`), 그건 기존 표면을 감수한다는 뜻이지 새 라우트가 그것을
- * 넓혀도 된다는 뜻이 아니다. 필요한 만큼만 연다.
+ * 넓혀도 된다는 뜻이 아니다. **화면이 실제로 쓰는 것만** 연다.
+ *
+ * 지금 둘이다 — 평가행(이행확인)과 결재 상태. 결재 상태를 연 이유는 §`결재상태인가`.
  */
-const 쓰기허용 = "riskAssessmentRow" as const;
+const 쓰기허용 = ["riskAssessmentRow", "documentApprovalState"] as const;
+type 쓰기종류 = (typeof 쓰기허용)[number];
+
+/** 결재 상태가 가질 수 있는 값. 시드가 쓰는 것과 같다. */
+const 결재상태값 = ["작성중", "결재대기", "결재완료"] as const;
+
+/**
+ * 결재 상태 값의 모양.
+ *
+ * 이 종류를 연 이유: 이행확인을 전부 채워도 결재 상태가 그대로였다. 화면은
+ * "결재 상신을 올릴 수 있습니다" 라고 적으면서 **그 사실을 어디에도 기록하지 않았다.**
+ * `제출가능` 필드를 읽는 코드가 레포에 한 줄도 없었다.
+ *
+ * `문서` 는 사람이 읽는 이름이고 `key` 는 문서 id 라 서로 다르다. 대조하지 않는다.
+ */
+function 결재상태인가(v: unknown): v is Record<string, unknown> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const r = v as Record<string, unknown>;
+  if (typeof r.문서 !== "string" || !r.문서.trim()) return false;
+  if (!결재상태값.includes(r.상태 as (typeof 결재상태값)[number])) return false;
+  if (typeof r.제출가능 !== "boolean") return false;
+  // 미비는 있어도 되고 없어도 되지만, 있으면 문자열 배열이어야 한다. 화면이 그대로 그린다.
+  if (r.미비 !== undefined && (!Array.isArray(r.미비) || r.미비.some((x) => typeof x !== "string"))) {
+    return false;
+  }
+  return true;
+}
 
 /**
  * 평가행 값의 모양을 본다. **뜻까지 보지는 않고, 소비자가 깨지지 않을 만큼만 본다.**
@@ -124,29 +152,46 @@ export async function POST(req: Request) {
   const key = typeof b.key === "string" ? b.key.trim() : "";
 
   if (!siteId) return fail("siteId 가 필요합니다.", 400);
-  if (factType !== 쓰기허용) {
-    return fail(`이 경로로는 ${쓰기허용} 만 쓸 수 있습니다.`, 400);
+  if (!쓰기허용.includes(factType as 쓰기종류)) {
+    return fail(`이 경로로는 ${쓰기허용.join(" · ")} 만 쓸 수 있습니다.`, 400);
   }
   if (!key) return fail("key 가 필요합니다.", 400);
-  if (!평가행인가(b.value)) {
-    return fail("value 가 평가행 모양이 아닙니다. 회의록·행id 가 필요하고 이행확인은 true·false·\"불일치\" 중 하나여야 합니다.", 400);
-  }
 
-  // key 는 `문서id#행id` 다. 값과 어긋나면 다른 문서의 행을 덮어쓰게 된다.
-  if (key !== `${b.value.회의록}#${b.value.행id}`) {
-    return fail(`key 가 값과 어긋납니다. "${b.value.회의록}#${b.value.행id}" 여야 합니다.`, 400);
+  // 종류마다 값 모양을 따로 본다. 한쪽 검사를 다른 쪽에 쓰면 검사를 안 하는 것과 같다.
+  let sourceDocId: string;
+  if (factType === "riskAssessmentRow") {
+    if (!평가행인가(b.value)) {
+      return fail(
+        'value 가 평가행 모양이 아닙니다. 회의록·행id 가 필요하고 이행확인은 true·false·"불일치" 중 하나여야 합니다.',
+        400,
+      );
+    }
+    // key 는 `문서id#행id` 다. 값과 어긋나면 다른 문서의 행을 덮어쓰게 된다.
+    if (key !== `${b.value.회의록}#${b.value.행id}`) {
+      return fail(`key 가 값과 어긋납니다. "${b.value.회의록}#${b.value.행id}" 여야 합니다.`, 400);
+    }
+    sourceDocId = String(b.value.회의록);
+  } else {
+    if (!결재상태인가(b.value)) {
+      return fail(
+        `value 가 결재 상태 모양이 아닙니다. 문서·제출가능(불리언)이 필요하고 상태는 ${결재상태값.join(" · ")} 중 하나여야 합니다.`,
+        400,
+      );
+    }
+    // 결재 상태의 key 는 문서 id 그 자체다.
+    sourceDocId = key;
   }
 
   const fact: SnapshotFact = {
     siteId,
-    factType,
+    factType: factType as 쓰기종류,
     key,
     value: b.value,
     // observedAt 은 서버가 찍는다. 화면이 보낸 시각을 믿으면 이력의 순서를 화면이 정한다.
     observedAt: new Date().toISOString(),
     // 출처와 확신도도 서버가 정한다. 사람이 화면에서 고친 것이므로 출처는 그 문서이고
     // 확신도는 1 이다. 클라이언트가 이 둘을 정하게 두면 위조가 진짜 기록처럼 보인다.
-    sourceDocId: String(b.value.회의록),
+    sourceDocId,
     confidence: 1,
   };
 

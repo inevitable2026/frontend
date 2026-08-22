@@ -7,6 +7,8 @@ import type { WorkItem } from "@/lib/board/types";
 import {
   미확인행,
   불일치행,
+  이행확인미비뺀것,
+  type 결재상태,
   위험도표시,
   이행상태읽기,
   행정렬,
@@ -44,6 +46,14 @@ export default function RiskDocPanel({
   카드끝남?: (itemId: string) => void;
 }) {
   const [행들, set행들] = useState<평가행[] | null>(null);
+  /**
+   * 이 문서의 결재 상태. **저장된 값이다.**
+   *
+   * 예전에는 화면이 "결재 상신을 올릴 수 있습니다" 라고 적으면서 그 사실을 어디에도
+   * 기록하지 않았다. 로컬 배열 길이만 보고 쓴 문장이었고, `제출가능` 필드를 읽는 코드가
+   * 레포에 한 줄도 없었다. 이제 저장된 것을 읽어 그대로 보인다.
+   */
+  const [결재, set결재] = useState<결재상태 | null>(null);
   const [오류, set오류] = useState<string | null>(null);
   const [갈래, set갈래] = useState<갈래>("직접");
   const [미확인만, set미확인만] = useState(true);
@@ -95,6 +105,15 @@ export default function RiskDocPanel({
         if (!살아있음) return;
         set행들(행정렬(body.facts ?? []));
         set오류(null);
+
+        // 결재 상태는 따로 읽는다. 없으면 없는 대로 둔다 — 없는 것과 "작성중" 은 다르다.
+        const 결재응답 = await fetch(
+          `/api/board/facts?siteId=${encodeURIComponent(siteId)}&factType=documentApprovalState`,
+          { cache: "no-store" },
+        ).catch(() => null);
+        if (!살아있음 || !결재응답?.ok) return;
+        const 결재본문 = (await 결재응답.json()) as { facts?: Array<{ key: string; value: 결재상태 }> };
+        set결재((결재본문.facts ?? []).find((f) => f.key === docId)?.value ?? null);
       } catch (e) {
         if (!살아있음) return;
         // 빈 배열로 두지 않는다. 못 읽은 것과 한 행도 없는 것은 다른 사실이다.
@@ -190,6 +209,12 @@ export default function RiskDocPanel({
    */
   const [반영중, set반영중] = useState(false);
 
+  /**
+   * 이 카드가 이미 확정됐는가. `confirmedAt` 이 잠금의 기준이다
+   * (`lib/board/transition.ts:185`) — `status` 가 아니다.
+   */
+  const 카드확정됨 = item.confirmedAt !== null || item.status === "done";
+
   async function 초안반영() {
     if (!docId || 초안행.length === 0 || 반영중) return;
     set반영중(true);
@@ -215,6 +240,17 @@ export default function RiskDocPanel({
       }
 
       // 행이 전부 들어간 뒤에만 카드를 확정한다.
+      //
+      // **이미 확정된 카드는 건드리지 않는다.** `transition.ts:185-187` 이 확정된 카드의
+      // 재확정을 409 로 막는다. 그걸 모르고 그냥 보내다가 "행은 들어갔지만 카드를
+      // 확정하지 못했습니다: 이미 확정된 카드입니다" 라는, 사용자가 할 수 있는 일이
+      // 아무것도 없는 오류를 띄웠다. 행은 이미 들어갔으므로 이건 실패가 아니다.
+      if (카드확정됨) {
+        카드끝남?.(item.itemId);
+        닫기();
+        return;
+      }
+
       const res = await fetch(`/api/board/items/${encodeURIComponent(item.itemId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -230,6 +266,65 @@ export default function RiskDocPanel({
       닫기();
     } catch (e) {
       set오류(e instanceof Error ? e.message : "반영하지 못했습니다.");
+    } finally {
+      set반영중(false);
+    }
+  }
+
+  /**
+   * 이행확인이 끝났다는 사실을 **결재 상태로 기록한다.**
+   *
+   * 이게 없으면 "결재 상신을 올릴 수 있습니다" 는 로컬 배열 길이만 보고 쓴 문장이고,
+   * 시스템 어디에도 남지 않는다. 실제로 그랬다 — `제출가능` 필드를 읽는 코드가 레포에
+   * 한 줄도 없었다.
+   *
+   * **자동으로 쓰지 않는다.** 이행확인을 모델이 대신 못 채우게 한 것과 같은 이유다 —
+   * 결재 상신 가능 여부는 사람의 판단이다.
+   */
+  async function 결재기록() {
+    if (!docId || 반영중) return;
+    set반영중(true);
+    try {
+      // 이 서랍이 해결한 것은 이행확인뿐이다. 법적 근거·개선 후 위험도 미기재는
+      // 그대로 남긴다 — 셋 다 지우면 해결하지 않은 것을 해결했다고 적는 셈이다.
+      const 남은미비 = 이행확인미비뺀것(결재?.미비);
+      const 다음: 결재상태 = {
+        ...(결재 ?? { 문서: docId, 상태: "작성중" as const, 제출가능: false }),
+        상태: "결재대기",
+        // 남은 미비가 있으면 아직 올릴 수 없다. 이행확인만 끝났다고 제출가능을 켜면
+        // 화면이 또 없는 사실을 말하게 된다.
+        제출가능: 남은미비.length === 0,
+        미비: 남은미비,
+      };
+
+      const res = await fetch("/api/board/facts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId, factType: "documentApprovalState", key: docId, value: 다음 }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `${res.status}`);
+      }
+      set결재(다음);
+      set오류(null);
+
+      // 이 문서를 무효로 지목한 카드가 이 카드라면 함께 닫는다.
+      if (무효문서 === docId && !카드확정됨) {
+        const 확정 = await fetch(`/api/board/items/${encodeURIComponent(item.itemId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done", confirmedBy: "user_park" }),
+        });
+        if (!확정.ok) {
+          const body = (await 확정.json().catch(() => ({}))) as { error?: string };
+          // 결재 상태는 이미 기록됐다. 카드만 못 닫은 것이므로 그렇게 말한다.
+          throw new Error(`결재 상태는 기록했지만 카드를 닫지 못했습니다: ${body.error ?? 확정.status}`);
+        }
+      }
+      카드끝남?.(item.itemId);
+    } catch (e) {
+      set오류(e instanceof Error ? e.message : "결재 상태를 기록하지 못했습니다.");
     } finally {
       set반영중(false);
     }
@@ -310,6 +405,56 @@ export default function RiskDocPanel({
                 <input type="checkbox" checked={미확인만} onChange={(e) => set미확인만(e.target.checked)} />
                 확인 안 된 행만 ({미확인.length})
               </label>
+            </div>
+
+            {/*
+              결재 상태 — **저장된 값만** 적는다.
+
+              이 줄이 있어야 "결재 상신을 올릴 수 있습니다" 가 장식이 아니라 기록이 된다.
+              결재 팩트가 없으면 없다고 말한다. 없는 것과 "작성중" 은 다르다.
+            */}
+            <div className="risk-drawer-approval">
+              {결재 === null ? (
+                <p className="risk-drawer-approval-none">
+                  이 문서에는 결재 상태 기록이 없습니다.
+                </p>
+              ) : (
+                <>
+                  <p className="risk-drawer-approval-head">
+                    <b>{결재.상태}</b>
+                    <span className={결재.제출가능 ? "is-ok" : "is-block"}>
+                      {결재.제출가능 ? "상신 가능" : "상신 불가"}
+                    </span>
+                    {결재.상신예정 ? <em>상신예정 {결재.상신예정}</em> : null}
+                  </p>
+                  {(결재.미비 ?? []).length > 0 ? (
+                    <ul className="risk-drawer-approval-gaps">
+                      {(결재.미비 ?? []).map((m) => (
+                        <li key={m}>{m}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              )}
+
+              <div className="risk-drawer-approval-acts">
+                {/* 바뀐 평가서를 밖으로 꺼낸다. 재평가가 필요하다는 건 평가서가
+                    바뀌었다는 뜻이고, 결재 상신은 결국 문서를 올리는 일이다. */}
+                {docId && (행들?.length ?? 0) > 0 ? (
+                  <a
+                    className="risk-drawer-download"
+                    href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}`}
+                  >
+                    바뀐 평가서 내려받기 (CSV)
+                  </a>
+                ) : null}
+
+                {행들 !== null && 행들.length > 0 && 미확인.length === 0 && !결재?.제출가능 ? (
+                  <button type="button" onClick={() => void 결재기록()} disabled={반영중}>
+                    {반영중 ? "기록 중…" : "이행확인 완료를 결재 상태에 기록"}
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             {/* 불일치가 있으면 숫자보다 먼저 말한다. 이 화면에서 가장 무거운 사실이다. */}
