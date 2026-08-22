@@ -849,7 +849,7 @@ export function TaskBoard({
 
       {/* 메일에서 감지된 변경이 기존 평가서를 무너뜨렸을 때만 뜬다. 이슈가 없으면 아무것도
           그리지 않으므로 아래 브리핑이 그 자리를 그대로 이어받는다. */}
-      <RiskIssueSection siteId={SITE_ID} />
+      <RiskIssueSection siteId={siteId} />
 
       <DailyBriefingPanel
         briefing={snapshot.briefing}
