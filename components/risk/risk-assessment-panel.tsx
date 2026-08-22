@@ -10,6 +10,7 @@ import RiskTimeline from "@/components/risk/risk-timeline";
 import VocabPicker from "@/components/risk/vocab-picker";
 import RiskTable from "@/components/risk/risk-table";
 import RiskDocPanel from "@/components/risk/risk-doc-panel";
+import { BOARD_SITE_ID, BOARD_SITE_NAME } from "@/lib/board/site";
 import type { BoardPage, WorkItem } from "@/lib/board/types";
 import type { 평가일자 } from "@/lib/risk/safegrid";
 import { MATRICES, type Assessment, type SourceDoc, type 생성모드, type 어휘 } from "@/lib/risk/types";
@@ -77,13 +78,14 @@ function 문서필드(r: Record<string, unknown>): 필드[] {
 }
 
 /**
- * 태스크 보드가 지금 쓰는 현장. 보드 컴포넌트의 `SITE_ID` 와 같은 값이다
- * (`components/task-board/task-board.tsx:26`).
+ * 현장 목록을 못 읽었을 때 기대는 현장 하나. 목록이 오면 이건 안 쓴다.
  *
- * 현장 목록 API 가 Postgres 를 타는데 보드는 JSON 저장소로 돌기 때문에, DB 가 없는
- * 환경에서도 대기열이 비지 않으려면 알고 있는 현장 하나가 필요하다. 목록이 오면 이건 안 쓴다.
+ * **리터럴을 쓰지 않는다.** 예전에 `"site_gimpo_gochon_01"` 로 박아 두었는데, 그건
+ * `data/board/seed-*.json` 이 쓰는 사람이 읽는 이름이고 보드·배지는 `BOARD_SITE_ID`
+ * (uuid)를 쓴다. 폴백만 다른 값을 가리키면 현장 목록 조회가 실패한 순간 대기열이
+ * 조용히 빈다 — 실패한 것과 손볼 것이 없는 것이 화면에서 똑같아 보인다.
  */
-const 보드기본현장 = [{ id: "site_gimpo_gochon_01", name: "김포 고촌 현장" }];
+const 보드기본현장 = [{ id: BOARD_SITE_ID, name: BOARD_SITE_NAME }];
 
 /** 이 탭이 지금 무엇을 보이고 있는가. 대기열이 기본이다. */
 type 화면 = "대기열" | "타임라인" | "새평가";
@@ -233,6 +235,8 @@ export function RiskAssessmentPanel() {
       if (!res.ok) throw new Error(body?.error ?? `평가를 읽지 못했습니다 (${res.status})`);
       const a = body.assessment as Assessment;
       setAssessment(a);
+      // 방금 저쪽에서 읽어 온 것이므로 이것이 되돌아갈 자리다.
+      마지막저장본.current = a;
 
       // 평가서가 들고 있는 조건을 입력칸에 되돌려 놓는다.
       //
@@ -425,7 +429,9 @@ export function RiskAssessmentPanel() {
       const body = await res.json();
       // 실패를 표로 덮지 않는다. 라이브가 실패했으면 그렇게 말한다.
       if (!res.ok) throw new Error(body?.error ?? `생성 실패 (${res.status})`);
-      setAssessment(body.assessment as Assessment);
+      const 만든것 = body.assessment as Assessment;
+      setAssessment(만든것);
+      마지막저장본.current = 만든것;
     } catch (err) {
       set오류((err as Error).message);
     } finally {
@@ -469,6 +475,16 @@ export function RiskAssessmentPanel() {
     [저장예약],
   );
 
+  /**
+   * 저장에 실패했을 때 되돌아갈 자리. **마지막으로 저쪽이 받아 준 상태**다.
+   *
+   * 이게 없으면 PATCH 가 실패해도 화면은 켜진 체크와 「이행확인 9 / 9 · 100%」 를
+   * 그대로 들고 있는다. 사용자는 빨간 줄 하나를 지나치고 엑셀을 내려받는데, 저쪽
+   * DB 에서 만들어진 파일은 8행만 채워져 있다. 결재 상신 가능이라고 말한 화면과
+   * 실제 문서가 갈라지는 자리라 낙관적 표시를 반드시 되돌려야 한다.
+   */
+  const 마지막저장본 = useRef<Assessment | null>(null);
+
   async function 저장하기(next: Assessment) {
     if (!next.id) {
       set저장중(false);
@@ -482,10 +498,16 @@ export function RiskAssessmentPanel() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        set오류(body?.error ?? "이행확인을 저장하지 못했습니다.");
+        throw new Error(body?.error ?? "이행확인을 저장하지 못했습니다.");
       }
+      마지막저장본.current = next;
+      set오류(null);
     } catch (err) {
-      set오류((err as Error).message);
+      set오류(
+        `${(err as Error).message} — 화면을 저장 전 상태로 되돌렸습니다.`,
+      );
+      // 저쪽이 안 받았으면 화면도 그 값을 들고 있으면 안 된다.
+      if (마지막저장본.current) setAssessment(마지막저장본.current);
     } finally {
       set저장중(false);
     }

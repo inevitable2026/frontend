@@ -11,6 +11,7 @@ import { ACTIVE_PROMPT_LABEL, ASSISTANT_LABEL, PROMPT_CARDS } from "@/components
 import { useLawChat } from "@/components/chat/use-law-chat";
 import { RiskAssessmentPanel } from "@/components/risk/risk-assessment-panel";
 import { 재평가건수 } from "@/components/risk/risk-queue";
+import { BOARD_SITE_ID } from "@/lib/board/site";
 import type { BoardPage } from "@/lib/board/types";
 import { SiteContextPanel } from "@/components/site-context-panel";
 import { ContextWatch } from "@/components/task-board/context-watch";
@@ -38,8 +39,19 @@ const NAV_CHAT = 1;
 const NAV_SITE_CONTEXT = 2;
 const NAV_RISK = 4;
 
-/** 배지를 세는 현장. 태스크 보드의 `SITE_ID` 와 같다. 현장 선택이 붙으면 그걸 따른다. */
-const BADGE_SITE = "site_gimpo_gochon_01";
+/**
+ * 배지를 세는 현장. **태스크 보드와 반드시 같은 값이어야 한다.**
+ *
+ * 예전에는 `"site_gimpo_gochon_01"` 리터럴이었다. 그건 `data/board/seed-*.json` 이
+ * 쓰는 사람이 읽는 이름이고, 보드는 `BOARD_SITE_ID`(uuid)를 쓴다. 둘이 갈라져 있어서
+ * **어느 설정에서도 하나는 반드시 깨졌다** — `BOARD_STORE=pg` 면 배지 요청이
+ * uuid 컬럼에 문자열을 넣어 400 을 맞고(아래 `.catch()` 가 조용히 삼켜 배지가 영영
+ * 안 뜬다), JSON 저장소면 반대로 보드가 404 였다.
+ *
+ * 같은 상수를 가리키게 해서 둘의 운명을 묶는다. 하나가 깨지면 둘 다 깨지므로
+ * 적어도 **한쪽만 조용히 죽는 일**은 없어진다.
+ */
+const BADGE_SITE = BOARD_SITE_ID;
 
 const appAssets = [
   { src: "/assets/document-app.svg", className: "asset-square" },
@@ -102,14 +114,24 @@ export function ConstructionConsole({
   useEffect(() => {
     let 살아있음 = true;
     fetch(`/api/board/items?siteId=${encodeURIComponent(BADGE_SITE)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<BoardPage>) : null))
+      // 실패를 `null` 로 바꾸지 않는다. 그러면 아래 catch 가 영영 안 불려서
+      // 400 을 맞아도 "카드가 0장" 과 똑같아 보인다.
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        return r.json() as Promise<BoardPage>;
+      })
       .then((page) => {
         if (!살아있음 || !page) return;
         const n = 재평가건수(page.items);
         setRiskBadge(n > 0 ? n : undefined);
       })
-      .catch(() => {
-        /* 배지를 못 세면 안 보인다. 틀린 숫자를 보이는 것보다 낫다. */
+      .catch((e) => {
+        // 배지를 못 세면 안 보인다. 틀린 숫자를 보이는 것보다 낫다.
+        //
+        // 다만 **조용히 삼키지는 않는다.** 예전에 배지 요청이 400 을 맞고 있었는데
+        // 이 자리가 아무 말도 안 해서, 배지가 원래 없는 건지 설정이 어긋난 건지
+        // 구분할 방법이 없었다.
+        console.error("[console] 위험성평가 배지를 세지 못했습니다:", e);
       });
     return () => {
       살아있음 = false;

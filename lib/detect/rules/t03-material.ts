@@ -8,6 +8,7 @@ import type {
   SnapshotFact,
   TriggerRule,
 } from "@/lib/board/types";
+import { latestFacts } from "@/lib/detect/delta";
 
 // T-03 자재 변경 — 이 제품의 주 서사다.
 //
@@ -181,7 +182,9 @@ function isRunningOrUpcoming(작업: 공정, 오늘: string): boolean {
 function tbmTeams(lookup: DetectLookup): string[] {
   const 본것 = new Set<string>();
   const 팀: string[] = [];
-  for (const f of lookup.factsOf("tbmMinutesAttendees")) {
+  // 여기도 접는다. 팀 이름은 `본것` 집합으로 중복이 걸러지지만, 접지 않으면
+  // 나열 **순서**가 이력 순서에 끌려가 같은 조건에서 문구가 달라진다.
+  for (const f of latestFacts(lookup.factsOf("tbmMinutesAttendees"))) {
     const v = f.value;
     const 이름 = (isRecord(v) ? (text(v.팀) ?? text(v.team) ?? text(v.공종)) : null) ?? text(f.key);
     if (!이름 || 본것.has(이름)) continue;
@@ -199,7 +202,12 @@ function invalidatedAssessments(
   affectedTasks: ReadonlySet<string>,
 ): Map<string, number> {
   const 묶음 = new Map<string, number>();
-  for (const 행 of lookup.factsOf("riskAssessmentRow")) {
+  // `latestFacts` 로 접는다. `factsOf` 는 **이력을 그대로** 돌려주므로, 같은 행이
+  // 두 번 기록돼 있으면 두 번 세어진다(seed-facts 의 키규칙: 같은 key 의 앞뒤 두
+  // 항목이 곧 델타의 before·after). 실제로 ra_2026_07_regular 의 전제 팩트가 두 벌이라
+  // 무효화 문구가 "(2건)" 으로 나갔고, 그 문구가 타임라인과 브리핑에 그대로 실렸다.
+  // t04:159·t05:180 은 이미 이렇게 감싸고 있다 — 여기만 빠져 있었다.
+  for (const 행 of latestFacts(lookup.factsOf("riskAssessmentRow"))) {
     const v = 행.value;
     if (!isRecord(v)) continue;
     const 평가서 = text(v.assessmentId) ?? text(v.평가서) ?? text(v.회의록) ?? text(v.docId);

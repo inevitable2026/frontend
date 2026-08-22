@@ -226,7 +226,9 @@ export function SiteContextPanel() {
       setPhase("done");
       setUpstageCalls(event.upstageCalls);
       setRecommendation(event.추천);
-      if (event.추천) setChosenSiteId(event.추천.siteId);
+      // 확신이 임계값을 넘었을 때만 대신 고른다. 그러지 않으면 화면이 "직접 고르세요"
+      // 라고 적으면서 동시에 골라 둔 채로 저장 버튼을 열어 두게 된다.
+      if (event.추천?.충분함) setChosenSiteId(event.추천.siteId);
       return;
     }
     setPhase("failed");
