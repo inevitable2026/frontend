@@ -2,6 +2,8 @@ import { generateObject } from "ai";
 
 import type { Detection, DetectionNarrative, WorkItem } from "@/lib/board/types";
 import { GENERATION_PROVIDER_OPTIONS, GENERATION_RETRIES, GENERATION_MAX_TOKENS, generationModel } from "./model";
+import { 끝맺기 } from "./repair";
+import { 사람시각 } from "./format";
 import { briefingParagraphsSchema, detectionNarrativeSchema } from "./schemas";
 
 // 브리핑의 문장을 쓴다.
@@ -20,7 +22,7 @@ const 서사SYSTEM = [
   "- 관측: 밖에서 새로 들어온 사실. 무엇이 언제 어느 문서에서 왔는지 각 줄 끝에 적습니다.",
   "- 대조: 우리가 이미 들고 있던 상태. 관측과 무엇이 다른지가 드러나야 합니다.",
   "- 판단: 그 차이가 왜 문제인지. 무엇의 전제가 무너졌는지를 적습니다.",
-  "- 만든것: 이 조건 때문에 보드에 올린 카드를 사람 말로. 몇 건이 어느 열에 올라갔는지 적습니다.",
+  "- 만든것: 아래 ‘올린 카드’ 에 적힌 카드만 사람 말로 옮깁니다. 몇 건이 어느 열에 올라갔고 그 가운데 초안이 붙은 것이 무엇인지 적습니다. 상황 설명이나 앞으로 해야 할 일을 여기 쓰지 마십시오 — 그것은 판단 칸의 몫입니다.",
   "- 불확실성: 확신하지 못하는 것과 사람이 직접 확인해야 하는 것.",
   "",
   "지켜야 할 것:",
@@ -35,7 +37,7 @@ function 근거블록(detection: Detection): string {
   return detection.evidence
     .map((e) => {
       const 출처 = e.sourceDocId ? ` · 출처 ${e.sourceDocId}` : "";
-      return `- [${e.factType}] ${e.excerpt} (관측 ${e.observedAt}${출처})`;
+      return `- [${e.factType}] ${e.excerpt} (관측 ${사람시각(e.observedAt)}${출처})`;
     })
     .join("\n");
 }
@@ -99,6 +101,7 @@ export async function narrateDetection(
     maxRetries: GENERATION_RETRIES,
     maxOutputTokens: GENERATION_MAX_TOKENS,
     providerOptions: GENERATION_PROVIDER_OPTIONS,
+    repairText: 끝맺기,
   });
 
   return object;
@@ -119,7 +122,8 @@ const 문단SYSTEM = [
   "해당 사항이 없는 줄은 통째로 건너뜁니다. 억지로 세 줄을 채우지 마십시오.",
   "",
   "지켜야 할 것:",
-  "- **주어진 숫자를 그대로 씁니다.** 세거나 더하지 마십시오. 아래 숫자는 이미 정확하게 세어진 것이고, 여기서 다시 세면 아래 근거 패널과 어긋납니다.",
+  "- **주어진 문장의 숫자를 그대로 씁니다.** 세거나 더하거나 다른 문장에 있는 숫자를 끌어다 쓰지 마십시오. 하나라도 어긋나면 아래 근거 패널과 맞지 않아 브리핑 전체를 믿을 수 없게 됩니다.",
+  "- 아래 사실을 합치고 다듬어 읽기 좋은 글로 만드는 것이 당신의 일입니다. 사실 자체를 바꾸는 것이 아닙니다.",
   "- 날짜와 시각도 주어진 표현을 그대로 씁니다. 스스로 계산하지 마십시오.",
   "- **조건을 하나씩 옮겨 적지 마십시오.** 머리글 바로 아래에 조건 목록이 펼쳐져 있어서, 여기서 되풀이하면 그 목록의 사본이 됩니다. 조건 요약은 첫 줄의 성격을 잡는 참고 자료일 뿐이고, 쓰더라도 종류 이름 한둘까지입니다.",
   "- 문서 식별자(ra_2026_07_regular 같은 값)를 적지 마십시오. 몇 건인지만 적습니다.",
@@ -148,37 +152,46 @@ export type BriefingParagraphInput = {
 };
 
 export async function narrateBriefing(input: BriefingParagraphInput): Promise<string[]> {
+  // 숫자를 낱개로 나열하지 않고 **완성된 문장** 으로 준다.
+  //
+  // "초안까지 써 둔 것: 19건 / 사람 확인을 기다리는 것: 29건" 처럼 이름과 숫자를 짝지어
+  // 늘어놓으면 모델이 짝을 잘못 집어 "초안까지 써 둔 것은 29건입니다" 라고 쓴다. 실제로
+  // 그랬다. 브리핑의 숫자가 틀리면 아래 근거 패널과 어긋나고, 담당자는 어느 쪽이 맞는지
+  // 확인할 방법이 없다. 문장째로 주면 모델이 할 일은 이어 붙여 다듬는 것뿐이다.
   const 줄: string[] = [
-    `창 시작 표현: ${input.창표현}`,
-    `감지한 조건: ${input.conditionCount}건`,
-    `올린 태스크: ${input.createdCount}건`,
-    `초안까지 써 둔 것: ${input.draftedCount}건`,
-    `사람 확인을 기다리는 것: ${input.확인대기}건`,
+    `${input.창표현} 이후로 조건 ${input.conditionCount}건을 감지했습니다.`,
+    `그 결과로 태스크 ${input.createdCount}건을 보드에 올렸습니다.`,
+    input.draftedCount > 0
+      ? `올린 태스크 가운데 ${input.draftedCount}건은 문서 초안까지 써 두었습니다.`
+      : "초안까지 써 둔 것은 없습니다.",
+    input.확인대기 > 0
+      ? `${input.확인대기}건은 기계의 판단만으로 확정할 수 없어 사람 확인을 기다립니다.`
+      : "사람 확인을 기다리는 것은 없습니다.",
   ];
 
   // 세지 못한 것과 0 건은 다른 상황이다. 문서함 라우트가 넘어졌을 때 "한 건도 들어오지
   // 않았습니다" 라고 적으면 사실과 어긋난다.
-  줄.push(
-    input.documentCount === undefined
-      ? "읽은 문서: 세지 못했습니다 (문서함에 닿지 못함 — 문서 건수를 문장에 적지 마십시오)"
-      : `읽은 문서: ${input.documentCount}건`,
-  );
-
-  if (input.급한것) {
-    줄.push(`가장 급한 것: ${input.급한것.title}`);
-    if (input.급한것.기한표현) 줄.push(`그 기한: ${input.급한것.기한표현}`);
-  } else {
-    줄.push("가장 급한 것: 기한이 정해진 미완료 카드가 없습니다");
+  if (input.documentCount === undefined) {
+    줄.push("(문서함에 닿지 못해 들어온 문서를 세지 못했습니다. 문서 건수를 문장에 적지 마십시오.)");
+  } else if (input.documentCount > 0) {
+    줄.push(`그 사이 들어온 문서 ${input.documentCount}건을 읽었습니다.`);
   }
 
-  줄.push(
-    input.무효문서.length > 0
-      ? `전제가 무너진 문서: ${input.무효문서.join(" · ")}`
-      : "전제가 무너진 문서: 없습니다",
-  );
+  if (input.급한것) {
+    const 기한 = input.급한것.기한표현 ? ` 기한은 ${input.급한것.기한표현}입니다.` : "";
+    줄.push(`가장 급한 것은 「${input.급한것.title}」입니다.${기한}`);
+  } else {
+    줄.push("기한이 정해진 미완료 카드가 없습니다.");
+  }
+
+  if (input.무효문서.length > 0) {
+    줄.push(
+      `이 조건들이 전제를 무너뜨린 문서는 ${input.무효문서.length}건입니다 — ${input.무효문서.join(" · ")}.`,
+    );
+  }
 
   const prompt = [
-    "## 이미 세어진 값 (그대로 쓰십시오)",
+    "## 적어야 할 사실 (숫자와 날짜를 그대로 쓰십시오)",
     줄.join("\n"),
     "",
     "## 감지된 조건들 (참고용 — 하나씩 옮겨 적지 마십시오)",
@@ -195,6 +208,7 @@ export async function narrateBriefing(input: BriefingParagraphInput): Promise<st
     maxRetries: GENERATION_RETRIES,
     maxOutputTokens: GENERATION_MAX_TOKENS,
     providerOptions: GENERATION_PROVIDER_OPTIONS,
+    repairText: 끝맺기,
   });
 
   return object.paragraphs;

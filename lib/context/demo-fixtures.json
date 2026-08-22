@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "fixtures": {
+    "하도급계약서": {
+      "source": "recorded",
+      "recordedAt": "2026-08-22T09:02:52.923Z",
+      "recording": { "agent": "sitectx-contract", "config": "recorded-contract-v1" },
+      "extracted": { "업체명": "한빛건설", "현장명": "강남 업무시설", "공종": ["철근콘크리트"], "계약금액": "₩120,000,000", "공사기간": "2026-08-01 ~ 2026-12-31" }
+    },
+    "위험성평가표": {
+      "source": "synthetic",
+      "recordedAt": "2026-08-22T09:05:00.000Z",
+      "recording": { "agent": "sitectx-risk", "config": "synthetic-risk-v1" },
+      "extracted": { "현장명": "강남 업무시설", "공종": ["고소 작업"], "중점위험요인": "추락 및 낙하물", "보호구": ["안전모", "안전대"] }
+    },
+    "TBM회의록": {
+      "source": "synthetic",
+      "recordedAt": "2026-08-22T09:06:00.000Z",
+      "recording": { "agent": "sitectx-tbm", "config": "synthetic-tbm-v1" },
+      "extracted": { "현장명": "강남 업무시설", "일자": "2026-08-22", "작업명": "거푸집 설치", "중점위험요인": "개구부 추락", "보호구": ["안전모", "안전화"] }
+    },
+    "작업표준": {
+      "source": "synthetic",
+      "recordedAt": "2026-08-22T09:07:00.000Z",
+      "recording": { "agent": "sitectx-work-standard", "config": "synthetic-work-standard-v1" },
+      "extracted": { "현장명": "강남 업무시설", "작업명": "이동식 비계 조립", "장비": ["이동식 비계"], "보호구": ["안전모", "안전화", "안전대"] }
+    },
+    "순회점검일지": {
+      "source": "synthetic",
+      "recordedAt": "2026-08-22T09:08:00.000Z",
+      "recording": { "agent": "sitectx-patrol", "config": "synthetic-patrol-v1" },
+      "extracted": { "현장명": "강남 업무시설", "일자": "2026-08-22", "작업명": "안전 순회점검", "중점위험요인": "통로 적치물" }
+    },
+    "기타": {
+      "source": "synthetic",
+      "recordedAt": "2026-08-22T09:09:00.000Z",
+      "recording": { "agent": "sitectx-general", "config": "synthetic-general-v1" },
+      "extracted": { "현장명": "강남 업무시설", "작업명": "현장 참고 문서", "자재": ["보호 난간"] }
+    }
+  }
+}

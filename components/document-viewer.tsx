@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 
+import { formatExtractedField, hasExtractedDisplayValue } from "@/lib/context/extracted-display";
 import type { DocumentKind, ExtractedFields } from "@/lib/context/types";
 
 type DocumentDetail = {
@@ -109,9 +110,7 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
   const fileUrl = `/api/context/documents/${documentId}/file`;
   const extracted = detail?.document.extracted ?? null;
   const filled = extracted
-    ? Object.entries(extracted).filter(([, value]) =>
-        Array.isArray(value) ? value.length > 0 : Boolean(value),
-      )
+    ? Object.entries(extracted).filter(([, value]) => hasExtractedDisplayValue(value))
     : [];
 
   // .workspace 가 z-index 로 쌓임 맥락을 만들기 때문에, 그 안에 두면 아무리 높은
@@ -175,7 +174,7 @@ export function DocumentViewer({ documentId, onClose }: { documentId: string; on
                     {filled.map(([key, value]) => (
                       <div key={key}>
                         <dt>{key}</dt>
-                        <dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd>
+                        <dd>{formatExtractedField(key, value)}</dd>
                       </div>
                     ))}
                   </dl>

@@ -735,15 +735,21 @@ function 기한값(dueBy: string | null): string | null {
  * 어긋난 행 수만큼 감지가 선다) 그것들의 감지 시각이 같은 분에 찍히면 열쇠가 겹친다.
  * 그러면 React 가 같은 key 를 가진 형제를 만나 목록에서 항목을 지우거나 겹쳐 그린다.
  *
- * 그래서 머리글까지 섞는다. 같은 조건이면 머리글도 같으므로 열쇠는 여전히 안정적이다 —
- * 머리글은 감지 시점에 한 번 쓰여 저장되고 그 뒤로 바뀌지 않는다.
+ * 그래서 머리글과 자리 번호를 함께 섞는다. 머리글은 같은 조건이면 같은 값이라 열쇠를
+ * 안정적으로 만들고(감지 시점에 한 번 쓰여 저장된 뒤로 바뀌지 않는다), 자리 번호는 머리글
+ * 마저 같은 두 조건이 나란히 섰을 때 마지막으로 갈라 준다.
+ *
+ * 자리 번호만 쓰지 않는 이유는 그 값이 목록이 바뀔 때마다 밀리기 때문이다. 조건 하나가
+ * 새로 감지되면 아래 것들의 번호가 전부 하나씩 밀리고, 담당자가 펼쳐 둔 패널이 엉뚱한
+ * 조건으로 옮겨 간다. 머리글이 앞에 있으면 그 일이 거의 일어나지 않는다.
  */
-function 조건식별자(entry: BriefingEntry): string {
+function 조건식별자(entry: BriefingEntry, 순번: number): string {
   const parts = kstParts(entry.detectedAt);
   const 시각 = parts
     ? `${parts.ymd.replace(/-/g, "")}_${pad2(parts.시)}${pad2(parts.분)}`
     : "unknown";
-  return `cond_${entry.ruleId.toLowerCase().replace("-", "")}_${시각}_${짧은해시(entry.headline)}`;
+  const 규칙 = entry.ruleId.toLowerCase().replace("-", "");
+  return `cond_${규칙}_${시각}_${짧은해시(entry.headline)}_${순번}`;
 }
 
 /** FNV-1a. 열쇠 꼬리에 붙일 짧고 안정적인 값이면 충분하다 */
@@ -815,7 +821,7 @@ function 조건옮기기(
   const 불확실성 = entry.불확실성.map((line) => 평문문단(line));
 
   return {
-    conditionId: 조건식별자(entry),
+    conditionId: 조건식별자(entry, 순번),
     code: entry.ruleId,
     kindLabel: entry.label,
     condition: 조건이름(entry.ruleId),

@@ -575,11 +575,17 @@ button {
 
 .ask-bar {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) 20px;
+  column-gap: 14px;
+  row-gap: 8px;
   width: min(1123px, 100%);
   height: 123px;
   flex: none;
   margin: 0;
   overflow: hidden;
+  padding: 20px 20px 12px;
   border: 2px solid rgba(92, 82, 255, 0.09);
   border-radius: 18px;
   background: #ffffff;
@@ -689,13 +695,15 @@ button {
 }
 
 .ask-bar textarea {
-  position: absolute;
-  inset: 20px 90px 44px 20px;
-  width: calc(100% - 110px);
-  height: 59px;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
   resize: none;
   overflow: auto;
-  padding: 2.35px 2px;
+  padding: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -712,10 +720,10 @@ button {
 }
 
 .model-indicator {
-  position: absolute;
-  bottom: 16px;
-  left: 20px;
+  grid-column: 1;
+  grid-row: 2;
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 7px;
   color: #667085;
@@ -739,9 +747,9 @@ button {
 }
 
 .submit-question {
-  position: absolute;
-  top: 61.35px;
-  right: 11.5px;
+  grid-column: 2;
+  grid-row: 1 / -1;
+  align-self: end;
   display: grid;
   width: 48px;
   height: 48px;
@@ -1651,6 +1659,10 @@ button {
   .ask-bar {
     width: 100%;
     height: 112px;
+    grid-template-rows: minmax(0, 1fr) 18px;
+    column-gap: 12px;
+    row-gap: 8px;
+    padding: 16px 16px 10px;
   }
 
   .new-content-pill {
@@ -1660,15 +1672,10 @@ button {
   }
 
   .ask-bar textarea {
-    inset: 16px 72px 42px 16px;
-    width: calc(100% - 88px);
-    height: 54px;
     font-size: 16px;
   }
 
   .model-indicator {
-    bottom: 15px;
-    left: 16px;
     gap: 6px;
     font-size: 12px;
   }
@@ -1684,9 +1691,6 @@ button {
   }
 
   .submit-question {
-    top: auto;
-    right: 10px;
-    bottom: 10px;
     width: 48px;
     height: 48px;
   }
@@ -4781,15 +4785,16 @@ button {
 /* ---------------- 입력줄 (좁은 폭에 맞춘 변형) ---------------- */
 
 .ask-bar.board-assistant-ask {
-  position: relative;
-  bottom: auto;
+  display: block;
   width: auto;
   height: 96px;
   margin: 0 16px 16px;
+  padding: 0;
   border-radius: 14px;
 }
 
 .ask-bar.board-assistant-ask textarea {
+  position: absolute;
   inset: 14px 62px 14px 16px;
   width: calc(100% - 78px);
   height: 68px;
@@ -4798,6 +4803,8 @@ button {
 }
 
 .ask-bar.board-assistant-ask .submit-question {
+  position: absolute;
+  display: grid;
   top: 48px;
   right: 10px;
   width: 40px;
@@ -4807,6 +4814,10 @@ button {
 .ask-bar.board-assistant-ask .submit-question img {
   width: 20px;
   height: 20px;
+}
+
+.ask-bar.board-assistant-ask .model-indicator {
+  display: none;
 }
 
 /* ---------------- 닫힌 상태의 버튼과 뒷막 ---------------- */
@@ -5217,8 +5228,23 @@ button {
 }
 
 .mail-file {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--board-title-ink);
+  font: inherit;
   font-weight: 500;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--border-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.mail-file:hover,
+.mail-file:focus-visible {
+  color: var(--purple-primary);
+  text-decoration-color: currentColor;
 }
 
 .mail-file-meta {
@@ -5245,6 +5271,127 @@ button {
 .mail-attach--skipped {
   background: var(--board-chip-surface);
   color: var(--board-chip-ink);
+}
+
+/* 메일 첨부 미리보기 — 원본 PDF 가 없는 목업이라 종이 모양으로 다시 그린다. */
+.mailfile-paper {
+  display: block;
+  padding: 28px;
+  background: var(--sidebar-surface);
+  overflow-y: auto;
+}
+
+.mailfile-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 44px 32px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px -20px rgba(29, 74, 141, 0.45);
+}
+
+.mailfile-page h3 {
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.mailfile-page p {
+  margin: 0 0 10px;
+  color: var(--board-body-ink);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.mailfile-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 18px 0 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mailfile-table > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.6fr) minmax(0, 1fr);
+  border-top: 1px solid var(--border-soft);
+}
+
+.mailfile-table > div:first-child {
+  border-top: 0;
+}
+
+.mailfile-table dt {
+  padding: 9px 12px;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mailfile-table dd {
+  margin: 0;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.mailfile-foot {
+  margin: 26px 0 0 !important;
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.mailfile-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mailfile-pages button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text-default);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mailfile-pages button:hover {
+  background: var(--sidebar-surface);
+}
+
+.mailfile-pages button.is-active {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(92, 82, 255, 0.12);
+}
+
+.mailfile-page-no {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mailfile-page-title {
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .mail-extracted {
