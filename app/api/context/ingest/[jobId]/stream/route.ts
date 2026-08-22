@@ -1,4 +1,5 @@
 import { db } from "@/lib/context/db";
+import { replayDemo } from "@/lib/context/demo";
 import { claimJob, replayStages, runIngest } from "@/lib/context/pipeline";
 import type { DocumentKind, IngestEvent } from "@/lib/context/types";
 
@@ -18,8 +19,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ jobId: string 
   if (!UUID.test(jobId)) return new Response("bad job id", { status: 400 });
 
   const sql = db();
-  const [job] = await sql<Array<{ id: string; kind: DocumentKind | null; status: string }>>`
-    select id, kind, status from ingest_jobs where id = ${jobId} limit 1
+  const [job] = await sql<Array<{ id: string; kind: DocumentKind | null; status: string; mode: string }>>`
+    select id, kind, status, mode from ingest_jobs where id = ${jobId} limit 1
   `;
   if (!job) return new Response("no such job", { status: 404 });
 
@@ -48,6 +49,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ jobId: string 
         if (!file) {
           send({ 종류: "실패", 단계: "수신", 사유: "업로드된 파일을 찾지 못했습니다." });
           await sql`update ingest_jobs set status = 'failed', error = '파일 없음', finished_at = now() where id = ${jobId}`;
+          return;
+        }
+
+        if (job.mode === "demo") {
+          for await (const event of replayDemo(jobId, file.original_filename, file.bytes.length)) {
+            send(event);
+          }
+          await sql`
+            update ingest_jobs
+               set status = 'done', finished_at = now(), upstage_calls = 0
+             where id = ${jobId}
+          `;
           return;
         }
 

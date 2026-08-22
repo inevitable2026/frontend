@@ -67,6 +67,7 @@ export function SiteContextPanel() {
   const [upstageCalls, setUpstageCalls] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [ranAsDemo, setRanAsDemo] = useState(false);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -129,6 +130,7 @@ export function SiteContextPanel() {
     setChosenSiteId("");
     setUpstageCalls(0);
     setMessage(null);
+    setRanAsDemo(mode === "demo");
 
     const form = new FormData();
     form.append("file", file);
@@ -239,7 +241,14 @@ export function SiteContextPanel() {
             </button>
           ))}
         </div>
-      </header>
+        </header>
+
+      {mode === "demo" ? (
+        <p className="context-demo-note">
+          데모 모드입니다. 올린 파일은 화면에 그대로 보이지만 <b>분석 결과는 미리 녹화해 둔 고정
+          응답</b>이고 Upstage 를 호출하지 않습니다. 고정 결과는 문서함에 저장하지 않습니다.
+        </p>
+      ) : null}
 
       <section className="context-upload">
         <label>
@@ -316,7 +325,16 @@ export function SiteContextPanel() {
         </section>
       ) : null}
 
-      {phase === "done" ? (
+      {phase === "done" && ranAsDemo ? (
+        <section className="context-save">
+          <p className="context-note">
+            데모 모드 결과라 저장하지 않습니다. Upstage 호출 {upstageCalls}회 —
+            네트워크를 타지 않았다는 뜻입니다. 실제로 문서함에 넣으려면 라이브 모드로 다시 올리세요.
+          </p>
+        </section>
+      ) : null}
+
+      {phase === "done" && !ranAsDemo ? (
         <section className="context-save">
           <label>
             저장할 현장
