@@ -68,15 +68,15 @@ type WorkItemRow = {
   produces: Produces[] | null;
   draft: Draft | null;
   confirmed_by: string | null;
-  confirmed_at: string | null;
+  confirmed_at: Date | string | null;
   due_by: string | null;
   estimated_minutes: number | null;
   assignee: string | null;
   delegable: boolean;
   blocked_by: string[] | null;
   lane_order: number;
-  created_at: string;
-  updated_at: string;
+  created_at: Date | string;
+  updated_at: Date | string;
 };
 
 type FactRow = {
@@ -84,7 +84,7 @@ type FactRow = {
   fact_type: FactType;
   key: string;
   value: unknown;
-  observed_at: string;
+  observed_at: Date | string;
   source_doc_id: string | null;
   confidence: number;
 };
@@ -92,7 +92,7 @@ type FactRow = {
 type DetectionRow = {
   rule_id: RuleId;
   site_id: string;
-  detected_at: string;
+  detected_at: Date | string;
   confidence: number;
   evidence: Evidence[] | null;
   invalidates: Invalidation[] | null;
@@ -100,6 +100,28 @@ type DetectionRow = {
   summary: string;
   narrative: DetectionNarrative | null;
 };
+
+/**
+ * timestamptz 한 칸을 도메인 문자열로 되돌린다.
+ *
+ * postgres.js 는 timestamptz 를 JS Date 로 준다. 그런데 도메인 타입(lib/board/types.ts)의
+ * 시각은 전부 문자열이고, 그 값은 서버 컴포넌트를 지나 클라이언트 컴포넌트까지 건너간다.
+ * Date 를 그대로 흘리면 서버는 HTML 에 toString 결과("Tue Aug 18 2026 …")를 적고 RSC 는
+ * 같은 값을 Date 로 직렬화하므로, 두 값이 어긋나 하이드레이션이 통째로 깨진다. 개발 모드
+ * 에서는 오류 오버레이가 화면을 덮어 보드를 아예 만질 수 없게 된다.
+ *
+ * 되돌리는 형식은 nowIso() 가 넣을 때 쓰는 것과 같다(KST 벽시계 + '+09:00'). 읽은 값과
+ * 쓴 값이 같은 모양이어야 화면 계약과 문자열 비교가 함께 성립한다.
+ */
+function 시각(value: Date | string): string {
+  if (typeof value === "string") return value;
+  const kst = new Date(value.getTime() + 9 * 60 * 60 * 1000).toISOString();
+  return `${kst.slice(0, 19)}+09:00`;
+}
+
+function 시각또는없음(value: Date | string | null): string | null {
+  return value === null || value === undefined ? null : 시각(value);
+}
 
 function fail(code: "invalid" | "notFound" | "conflict" | "unavailable", message: string): never {
   throw new BoardStoreError(code, message);
@@ -119,15 +141,15 @@ function toItem(row: WorkItemRow): WorkItem {
     produces: row.produces ?? [],
     draft: row.draft,
     confirmedBy: row.confirmed_by,
-    confirmedAt: row.confirmed_at,
+    confirmedAt: 시각또는없음(row.confirmed_at),
     dueBy: row.due_by,
     estimatedMinutes: row.estimated_minutes,
     assignee: row.assignee,
     delegable: row.delegable,
     blockedBy: row.blocked_by ?? [],
     laneOrder: Number(row.lane_order),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: 시각(row.created_at),
+    updatedAt: 시각(row.updated_at),
   };
 }
 
@@ -137,7 +159,7 @@ function toFact(row: FactRow): SnapshotFact {
     factType: row.fact_type,
     key: row.key,
     value: row.value,
-    observedAt: row.observed_at,
+    observedAt: 시각(row.observed_at),
     sourceDocId: row.source_doc_id,
     confidence: Number(row.confidence),
   };
@@ -147,7 +169,7 @@ function toDetection(row: DetectionRow): Detection {
   return {
     ruleId: row.rule_id,
     siteId: row.site_id,
-    detectedAt: row.detected_at,
+    detectedAt: 시각(row.detected_at),
     confidence: Number(row.confidence),
     evidence: row.evidence ?? [],
     invalidates: row.invalidates ?? [],
@@ -571,7 +593,10 @@ export function createPgBoardStore(): BoardStore {
             invalidates      = excluded.invalidates,
             produces         = excluded.produces,
             summary          = excluded.summary,
-            narrative        = excluded.narrative,
+            -- 이미 써 둔 서사를 null 로 덮지 않는다. 재실행에서 문장 생성만 실패하면
+            -- excluded.narrative 가 null 로 오는데, 그것으로 덮으면 지난번에 성공한 문장이
+            -- 사라지고 브리핑이 그 조건만 템플릿으로 되돌아간다. 새로 쓴 것이 있을 때만 바꾼다.
+            narrative        = coalesce(excluded.narrative, board.detection_events.narrative),
             created_item_ids = excluded.created_item_ids
         `;
 
