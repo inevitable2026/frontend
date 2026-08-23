@@ -1,4 +1,5 @@
 import { MAIL_THREADS, type MailAttachment, type MailMessage } from "@/lib/context/mail-threads";
+import { toRiskRowApplicationFact } from "@/lib/risk/row-application-types";
 import { 최신만, type 평가행 } from "@/lib/risk/rows";
 
 import { BOARD_SITE_ID, BOARD_SITE_SEED_ID } from "./site";
@@ -162,40 +163,17 @@ function 이슈카드인가(item: WorkItem): item is WorkItem & { draft: 회의�
   return item.invalidates.some((inv) => inv.docId === 들어갈곳);
 }
 
-/** 초안 행 하나를, 있으면 변경 전 행 위에 병합해 저장 가능한 평가행으로 만든다. */
-function 초안을행으로(
-  draft: RiskRowDraft,
-  targetDocId: string,
-  before: 평가행 | null,
-  관리기간: string | undefined,
-): 평가행 {
-  const 법적근거 = draft.legalReferences.filter((r) => r.citable && r.ref === LAW_38.refId).length
-    ? [LAW_38_인용]
-    : (before?.법적근거 ?? []);
-
-  return {
-    // 변경 전 행의 담당사·이행확인담당·사고분류는 초안이 바꾸지 않으므로 지킨다.
-    ...(before ?? {}),
-    회의록: targetDocId,
-    행id: draft.itemId,
-    관리기간: before?.관리기간 ?? 관리기간,
-    공종분류: before?.공종분류 ?? draft.hazardClass,
-    단위작업: draft.process,
-    위험요인: draft.hazard,
-    대책: draft.measures.map((m) => m.text),
-    법적근거,
-    개선전: { 빈도: draft.risk.likelihood, 강도: draft.risk.severity, 위험도: draft.risk.score },
-    개선후: {
-      빈도: draft.residualRisk.likelihood,
-      강도: draft.residualRisk.severity,
-      위험도: draft.residualRisk.score,
-    },
-    // 방금 다시 쓴 행이다. 이전에 체크되어 있었어도 새 대책이 실행됐을 리 없다.
-    이행확인: undefined,
-    표시값: undefined,
-    실제실행: undefined,
-    근거: undefined,
-  };
+/**
+ * 초안 행 하나를 "변경 후" 로 보일 평가행으로 만든다.
+ *
+ * **반영이 실제로 쓰는 값과 같은 함수를 쓴다** — 행 반영은
+ * lib/risk/row-application-store.ts 가 `toRiskRowApplicationFact` 로 만든 값을 그대로
+ * 저장하므로, 화면의 "변경 후" 를 여기서 따로 조립하면 diff 가 반영 결과와 다른 것을
+ * 보여주는 거짓말이 된다. 예전에는 여기서 변경 전 행 위에 병합했는데, 그 병합은 반영
+ * 경로에 존재하지 않는 가공이었다.
+ */
+function 초안을행으로(draft: RiskRowDraft, targetDocId: string): 평가행 {
+  return toRiskRowApplicationFact(draft, targetDocId) as 평가행;
 }
 
 /** 카드의 근거 문서 참조에서 메일 근거 한 장을 찾는다. */
@@ -275,7 +253,6 @@ export async function loadRiskIssue(siteId: string): Promise<RiskIssue | null> {
       const v = f.value as 평가행;
       if (v && typeof v === "object" && typeof v.행id === "string") 이전행.set(v.행id, v);
     }
-    const 관리기간 = [...이전행.values()][0]?.관리기간;
 
     // 근거 차례가 곧 [1][2][3] 번호다: 메일 → 법령 → 회사 양식.
     const mail = 메일근거(card);
@@ -302,7 +279,7 @@ export async function loadRiskIssue(siteId: string): Promise<RiskIssue | null> {
         mode: before ? ("수정" as const) : ("신규" as const),
         행id: row.itemId,
         before,
-        after: 초안을행으로(row, targetDocId, before, 관리기간),
+        after: 초안을행으로(row, targetDocId),
         refs: [...new Set(refs)],
       };
     });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type JSX, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import type {
   RiskIssue,
@@ -10,9 +11,12 @@ import type {
   RiskIssueMailEvidence,
   RiskIssueRowChange,
 } from "@/lib/board/risk-issue";
-import { 회사표시 } from "@/lib/risk/rows";
-
-import { CONSOLE_ACTOR } from "./presentation";
+import {
+  applyRiskRows,
+  loadRiskRowApplication,
+} from "@/lib/risk/row-application-client";
+import { loadRiskRowReviewStates, saveRiskRowReview } from "@/lib/risk/row-review-client";
+import { 이행상태읽기, 회사표시, type 평가행 } from "@/lib/risk/rows";
 
 /**
  * 보드 맨 위의 "위험성평가 이슈" 섹션.
@@ -24,8 +28,9 @@ import { CONSOLE_ACTOR } from "./presentation";
  * 데이터는 전부 /api/board/risk-issue 가 조립해 내려준다. 이 파일은 문장을 만들지
  * 않는다 — 머리글도 카드의 문장을 그대로 옮긴 것이다(lib/board/risk-issue.ts).
  *
- * 반영은 risk-doc-panel 의 초안반영() 과 같은 순서다: 행을 전부 쓰고, 다 들어간
- * 뒤에만 카드를 확정한다. 반대로 하면 카드는 끝났는데 행은 문서에 없는 상태가 남는다.
+ * 반영은 risk-doc-panel 과 같은 원자 명령이다: 행별 승인을 저장한 뒤 행 쓰기와 카드
+ * 완료를 한 명령으로 확정한다 (`/api/risk/row-applications`). 회의록 카드는 일반 PATCH
+ * 로 완료할 수 없다 — transition.ts 가 이 경로만 열어 둔다.
  */
 
 const EVIDENCE_KIND_LABEL: Record<RiskIssueEvidence["kind"], string> = {
@@ -572,7 +577,7 @@ function RowDiff({
         <div className="board-issue-decide">
           <button
             aria-checked={applied}
-            aria-label={`${row.행id} 평가서에 반영`}
+            aria-label={`${row.행id} 행 승인`}
             className={applied ? "board-issue-switch is-on" : "board-issue-switch"}
             onClick={() => onToggle(row.행id, !applied)}
             role="switch"
@@ -581,11 +586,184 @@ function RowDiff({
             <span aria-hidden="true" className="board-issue-switch-track">
               <span className="board-issue-switch-knob" />
             </span>
-            <span className="board-issue-switch-label">{applied ? "반영" : "제외"}</span>
+            <span className="board-issue-switch-label">{applied ? "승인" : "보류"}</span>
           </button>
         </div>
       </div>
     </li>
+  );
+}
+
+/* ------------------------------------------------------------------ 결과 — 반영된 평가서 */
+
+/** 반영 직후 문서를 새로 읽는다. 모달이 보이는 것은 화면의 계산이 아니라 저장된 행이다. */
+async function 문서행읽기(siteId: string, docId: string): Promise<평가행[]> {
+  const res = await fetch(
+    `/api/board/facts?siteId=${encodeURIComponent(siteId)}&factType=riskAssessmentRow&docId=${encodeURIComponent(docId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) throw new Error(`반영된 평가서를 읽지 못했습니다 (${res.status}).`);
+  const body = (await res.json()) as { facts?: Array<{ value?: unknown }> };
+  return (body.facts ?? [])
+    .map((fact) => fact.value as 평가행)
+    .filter((row) => row && typeof row === "object" && typeof row.행id === "string")
+    .sort((a, b) => a.행id.localeCompare(b.행id, "en", { numeric: true }));
+}
+
+function 위험도셀(score: { 빈도: number; 강도: number; 위험도: number } | undefined): string {
+  if (!score) return "—";
+  return `${score.빈도}×${score.강도}=${score.위험도}`;
+}
+
+function 이행확인표기(row: 평가행): string {
+  const 상태 = 이행상태읽기(row);
+  if (상태 === "확인") return "확인";
+  if (상태 === "불일치") return "불일치";
+  return "";
+}
+
+/** UTF-8 BOM 을 붙인 CSV. 엑셀이 한글을 깨뜨리지 않고 그대로 연다. */
+function csv내려받기(docId: string, rows: 평가행[]): void {
+  const 머리 = [
+    "행ID", "공종분류", "단위작업", "위험요인", "사고분류", "대책",
+    "개선전 빈도", "개선전 강도", "개선전 위험도",
+    "개선후 빈도", "개선후 강도", "개선후 위험도",
+    "담당사", "이행확인",
+  ];
+  const 칸 = (value: unknown): string => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const 줄들 = [
+    머리,
+    ...rows.map((row) => [
+      row.행id, row.공종분류 ?? "", row.단위작업, row.위험요인 ?? "", row.사고분류 ?? "",
+      (row.대책 ?? []).join(" / "),
+      row.개선전?.빈도 ?? "", row.개선전?.강도 ?? "", row.개선전?.위험도 ?? "",
+      row.개선후?.빈도 ?? "", row.개선후?.강도 ?? "", row.개선후?.위험도 ?? "",
+      회사표시(row.담당사), 이행확인표기(row),
+    ]),
+  ].map((row) => row.map(칸).join(","));
+
+  const blob = new Blob(["\uFEFF", 줄들.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${docId}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/** 위험성평가 탭으로 가는 콘솔 주소. lib/console-url.ts 의 직렬화 규칙과 같은 모양이다. */
+function 위험성평가탭주소(siteId: string): string {
+  const params = new URLSearchParams({ nav: "risk" });
+  // uuid 일 때만 붙인다 — parseConsoleUrlState 가 uuid 가 아니면 버린다.
+  if (/^[0-9a-f-]{36}$/i.test(siteId)) params.set("siteId", siteId);
+  return `/?${params.toString()}`;
+}
+
+function ResultModal({
+  docId,
+  siteId,
+  rows,
+  appliedIds,
+  onClose,
+}: {
+  docId: string;
+  siteId: string;
+  rows: 평가행[];
+  appliedIds: Set<string>;
+  onClose: () => void;
+}): JSX.Element | null {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    function onKey(event: KeyboardEvent): void {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // .workspace 가 쌓임 맥락을 만들어 흐름 안에 두면 사이드바 아래에 깔린다.
+  // DocumentViewer · MailAttachmentViewer 와 같은 이유로 body 에 직접 붙인다.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="docview-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div aria-label={`${docId} 반영 결과`} aria-modal="true" className="docview board-issue-resultview" role="dialog">
+        <header className="docview-head">
+          <div>
+            <p className="eyebrow">위험성평가서 · 반영 완료</p>
+            <h2>{docId}</h2>
+            <p className="docview-meta">
+              전체 {rows.length}행 · 방금 반영된 {appliedIds.size}행은 초록으로 표시됩니다
+            </p>
+          </div>
+          <div className="docview-actions">
+            <button
+              className="board-issue-result-csv"
+              onClick={() => csv내려받기(docId, rows)}
+              type="button"
+            >
+              엑셀(CSV) 내려받기
+            </button>
+            <a className="board-issue-result-go" href={위험성평가탭주소(siteId)}>
+              위험성평가 기록으로 이동
+            </a>
+            <button className="docview-close" onClick={onClose} ref={closeRef} type="button">
+              닫기
+            </button>
+          </div>
+        </header>
+
+        <div className="board-issue-result-scroll">
+          <table className="board-issue-result-table">
+            <thead>
+              <tr>
+                <th>행ID</th>
+                <th>공종분류</th>
+                <th>단위작업</th>
+                <th>위험요인</th>
+                <th>대책</th>
+                <th>개선 전</th>
+                <th>개선 후</th>
+                <th>담당사</th>
+                <th>이행확인</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr className={appliedIds.has(row.행id) ? "is-applied" : ""} key={row.행id}>
+                  <td className="board-issue-result-id">
+                    {row.행id}
+                    {appliedIds.has(row.행id) ? <em>반영됨</em> : null}
+                  </td>
+                  <td>{row.공종분류 ?? ""}</td>
+                  <td>{row.단위작업}</td>
+                  <td>{row.위험요인 ?? ""}</td>
+                  <td>
+                    {(row.대책 ?? []).map((대책, index) => (
+                      <span className="board-issue-result-ctrl" key={index}>
+                        {대책}
+                      </span>
+                    ))}
+                  </td>
+                  <td className="board-issue-result-score">{위험도셀(row.개선전)}</td>
+                  <td className="board-issue-result-score">{위험도셀(row.개선후)}</td>
+                  <td>{회사표시(row.담당사)}</td>
+                  <td>{이행확인표기(row)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -596,12 +774,13 @@ type Phase =
   | { name: "hidden" }
   | { name: "ready"; issue: RiskIssue }
   | { name: "applying"; issue: RiskIssue }
-  | { name: "done"; issue: RiskIssue; 적용수: number };
+  | { name: "done"; issue: RiskIssue; 적용수: number; 문서행: 평가행[] };
 
 export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | null {
   const [phase, setPhase] = useState<Phase>({ name: "loading" });
   const [켜짐, set켜짐] = useState<Set<string>>(new Set());
   const [오류, set오류] = useState<string | null>(null);
+  const [resultOpen, setResultOpen] = useState(false);
   const popover = useRefPopover();
 
   useEffect(() => {
@@ -667,44 +846,58 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
     );
   };
 
+  /**
+   * 반영 — 회의록 카드를 끝내는 유일한 경로를 그대로 탄다 (transition.ts 의 가드).
+   *
+   * 1. 행별 승인을 저장한다 (`/api/risk/row-reviews`). 토글이 곧 행의 승인이다.
+   * 2. 반영 조건과 지문을 확인한다 (`GET /api/risk/row-applications`).
+   * 3. 원자 반영 한 명령으로 행 쓰기와 카드 완료를 함께 확정한다 (`PUT`).
+   *
+   * 예전에는 여기서 팩트를 직접 쓰고 카드를 PATCH 했다. 행을 쓴 뒤 확정이 거절되면
+   * "행은 들어갔는데 카드는 남는" 중간 상태가 실제로 프로덕션에 남았다 — 원자 명령이
+   * 있는 이유가 그것이므로 직접 쓰기를 버리고 그 명령으로 옮겼다.
+   */
   async function 반영하기(): Promise<void> {
     if (phase.name !== "ready") return;
-    const 고른행 = issue.rows.filter((row) => 켜짐.has(row.행id));
-    if (고른행.length === 0) return;
+    if (켜짐.size !== issue.rows.length) return;
 
     setPhase({ name: "applying", issue });
     set오류(null);
 
     try {
-      // 행을 먼저 전부 쓴다. 하나라도 실패하면 카드를 확정하지 않는다.
-      for (const row of 고른행) {
-        const res = await fetch("/api/board/facts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            siteId: issue.siteId,
-            factType: "riskAssessmentRow",
-            key: `${issue.targetDocId}#${row.행id}`,
-            value: row.after,
-          }),
+      const states = await loadRiskRowReviewStates(issue.siteId, issue.cardId);
+      for (const state of states) {
+        if (state.decision === "approved") continue;
+        await saveRiskRowReview({
+          commandId: crypto.randomUUID(),
+          siteId: issue.siteId,
+          workItemId: issue.cardId,
+          rowId: state.rowId,
+          expectedRowFingerprint: state.rowFingerprint,
+          decision: "approved",
+          expectedVersion: state.version,
         });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(`${row.행id} 를 문서에 넣지 못했습니다: ${body.error ?? res.status}`);
-        }
       }
 
-      const res = await fetch(`/api/board/items/${encodeURIComponent(issue.cardId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "done", confirmedBy: CONSOLE_ACTOR }),
+      const descriptor = await loadRiskRowApplication(issue.siteId, issue.cardId);
+      if (!descriptor.eligible || !descriptor.applicationFingerprint) {
+        throw new Error(
+          descriptor.issues.map((issueItem) => issueItem.message).join(" ") ||
+            "반영 조건을 만족하지 못했습니다.",
+        );
+      }
+
+      await applyRiskRows({
+        commandId: crypto.randomUUID(),
+        siteId: issue.siteId,
+        workItemId: issue.cardId,
+        expectedApplicationFingerprint: descriptor.applicationFingerprint,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(`행은 들어갔지만 카드를 확정하지 못했습니다: ${body.error ?? res.status}`);
-      }
 
-      setPhase({ name: "done", issue, 적용수: 고른행.length });
+      // 화면이 계산한 값이 아니라 방금 저장된 문서를 다시 읽어 결과로 보인다.
+      const 문서행 = await 문서행읽기(issue.siteId, issue.targetDocId);
+      setPhase({ name: "done", issue, 적용수: issue.rows.length, 문서행 });
+      setResultOpen(true);
     } catch (error) {
       set오류(error instanceof Error ? error.message : "반영하지 못했습니다.");
       setPhase({ name: "ready", issue });
@@ -712,6 +905,7 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
   }
 
   if (phase.name === "done") {
+    const appliedIds = new Set(issue.rows.map((row) => row.행id));
     return (
       <section aria-label="위험성평가 이슈" className="board-issue">
         <div className="board-brief-card">
@@ -721,8 +915,36 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
             </b>{" "}
             카드가 완료 열로 이동했습니다. 새 행의 이행확인은 비어 있습니다 — 현장에서 실행을
             확인한 뒤 위험성평가 기록에서 체크합니다.
+            <div className="board-issue-done-acts">
+              <button
+                className="board-issue-apply"
+                onClick={() => setResultOpen(true)}
+                type="button"
+              >
+                업데이트된 평가서 보기
+              </button>
+              <button
+                className="board-issue-result-csv"
+                onClick={() => csv내려받기(issue.targetDocId, phase.문서행)}
+                type="button"
+              >
+                엑셀(CSV) 내려받기
+              </button>
+              <a className="board-issue-result-go" href={위험성평가탭주소(issue.siteId)}>
+                위험성평가 기록으로 이동
+              </a>
+            </div>
           </div>
         </div>
+        {resultOpen ? (
+          <ResultModal
+            appliedIds={appliedIds}
+            docId={issue.targetDocId}
+            onClose={() => setResultOpen(false)}
+            rows={phase.문서행}
+            siteId={issue.siteId}
+          />
+        ) : null}
       </section>
     );
   }
@@ -808,16 +1030,18 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
         <div className="board-issue-actions">
           <button
             className="board-issue-apply"
-            disabled={phase.name === "applying" || 선택수 === 0}
+            disabled={phase.name === "applying" || 선택수 !== issue.rows.length}
             onClick={() => void 반영하기()}
             type="button"
           >
             {phase.name === "applying"
               ? "반영 중…"
-              : `반영 선택 ${선택수}건을 ${issue.targetDocId} 에 쓰기`}
+              : `행 ${issue.rows.length}건 승인하고 ${issue.targetDocId} 에 반영`}
           </button>
           <span className="board-issue-note">
-            반영 후 새 행의 이행확인은 비워 둡니다 — 현장 확인은 위험성평가 기록에서 합니다.
+            {선택수 !== issue.rows.length
+              ? "회의록 카드는 모든 행이 승인되어야 반영할 수 있습니다 — 보류한 행이 있으면 카드가 승인 열에 남습니다."
+              : "반영하면 행 쓰기와 카드 완료가 한 명령으로 함께 확정되고, 업데이트된 평가서를 바로 받아볼 수 있습니다."}
           </span>
         </div>
       </div>

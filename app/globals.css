@@ -9791,3 +9791,105 @@ button {
     transition: none;
   }
 }
+
+/* ── 반영 결과 모달 — 업데이트된 평가서 미리보기 ── */
+
+.board-issue-resultview {
+  max-width: min(1080px, calc(100vw - 48px));
+}
+
+.board-issue-result-scroll {
+  overflow: auto;
+  max-height: calc(100dvh - 220px);
+  padding: 0 18px 18px;
+}
+
+.board-issue-result-table {
+  width: 100%;
+  min-width: 880px;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.board-issue-result-table th,
+.board-issue-result-table td {
+  border: 1px solid var(--board-hairline);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  word-break: keep-all;
+}
+
+.board-issue-result-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--sidebar-surface);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 1;
+}
+
+.board-issue-result-table tr.is-applied td {
+  background: var(--board-ok-surface);
+}
+
+.board-issue-result-id {
+  font-family: var(--board-numeral);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.board-issue-result-id em {
+  display: block;
+  margin-top: 2px;
+  color: var(--board-ok-ink);
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.board-issue-result-ctrl {
+  display: block;
+}
+
+.board-issue-result-ctrl + .board-issue-result-ctrl {
+  margin-top: 3px;
+}
+
+.board-issue-result-score {
+  font-family: var(--board-numeral);
+  white-space: nowrap;
+}
+
+.board-issue-result-csv,
+.board-issue-result-go {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-sidebar);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.35px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.board-issue-result-csv:hover,
+.board-issue-result-go:hover {
+  border-color: var(--purple-primary);
+  color: var(--purple-copy);
+}
+
+.board-issue-done-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}

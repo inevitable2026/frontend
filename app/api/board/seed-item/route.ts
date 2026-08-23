@@ -66,11 +66,27 @@ export async function POST(request: Request) {
   } catch {
     return fail("JSON 본문이 필요합니다.", 400, "body_not_json");
   }
-  const itemId =
-    body && typeof body === "object" && typeof (body as { itemId?: unknown }).itemId === "string"
-      ? ((body as { itemId: string }).itemId ?? "").trim()
-      : "";
+  const b = body as Record<string, unknown>;
+  const itemId = typeof b.itemId === "string" ? b.itemId.trim() : "";
   if (!itemId) return fail("itemId 가 필요합니다.", 400, "item_id_required");
+
+  /**
+   * 선택: 이 문서의 평가행 팩트 가운데 `after` 이후에 쓰인 것을 지운다.
+   *
+   * 팩트는 덧붙이기만 하는 이력이라 API 로는 되돌릴 수 없는데, 시연 상태를 시드로
+   * 되돌릴 때는 시드 이후에 쓰인 행이 남아 있으면 "변경 전" 이 이미 바뀐 값을 보여
+   * diff 가 무너진다. 시드 관리 입구인 이 라우트에서만, 시각 경계를 명시했을 때만 지운다.
+   */
+  let resetDocFacts: { docId: string; after: string } | null = null;
+  if (b.resetDocFacts !== undefined) {
+    const r = b.resetDocFacts as Record<string, unknown> | null;
+    const docId = r && typeof r.docId === "string" ? r.docId.trim() : "";
+    const after = r && typeof r.after === "string" ? r.after.trim() : "";
+    if (!docId || !after || Number.isNaN(Date.parse(after))) {
+      return fail("resetDocFacts 는 { docId, after(ISO 시각) } 이어야 합니다.", 400, "invalid_reset");
+    }
+    resetDocFacts = { docId, after };
+  }
 
   const seed = seedItems.find((item) => item.itemId === itemId);
   if (!seed) return fail("시드에 그런 카드가 없습니다.", 404, "not_in_seed");
@@ -90,6 +106,31 @@ export async function POST(request: Request) {
         returning item_id
       `;
       await tx`delete from board.invalidations where item_id = ${item.itemId}`;
+
+      // 행별 검토와 반영 이력도 카드와 함께 시드 상태로 돌아간다. 남겨 두면 새로 꽂힌
+      // 카드가 "이미 반영되었다" 며 원자 반영을 거절한다(row-application-store 의
+      // alreadyApplied 검사). 테이블은 그 저장소가 첫 호출에 만들므로 없을 수도 있다.
+      const [reviews] = await tx<{ t: string | null }[]>`select to_regclass('risk_row_reviews') as t`;
+      if (reviews?.t) {
+        await tx`delete from risk_row_reviews where site_id = ${item.siteId}::uuid and work_item_id = ${item.itemId}`;
+      }
+      const [applications] = await tx<{ t: string | null }[]>`select to_regclass('risk_row_application_events') as t`;
+      if (applications?.t) {
+        await tx`delete from risk_row_application_events where site_id = ${item.siteId}::uuid and work_item_id = ${item.itemId}`;
+      }
+
+      let 지운팩트 = 0;
+      if (resetDocFacts) {
+        const rows = await tx`
+          delete from board.snapshot_facts
+           where site_id = ${item.siteId}::uuid
+             and fact_type = 'riskAssessmentRow'
+             and key like ${`${resetDocFacts.docId}#%`}
+             and observed_at > ${resetDocFacts.after}::timestamptz
+          returning key
+        `;
+        지운팩트 = rows.length;
+      }
 
       await tx`
         insert into board.work_items (
@@ -116,7 +157,7 @@ export async function POST(request: Request) {
         `;
       }
 
-      return { 이전존재: 지운.length > 0 };
+      return { 이전존재: 지운.length > 0, 지운팩트 };
     });
 
     return Response.json(
@@ -124,6 +165,7 @@ export async function POST(request: Request) {
         ok: true,
         itemId: item.itemId,
         존재하던카드를지움: result.이전존재,
+        되돌린팩트: result.지운팩트,
         status: item.status,
         draftForm: item.draft?.form ?? null,
       },
