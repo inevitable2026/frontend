@@ -4,9 +4,17 @@ export type RiskRowReviewAccess = {
 };
 
 export class RiskRowReviewAccessUnavailableError extends Error {
-  constructor(message: string) {
+  /**
+   * `detail` 은 **화면에 나가지 않는다.** 라우트가 `message` 만 응답에 싣는다.
+   *
+   * 예전에는 「localhost 행 검토를 쓰려면 RISK_ROW_REVIEW_LOCAL_ENABLED=true 가
+   * 필요합니다」 가 그대로 서랍에 떴다 — 그것도 두 줄씩. 읽는 사람은 배포 설정을 만질 수
+   * 없고, 그렇다고 그 사실을 버리면 담당자가 무엇을 켜야 하는지 알 길이 없다.
+   */
+  constructor(message: string, readonly detail?: string) {
     super(message);
     this.name = "RiskRowReviewAccessUnavailableError";
+    if (detail) console.error("[risk-row-review-access]", detail);
   }
 }
 
@@ -30,14 +38,21 @@ export function riskRowReviewAccess(
   if (env.NODE_ENV === "production") {
     if (env.RISK_ROW_REVIEW_PRODUCTION_ENABLED !== "true") {
       throw new RiskRowReviewAccessUnavailableError(
-        "로그인 기반 검토 권한이 없어 production 행 검토는 기본 비활성입니다. 배포 설정이 RISK_ROW_REVIEW_PRODUCTION_ENABLED=true 로 명시해야 열립니다.",
+        "이 서버에서는 행 검토를 저장할 수 없습니다. 시스템 담당자에게 문의해 주세요.",
+        "production row review needs RISK_ROW_REVIEW_PRODUCTION_ENABLED=true",
       );
     }
   } else if (env.RISK_ROW_REVIEW_LOCAL_ENABLED !== "true") {
-    throw new RiskRowReviewAccessUnavailableError("localhost 행 검토를 쓰려면 RISK_ROW_REVIEW_LOCAL_ENABLED=true 가 필요합니다.");
+    throw new RiskRowReviewAccessUnavailableError(
+      "이 서버에서는 행 검토를 저장할 수 없습니다. 시스템 담당자에게 문의해 주세요.",
+      "local row review needs RISK_ROW_REVIEW_LOCAL_ENABLED=true",
+    );
   }
   if (env.BOARD_STORE !== "pg") {
-    throw new RiskRowReviewAccessUnavailableError("행 검토를 쓰려면 보드와 검토가 같은 Postgres 를 보도록 BOARD_STORE=pg 가 필요합니다.");
+    throw new RiskRowReviewAccessUnavailableError(
+      "행 검토를 저장할 곳이 준비되지 않았습니다. 시스템 담당자에게 문의해 주세요.",
+      "row review needs BOARD_STORE=pg so the board and reviews share one Postgres",
+    );
   }
   const siteIds = new Set(
     (env.CONSOLE_SITE_IDS ?? "")
@@ -46,7 +61,10 @@ export function riskRowReviewAccess(
       .filter((value) => UUID.test(value)),
   );
   if (siteIds.size === 0) {
-    throw new RiskRowReviewAccessUnavailableError("CONSOLE_SITE_IDS 에 허용할 현장 UUID가 필요합니다.");
+    throw new RiskRowReviewAccessUnavailableError(
+      "이 현장에서 행 검토를 저장할 수 있는지 확인되지 않았습니다. 시스템 담당자에게 문의해 주세요.",
+      "row review needs CONSOLE_SITE_IDS with at least one site uuid",
+    );
   }
   return { actor: "local-console", siteIds };
 }
