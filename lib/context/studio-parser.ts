@@ -924,6 +924,33 @@ function hasClaim(value: unknown): boolean {
   return value !== null && value !== undefined && value !== "";
 }
 
+/**
+ * 근거를 못 댄 주장이 무엇이었는지 적는다.
+ *
+ * 이 오류가 났을 때 남는 것이 코드 한 줄뿐이면, 문서를 다시 올려 보는 것 말고는 할 수
+ * 있는 일이 없다. 손글씨가 든 순회점검일지에서 실제로 그랬다 — 사람은 읽히는데 무엇이
+ * 걸렸는지 알 길이 없었다.
+ *
+ * **화면에는 나가지 않는다.** `StudioError` 가 사용자 문장을 따로 고르고, 이 글은
+ * `cause` 를 타고 서버 로그에만 남는다.
+ */
+function 근거없는주장(extracted: ExtractedFields): string {
+  const 빈것: string[] = [];
+  const 중첩 = [
+    ["평가항목", extracted.평가항목],
+    ["저감조치", extracted.저감조치],
+    ["작업단계", extracted.작업단계],
+    ["지적사항", extracted.지적사항],
+    ["조치사항", extracted.조치사항],
+  ] as const;
+  for (const [이름, 목록] of 중첩) {
+    const 없는것 = (목록 ?? []).filter((item) => item.evidence.length === 0).length;
+    if (없는것 > 0) 빈것.push(`${이름} ${없는것}/${(목록 ?? []).length}건`);
+  }
+  if ((extracted.evidence?.length ?? 0) === 0) 빈것.push("문서 전체 근거 0건");
+  return 빈것.length > 0 ? `근거 없는 주장: ${빈것.join(" · ")}` : "근거 없는 주장을 특정하지 못함";
+}
+
 function assertAcceptedEvidence(extracted: ExtractedFields): void {
   const topLevelClaim = [
     extracted.업체명,
@@ -943,7 +970,7 @@ function assertAcceptedEvidence(extracted: ExtractedFields): void {
     extracted.요약,
   ].some(hasClaim);
   if (topLevelClaim && (extracted.evidence?.length ?? 0) === 0) {
-    throw new StudioParseError("ACCEPTED_CLAIM_MISSING_EVIDENCE");
+    throw new StudioParseError("ACCEPTED_CLAIM_MISSING_EVIDENCE", 근거없는주장(extracted));
   }
   const nested = [
     ...(extracted.평가항목 ?? []),
@@ -953,7 +980,7 @@ function assertAcceptedEvidence(extracted: ExtractedFields): void {
     ...(extracted.조치사항 ?? []),
   ];
   if (nested.some((item) => item.evidence.length === 0)) {
-    throw new StudioParseError("ACCEPTED_CLAIM_MISSING_EVIDENCE");
+    throw new StudioParseError("ACCEPTED_CLAIM_MISSING_EVIDENCE", 근거없는주장(extracted));
   }
 }
 

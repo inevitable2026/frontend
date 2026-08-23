@@ -37,6 +37,37 @@ const 실패문구: Record<string, string> = {
   SERVED_IDENTITY_MISMATCH: "분석을 맡긴 곳과 응답한 곳이 달라 결과를 쓰지 않았습니다. 시스템 담당자에게 문의해 주세요.",
   WORKFLOW_FAILED: "문서 분석에 실패했습니다. 문서를 다시 올려 주세요.",
   WORKFLOW_INCOMPLETE: "문서 분석 결과가 다 오지 않았습니다. 문서를 다시 올려 주세요.",
+
+  /*
+   * 판독 결과를 읽다가 나는 오류(`studio-parser.ts`).
+   *
+   * 이쪽은 문구가 없어서 **코드가 그대로 화면에 나갔다.** 손글씨가 든 순회점검일지를
+   * 올린 사람이 본 것은 `ACCEPTED_CLAIM_MISSING_EVIDENCE` 한 줄이었다. 바로 위 주석이
+   * 경고하는 그 일이 다른 오류 갈래에서 벌어지고 있었다.
+   *
+   * 사유마다 문장을 다르게 둔다 — 다시 올리면 되는 것과, 문서 자체가 문제라 다시 올려도
+   * 같은 결과가 나오는 것은 사람이 할 일이 다르다.
+   */
+  ACCEPTED_CLAIM_MISSING_EVIDENCE:
+    "문서에서 읽어낸 내용 가운데 원문에서 위치를 짚지 못한 항목이 있어 결과를 쓰지 않았습니다. 손으로 쓴 부분이 많으면 생길 수 있습니다.",
+  EVIDENCE_ELEMENT_MISSING: "읽어낸 내용이 가리키는 원문 위치를 찾지 못했습니다. 문서를 다시 올려 주세요.",
+  EXTRACT_OUTPUT_INVALID: "문서에서 읽어낸 결과의 형식이 올바르지 않습니다. 문서를 다시 올려 주세요.",
+  EXTRACT_ASSESSMENT_DUPLICATE_ID: "위험성평가 항목 번호가 겹칩니다. 문서를 확인해 주세요.",
+  EXTRACT_ASSESSMENT_LINK_INVALID: "위험성평가 항목과 대책의 연결이 맞지 않습니다. 문서를 확인해 주세요.",
+  EXTRACT_PATROL_DUPLICATE_ID: "점검 항목 번호가 겹칩니다. 문서를 확인해 주세요.",
+  EXTRACT_PATROL_LINK_INVALID: "지적사항과 조치사항의 연결이 맞지 않습니다. 문서를 확인해 주세요.",
+  EXTRACT_WORK_STANDARD_DUPLICATE: "작업 단계가 겹칩니다. 문서를 확인해 주세요.",
+  OUTPUT_CONTENT_AMBIGUOUS: "분석 결과를 하나로 읽어내지 못했습니다. 문서를 다시 올려 주세요.",
+  OUTPUT_INVALID_ENVELOPE: "분석 결과의 형식이 올바르지 않습니다. 문서를 다시 올려 주세요.",
+  OUTPUT_INVALID_JSON: "분석 결과를 읽지 못했습니다. 문서를 다시 올려 주세요.",
+  OUTPUT_TOO_LARGE: "분석 결과가 너무 큽니다. 문서를 나누어 올려 주세요.",
+  OUTPUT_WRONG_KIND: "고른 문서 종류와 분석 결과가 맞지 않습니다. 문서 종류를 다시 골라 주세요.",
+  OUTPUT_WRONG_VERSION: "분석 결과의 판본이 지금 설치된 것과 다릅니다. 시스템 담당자에게 문의해 주세요.",
+  PARSE_COORDINATES_INVALID: "문서에서 읽어낸 위치 정보가 올바르지 않습니다. 문서를 다시 올려 주세요.",
+  PARSE_ELEMENT_INVALID: "문서 구조를 읽어내지 못했습니다. 문서를 다시 올려 주세요.",
+  PARSE_OUTPUT_INVALID: "문서 판독 결과의 형식이 올바르지 않습니다. 문서를 다시 올려 주세요.",
+  RESPONSE_OUTPUT_MISSING: "분석 결과가 오지 않았습니다. 문서를 다시 올려 주세요.",
+  UNEXPECTED_STUDIO_STEP: "분석 절차가 승인된 것과 달라 결과를 쓰지 않았습니다. 시스템 담당자에게 문의해 주세요.",
 };
 
 const 기본실패문구 = "문서 분석에 실패했습니다. 잠시 뒤 다시 시도해 주세요.";
@@ -415,7 +446,10 @@ export async function runStudioWorkflow(kind: DocumentKind, bytes: Uint8Array, f
   }
   if (primaryError) {
     if (primaryError instanceof StudioParseError) {
-      throw new StudioError(primaryError.code, primaryError.message, primaryError, failure);
+      // 메시지를 넘기지 않는다. `StudioParseError` 의 기본 message 는 코드 그 자체라
+      // 그것을 그대로 넘기면 화면에 `ACCEPTED_CLAIM_MISSING_EVIDENCE` 가 뜬다.
+      // 코드는 `.code` 로 남고, 원래 오류는 `cause` 로 서버 로그에 그대로 남는다.
+      throw new StudioError(primaryError.code, undefined, primaryError, failure);
     }
     if (primaryError instanceof StudioError) {
       throw new StudioError(primaryError.code, primaryError.message, primaryError.cause, failure);
