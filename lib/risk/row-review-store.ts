@@ -33,7 +33,10 @@ type StateRow = {
 export class RiskRowReviewVersionConflictError extends Error {
   readonly code = "version_conflict";
   constructor(readonly expectedVersion: number, readonly actualVersion: number) {
-    super(`행 검토 버전이 바뀌었습니다. 예상 ${expectedVersion}, 현재 ${actualVersion}.`);
+    // 숫자를 문장에 넣지 않는다. `expectedVersion`·`actualVersion` 은 이 오류의 필드이고
+    // 라우트가 응답에 따로 실어 보내므로(app/api/risk/row-reviews/route.ts) 진단은 남는다.
+    // 화면을 읽는 사람에게 「예상 3, 현재 4」 는 아무 뜻이 없다.
+    super("다른 사람이 이 행의 검토 상태를 먼저 바꿨습니다. 화면을 새로 고친 뒤 다시 골라 주세요.");
     this.name = "RiskRowReviewVersionConflictError";
   }
 }
@@ -41,7 +44,7 @@ export class RiskRowReviewVersionConflictError extends Error {
 export class RiskRowReviewRowConflictError extends Error {
   readonly code = "row_content_conflict";
   constructor(readonly expectedRowFingerprint: string, readonly actualRowFingerprint: string) {
-    super("검토 중 위험행 내용이 바뀌었습니다.");
+    super("검토하는 사이에 이 행의 내용이 바뀌었습니다. 화면을 새로 고친 뒤 다시 확인해 주세요.");
     this.name = "RiskRowReviewRowConflictError";
   }
 }
@@ -49,7 +52,9 @@ export class RiskRowReviewRowConflictError extends Error {
 export class RiskRowReviewCommandReuseError extends Error {
   readonly code = "command_reuse";
   constructor() {
-    super("같은 명령 식별자가 다른 내용으로 다시 사용되었습니다.");
+    // 같은 요청이 두 번 오는 것 자체는 막지 않는다(그래야 재시도가 안전하다). 내용이
+    // 달라진 채 같은 표시를 달고 오는 것만 막는다 — 그건 화면과 서버가 어긋났다는 뜻이다.
+    super("직전 요청과 내용이 어긋났습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
     this.name = "RiskRowReviewCommandReuseError";
   }
 }
@@ -65,28 +70,39 @@ export class RiskRowReviewNotFoundError extends Error {
 export class RiskRowReviewApprovedLockedError extends Error {
   readonly code = "approved_locked";
   constructor() {
-    super("승인되어 잠긴 위험행은 별도 철회 절차 없이는 바꿀 수 없습니다.");
+    super("이미 승인된 행입니다. 승인을 되돌리는 절차를 거쳐야 바꿀 수 있습니다.");
     this.name = "RiskRowReviewApprovedLockedError";
   }
 }
 
 export class RiskRowReviewUnavailableError extends Error {
   readonly code = "unavailable";
-  constructor(message = "위험행 검토 저장소를 사용할 수 없습니다.") {
+  /**
+   * `detail` 은 **화면에 나가지 않는다.** 라우트가 `message` 만 응답에 싣는다.
+   *
+   * 예전에는 「tbm-check 마이그레이션 0007 또는 board.work_items 가 적용되지 않았습니다」
+   * 가 그대로 화면에 떴다. 읽는 사람이 할 수 있는 일이 없는 문장이고, 그렇다고 그 사실을
+   * 버리면 담당자가 무엇이 빠졌는지 알 길이 없다. 그래서 갈랐다.
+   */
+  constructor(
+    message = "검토 기록을 읽고 쓸 수 없습니다. 시스템 담당자에게 문의해 주세요.",
+    readonly detail?: string,
+  ) {
     super(message);
     this.name = "RiskRowReviewUnavailableError";
+    if (detail) console.error("[risk-row-review] unavailable:", detail);
   }
 }
 
 function version(value: number | string): number {
   const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new RiskRowReviewUnavailableError("저장된 검토 버전이 올바르지 않습니다.");
+  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new RiskRowReviewUnavailableError(undefined, "stored review version is not a safe non-negative integer");
   return parsed;
 }
 
 function iso(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) throw new RiskRowReviewUnavailableError("저장된 검토 시각이 올바르지 않습니다.");
+  if (Number.isNaN(date.getTime())) throw new RiskRowReviewUnavailableError(undefined, "stored review timestamp is unparsable");
   return date.toISOString();
 }
 
@@ -95,19 +111,19 @@ function asReview(row: ReviewRow): RiskRowReview {
 }
 
 function assertIdentity(siteId: string, workItemId: string): void {
-  if (!UUID.test(siteId) || !workItemId.trim()) throw new TypeError("siteId 와 workItemId 가 올바르지 않습니다.");
+  if (!UUID.test(siteId) || !workItemId.trim()) throw new TypeError("현장 또는 카드가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.");
 }
 
 function assertCommand(command: RiskRowReviewCommand): void {
   assertIdentity(command.siteId, command.workItemId);
   if (!UUID.test(command.commandId) || !command.rowId.trim() || !command.expectedRowFingerprint.trim()) {
-    throw new TypeError("위험행 검토 명령 식별자가 올바르지 않습니다.");
+    throw new TypeError("검토 요청이 올바르게 만들어지지 않았습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
   }
   if (command.decision !== "held" && command.decision !== "approved") {
-    throw new TypeError("decision 은 held 또는 approved 여야 합니다.");
+    throw new TypeError("검토 결과는 보류 또는 승인만 가능합니다.");
   }
   if (!Number.isSafeInteger(command.expectedVersion) || command.expectedVersion < 0) {
-    throw new TypeError("expectedVersion 은 0 이상의 정수여야 합니다.");
+    throw new TypeError("검토 요청이 올바르게 만들어지지 않았습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
   }
 }
 
@@ -118,7 +134,10 @@ async function ensureSchema(): Promise<void> {
        and to_regclass('public.risk_row_reviews') is not null
        and to_regclass('public.risk_row_review_events') is not null as ready
   `;
-  if (!row?.ready) throw new RiskRowReviewUnavailableError("tbm-check 마이그레이션 0007 또는 board.work_items 가 적용되지 않았습니다.");
+  if (!row?.ready) throw new RiskRowReviewUnavailableError(
+      "검토 기록을 담을 준비가 서버에 되어 있지 않습니다. 시스템 담당자에게 문의해 주세요.",
+      "tbm-check migration 0007 or board.work_items is not applied",
+    );
 }
 
 export async function listRiskRowReviewStates(siteId: string, workItemId: string): Promise<RiskRowReviewState[]> {
@@ -169,7 +188,7 @@ export async function listRiskRowReviewStates(siteId: string, workItemId: string
   }
   return rows.map((row) => {
     if (!isRiskRowDraft(row.row) || row.row.itemId !== row.rowId) {
-      throw new RiskRowReviewUnavailableError("저장된 위험행 초안의 형식이 올바르지 않습니다.");
+      throw new RiskRowReviewUnavailableError(undefined, "stored draft row payload has an unexpected shape");
     }
     const invalidatedReview = row.decision !== null && row.storedFingerprint !== row.rowFingerprint;
     return {
@@ -198,7 +217,7 @@ export async function applyRiskRowReview(
   actor: string,
 ): Promise<{ review: RiskRowReview; replayed: boolean }> {
   assertCommand(command);
-  if (!actor.trim()) throw new TypeError("actor 가 필요합니다.");
+  if (!actor.trim()) throw new TypeError("누가 검토했는지 확인되지 않았습니다. 다시 로그인한 뒤 시도해 주세요.");
   await ensureSchema();
   const sql = db();
 

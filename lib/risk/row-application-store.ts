@@ -60,9 +60,18 @@ export class RiskRowApplicationConflictError extends Error {
 
 export class RiskRowApplicationUnavailableError extends Error {
   readonly code = "unavailable";
-  constructor(message = "위험성평가 반영 저장소를 사용할 수 없습니다.") {
+  /**
+   * `detail` 은 화면에 나가지 않는다. 라우트가 `message` 만 응답에 싣는다.
+   * 사람이 할 수 있는 일이 없는 사정(스키마 미적용·저장 값 손상)을 화면에 적어 봐야
+   * 읽는 사람만 막막해지고, 그렇다고 버리면 담당자가 무엇이 빠졌는지 알 길이 없다.
+   */
+  constructor(
+    message = "반영 기록을 읽고 쓸 수 없습니다. 시스템 담당자에게 문의해 주세요.",
+    readonly detail?: string,
+  ) {
     super(message);
     this.name = "RiskRowApplicationUnavailableError";
+    if (detail) console.error("[risk-row-application] unavailable:", detail);
   }
 }
 
@@ -95,7 +104,7 @@ function uniqueRows(rows: DraftRow[]): { rows: Array<{ rowId: string; row: impor
   const normalized = [] as Array<{ rowId: string; row: import("@/lib/board/types").RiskRowDraft; rowFingerprint: string }>;
   for (const entry of rows) {
     if (!entry.rowId || ids.has(entry.rowId) || !isRiskRowDraft(entry.row) || entry.row.itemId !== entry.rowId) {
-      return { rows: [], issue: "회의록 초안의 위험행 식별자가 비어 있거나 중복되었거나 형식이 올바르지 않습니다." };
+      return { rows: [], issue: "회의록 초안의 항목 번호가 비어 있거나 겹치거나 초안 내용과 맞지 않습니다." };
     }
     ids.add(entry.rowId);
     normalized.push({ rowId: entry.rowId, row: entry.row, rowFingerprint: entry.rowFingerprint });
@@ -117,7 +126,7 @@ function requestFingerprint(
 }
 
 function replayResult(value: unknown, expected: { commandId: string; siteId: string; workItemId: string; actor: string }): Omit<RiskRowApplicationResult, "replayed"> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new RiskRowApplicationUnavailableError("저장된 반영 영수증의 형식이 올바르지 않습니다.");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new RiskRowApplicationUnavailableError(undefined, "stored application receipt has an unexpected shape");
   const result = value as Record<string, unknown>;
   const integerArray = (entry: unknown): number[] | null => Array.isArray(entry) && entry.every((item) => Number.isSafeInteger(item) && Number(item) > 0) ? entry as number[] : null;
   const stringArray = (entry: unknown): string[] | null => Array.isArray(entry) && entry.every((item) => typeof item === "string" && item.trim()) ? entry as string[] : null;
@@ -125,7 +134,7 @@ function replayResult(value: unknown, expected: { commandId: string; siteId: str
     result.commandId !== expected.commandId || result.siteId !== expected.siteId || result.workItemId !== expected.workItemId || result.actor !== expected.actor ||
     typeof result.targetDocumentId !== "string" || !result.targetDocumentId || !stringArray(result.rowIds) || !integerArray(result.factIds) ||
     !Number.isSafeInteger(result.workItemEventId) || Number(result.workItemEventId) < 1 || typeof result.appliedAt !== "string" || Number.isNaN(new Date(result.appliedAt).getTime())
-  ) throw new RiskRowApplicationUnavailableError("저장된 반영 영수증의 형식이 올바르지 않습니다.");
+  ) throw new RiskRowApplicationUnavailableError(undefined, "stored application receipt has an unexpected shape");
   return result as Omit<RiskRowApplicationResult, "replayed">;
 }
 
@@ -137,7 +146,12 @@ async function ensureSchema(): Promise<void> {
        and to_regclass('public.risk_row_reviews') is not null
        and to_regclass('public.risk_row_application_events') is not null as ready
   `;
-  if (!row?.ready) throw new RiskRowApplicationUnavailableError("tbm-check 마이그레이션 0007·0008 과 board 스키마가 적용되지 않았습니다.");
+  if (!row?.ready) {
+    throw new RiskRowApplicationUnavailableError(
+      "반영 기록을 담을 준비가 서버에 되어 있지 않습니다. 시스템 담당자에게 문의해 주세요.",
+      "tbm-check migrations 0007/0008 or the board schema are not applied",
+    );
+  }
 }
 
 async function draftRows(sql: QuerySql, siteId: string, workItemId: string): Promise<DraftRow[]> {
@@ -194,7 +208,7 @@ async function blockedByIncomplete(sql: QuerySql, siteId: string, itemIds: strin
 }
 
 export async function getRiskRowApplicationDescriptor(siteId: string, workItemId: string): Promise<RiskRowApplicationDescriptor> {
-  if (!RISK_ROW_APPLICATION_UUID.test(siteId) || !workItemId.trim()) throw new TypeError("siteId 와 workItemId 가 올바르지 않습니다.");
+  if (!RISK_ROW_APPLICATION_UUID.test(siteId) || !workItemId.trim()) throw new TypeError("현장 또는 카드가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.");
   await ensureSchema();
   const sql = db();
   const items = await sql<ItemRow[]>`
@@ -213,7 +227,7 @@ export async function getRiskRowApplicationDescriptor(siteId: string, workItemId
 
 export async function applyRiskRowApplication(command: RiskRowApplicationCommand, actor: string): Promise<RiskRowApplicationResult> {
   assertRiskRowApplicationCommand(command);
-  if (!actor.trim()) throw new TypeError("actor 가 필요합니다.");
+  if (!actor.trim()) throw new TypeError("누가 반영했는지 확인되지 않았습니다. 다시 로그인한 뒤 시도해 주세요.");
   await ensureSchema();
   const sql = db();
   const requested = requestFingerprint(command, actor);
@@ -226,7 +240,7 @@ export async function applyRiskRowApplication(command: RiskRowApplicationCommand
     `;
     if (prior[0]) {
       if (prior[0].requestFingerprint !== requested || prior[0].actor !== actor) {
-        throw new RiskRowApplicationConflictError("같은 명령 식별자를 다른 요청으로 재사용할 수 없습니다.");
+        throw new RiskRowApplicationConflictError("직전 요청과 내용이 어긋났습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
       }
       return { ...replayResult(prior[0].result, { commandId: command.commandId, siteId: command.siteId, workItemId: command.workItemId, actor }), replayed: true };
     }
@@ -259,7 +273,7 @@ export async function applyRiskRowApplication(command: RiskRowApplicationCommand
       throw new RiskRowApplicationConflictError(state.issues.map((issue) => issue.message).join(" ") || "위험성평가표를 반영할 수 없습니다.");
     }
     if (state.applicationFingerprint !== command.expectedApplicationFingerprint) {
-      throw new RiskRowApplicationConflictError("반영할 초안 또는 검토 상태가 바뀌었습니다. 최신 상태를 다시 확인하세요.");
+      throw new RiskRowApplicationConflictError("반영하려는 사이에 초안이나 검토 상태가 바뀌었습니다. 화면을 새로 고친 뒤 다시 확인해 주세요.");
     }
 
     const appliedAt = new Date().toISOString();
@@ -273,7 +287,7 @@ export async function applyRiskRowApplication(command: RiskRowApplicationCommand
           ${appliedAt}::timestamptz, ${state.targetDocumentId}, 1
         ) returning fact_id as "factId"
       `;
-      if (!fact) throw new RiskRowApplicationUnavailableError("위험성평가 행을 저장하지 못했습니다.");
+      if (!fact) throw new RiskRowApplicationUnavailableError("평가서에 행을 쓰지 못했습니다. 잠시 뒤 다시 시도해 주세요.", "row fact insert returned no row");
       factIds.push(Number(fact.factId));
     }
 
@@ -283,7 +297,7 @@ export async function applyRiskRowApplication(command: RiskRowApplicationCommand
          and status = 'approval' and confirmed_by is null and confirmed_at is null
        returning item_id as "itemId"
     `;
-    if (!completed[0]) throw new RiskRowApplicationConflictError("카드 상태가 바뀌어 반영을 완료할 수 없습니다.");
+    if (!completed[0]) throw new RiskRowApplicationConflictError("반영하려는 사이에 카드가 다른 상태로 바뀌었습니다. 화면을 새로 고쳐 주세요.");
     const [event] = await tx<{ eventId: number | string }[]>`
       insert into board.work_item_events (item_id, type, actor, reason, diff, created_at)
       values (${command.workItemId}, 'approved', ${actor}, null,
@@ -291,7 +305,7 @@ export async function applyRiskRowApplication(command: RiskRowApplicationCommand
         ${appliedAt}::timestamptz)
       returning event_id as "eventId"
     `;
-    if (!event) throw new RiskRowApplicationUnavailableError("카드 승인 이력을 저장하지 못했습니다.");
+    if (!event) throw new RiskRowApplicationUnavailableError("카드 처리 기록을 쓰지 못했습니다. 잠시 뒤 다시 시도해 주세요.", "work item event insert returned no row");
     const stored: Omit<RiskRowApplicationResult, "replayed"> = {
       commandId: command.commandId, siteId: command.siteId, workItemId: command.workItemId,
       targetDocumentId: state.targetDocumentId, rowIds, factIds, workItemEventId: Number(event.eventId), actor, appliedAt,

@@ -28,12 +28,14 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as { siteId?: unknown; at?: unknown };
   } catch {
-    return fail("JSON 본문이 필요합니다.", 400);
+    return fail("점검 요청을 읽지 못했습니다. 화면을 새로 고친 뒤 다시 점검해 주세요.", 400);
   }
-  if (!body || typeof body !== "object") return fail("JSON 본문이 필요합니다.", 400);
+  if (!body || typeof body !== "object") {
+    return fail("점검 요청을 읽지 못했습니다. 화면을 새로 고친 뒤 다시 점검해 주세요.", 400);
+  }
 
   const siteId = typeof body.siteId === "string" ? body.siteId.trim() : "";
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
+  if (!siteId) return fail("현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400);
 
   let at: string;
   if (body.at === undefined || body.at === null) {
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     // 안으로 들어온 순간 KST 표기로 통일한다. 시각 비교가 전부 문자열 비교이기 때문이다.
     at = kstIsoOf(Date.parse(body.at));
   } else {
-    return fail("at 은 ISO8601 시각이어야 합니다.", 400);
+    return fail("점검 기준 시각을 읽지 못했습니다. 화면을 새로 고친 뒤 다시 점검해 주세요.", 400);
   }
 
   if (진행중.has(siteId)) return fail("이 현장의 감지가 아직 진행 중입니다.", 409);

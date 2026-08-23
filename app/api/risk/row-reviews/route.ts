@@ -49,11 +49,11 @@ export async function PUT(request: Request) {
   try {
     const body: unknown = await request.json();
     if (!body || typeof body !== "object" || Array.isArray(body)) {
-      return response({ error: "JSON 객체 본문이 필요합니다.", code: "invalid_request" }, 400);
+      return response({ error: "행 승인을 저장하지 못했습니다. 화면을 새로 고친 뒤 다시 반영해 주세요.", code: "invalid_request" }, 400);
     }
     command = body as RiskRowReviewCommand;
   } catch {
-    return response({ error: "JSON 본문이 필요합니다.", code: "invalid_request" }, 400);
+    return response({ error: "행 승인을 저장하지 못했습니다. 화면을 새로 고친 뒤 다시 반영해 주세요.", code: "invalid_request" }, 400);
   }
 
   try {

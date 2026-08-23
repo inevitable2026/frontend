@@ -39,7 +39,9 @@ export async function GET(request: Request) {
   const siteId = params.get("siteId")?.trim() ?? "";
   const workItemId = params.get("workItemId")?.trim() ?? "";
   try {
-    if (!RISK_ROW_APPLICATION_UUID.test(siteId) || !workItemId) throw new TypeError("siteId 와 workItemId 가 올바르지 않습니다.");
+    if (!RISK_ROW_APPLICATION_UUID.test(siteId) || !workItemId) {
+      throw new TypeError("어느 현장의 어느 카드인지 알 수 없습니다. 화면을 새로 고쳐 주세요.");
+    }
     authorizeSite(riskRowReviewAccess(), siteId);
     return response(await getRiskRowApplicationDescriptor(siteId, workItemId));
   } catch (error) {
@@ -51,10 +53,12 @@ export async function PUT(request: Request) {
   let command: RiskRowApplicationCommand;
   try {
     const body: unknown = await request.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) return response({ error: "JSON 객체 본문이 필요합니다.", code: "invalid_request" }, 400);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return response({ error: "반영 요청을 읽지 못했습니다. 화면을 새로 고친 뒤 다시 반영해 주세요.", code: "invalid_request" }, 400);
+    }
     command = body as RiskRowApplicationCommand;
   } catch {
-    return response({ error: "JSON 본문이 필요합니다.", code: "invalid_request" }, 400);
+    return response({ error: "반영 요청을 읽지 못했습니다. 화면을 새로 고친 뒤 다시 반영해 주세요.", code: "invalid_request" }, 400);
   }
   try {
     const scope = riskRowReviewAccess();

@@ -28,7 +28,14 @@ export type RiskRowApplicationResult = {
 
 export class RiskRowApplicationRequestError extends Error {
   constructor(readonly status: number | null, readonly code: string | null = null, message?: string) {
-    super(message ?? (status === null ? "서버에 닿지 못해 행 반영을 완료하지 못했습니다." : `행 반영 요청이 ${status} 로 실패했습니다.`));
+    // HTTP 상태 코드를 문장에 넣지 않는다. `409` 를 읽고 무엇을 할지 아는 사람은 없다.
+    // 코드는 `status` 필드로 남으므로 분기와 로그에서는 그대로 쓸 수 있다.
+    super(
+      message ??
+        (status === null
+          ? "서버에 닿지 못해 반영을 마치지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요."
+          : "반영 요청이 처리되지 않았습니다. 화면을 새로 고친 뒤 다시 시도해 주세요."),
+    );
     this.name = "RiskRowApplicationRequestError";
   }
 }

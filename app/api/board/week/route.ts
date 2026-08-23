@@ -21,11 +21,13 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
 
   const siteId = params.get("siteId")?.trim();
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
+  if (!siteId) return fail("현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400);
 
   const fromRaw = params.get("from")?.trim();
-  if (!fromRaw) return fail("from 이 필요합니다.", 400);
-  if (!isYmd(fromRaw)) return fail("from 은 YYYY-MM-DD 형식이어야 합니다.", 400);
+  if (!fromRaw) return fail("주간 보드의 시작 날짜가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400);
+  if (!isYmd(fromRaw)) {
+    return fail("주간 보드의 시작 날짜를 읽지 못했습니다. 2026-08-19 같은 날짜여야 합니다. 화면을 새로 고쳐 주세요.", 400);
+  }
 
   // 월요일이 아닌 값이 오면 그 주 월요일로 당긴다. 응답의 from 이 실제로 쓴 값이다.
   const from = mondayOf(fromRaw);

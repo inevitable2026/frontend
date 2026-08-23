@@ -24,15 +24,17 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
 
   const siteId = params.get("siteId")?.trim();
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
+  if (!siteId) return fail("현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400);
 
   const date = params.get("date")?.trim();
-  if (!date) return fail("date 가 필요합니다.", 400);
-  if (!isYmd(date)) return fail("date 는 YYYY-MM-DD 형식이어야 합니다.", 400);
+  if (!date) return fail("보드에 그릴 날짜가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400);
+  if (!isYmd(date)) {
+    return fail("보드에 그릴 날짜를 읽지 못했습니다. 2026-08-19 같은 날짜여야 합니다. 화면을 새로 고쳐 주세요.", 400);
+  }
 
   const at = params.get("at")?.trim();
   if (at && !Number.isFinite(Date.parse(at))) {
-    return fail("at 은 ISO8601 시각이어야 합니다.", 400);
+    return fail("기준 시각을 읽지 못했습니다. 주소에 적힌 시각이 올바르지 않으니 화면을 새로 고쳐 주세요.", 400);
   }
 
   try {

@@ -14,7 +14,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ documentId: str
     return Response.json({ error: "문서 주소가 올바르지 않습니다. 문서함에서 다시 열어 주세요." }, { status: 400, headers: HEADERS });
   }
   if (!siteId || !UUID.test(siteId)) {
-    return Response.json({ error: "siteId 가 올바르지 않습니다." }, { status: 400, headers: HEADERS });
+    return Response.json({ error: "어느 현장의 문서인지 알 수 없습니다. 문서함에서 다시 열어 주세요." }, { status: 400, headers: HEADERS });
   }
 
   const sql = db();
