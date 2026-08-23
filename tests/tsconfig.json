@@ -46,6 +46,7 @@
     "../lib/risk/doc-target.ts",
     "../lib/risk/vocab.ts",
     "../lib/board/demo.ts",
+    "../lib/board/fact-labels.ts",
     "../lib/board/types.ts",
     "../components/chat/parse.ts",
     "../components/markdown-content.tsx",

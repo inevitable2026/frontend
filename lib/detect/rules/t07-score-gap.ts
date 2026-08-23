@@ -11,6 +11,7 @@ import {
   type RiskAssessmentRowValue,
   type RiskScoreValue,
 } from "@/lib/detect/delta";
+import { 근거상태이름 } from "@/lib/board/fact-labels";
 
 // T-07 추천값 이격
 //
@@ -148,7 +149,7 @@ export const t07ScoreGap: TriggerRule = {
           `${gap.rec.단위작업 ?? gap.rec.행id ?? gap.recFact.key} 추천 ${scoreText(gap.rec.추천)}${
             gap.rec.표본수 !== null ? ` · 표본 ${gap.rec.표본수}건` : ""
           }${gap.rec.사망사고건수 !== null ? ` · 사망 ${gap.rec.사망사고건수}건` : ""}${
-            gap.rec.originState ? ` · ${gap.rec.originState}` : ""
+            gap.rec.originState ? ` · ${근거상태이름(gap.rec.originState)}` : ""
           }`,
         ),
         evidenceOf(
@@ -164,7 +165,10 @@ export const t07ScoreGap: TriggerRule = {
         표본 !== null ? ` 표본 ${표본}건${사망 !== null ? ` · 사망 ${사망}건` : ""} 기준입니다.` : "";
       const guard =
         shaky.length > 0
-          ? " 추천의 근거 상태가 흔들려(originState · confidence) 자동 반영하지 않습니다."
+          // 괄호 안에 필드 이름을 적어 두었더니 그대로 카드에 떴다. 앞 문장이 이미 같은
+          // 말을 하고 있으므로 괄호를 지운다 — 무엇을 보고 그렇게 판단했는지는 근거 줄에
+          // 「근거 흔들림」 으로 붙는다.
+          ? " 추천의 근거 상태가 흔들려 자동으로 반영하지 않습니다."
           : "";
 
       detections.push({

@@ -74,6 +74,8 @@ import {
 import { BOARD_COLUMNS, FACT_TYPE_LABEL } from "./presentation";
 import { useReference } from "./reference-chip";
 import type { TaskCard } from "./types";
+import { ruleLabel } from "@/lib/detect/rules";
+import { 문서이름, 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
 
 /** 팩트가 이보다 많이 붙은 문서는 접는다. 감추지 않고 summary 에 총건수를 적는다. */
 const 접는건수 = 20;
@@ -454,7 +456,11 @@ function WhySlot({
           <p className="board-evidence-claim">
             {/* 규칙 이름표를 CONDITION_BY_RULE 에서 끌어 쓰지 않는다. 그 표는 T-01~T-08 뿐이라
                 S-02 카드가 "주기 도래" 로 잘못 적힌다. ruleId 는 카드가 든 값 그대로 적는다. */}
-            <b className="board-evidence-rule">{item.trigger.ruleId}</b>
+            <b className="board-evidence-rule" title={`규칙 ${item.trigger.ruleId}`}>
+              {ruleLabel(item.trigger.ruleId) === item.trigger.ruleId
+                ? "감지 규칙"
+                : ruleLabel(item.trigger.ruleId)}
+            </b>
             <span className="board-evidence-timing">{TIMING_LABEL[item.timing]}</span>
             {item.trigger.condition}
           </p>
@@ -566,7 +572,7 @@ function DraftBody({ draft, 행숨김 }: { draft: Draft; 행숨김: boolean }): 
         <div className="board-evidence-draft">
           <p className="board-evidence-draft-head">
             회의록 초안 · {draft.제목} · 신규 {draft.rows.length}행
-            {draft.supersedes ? ` · ${draft.supersedes} 를 대신합니다` : ""}
+            {draft.supersedes ? ` · ${문서표시(draft.supersedes)}를 대신합니다` : ""}
           </p>
           {행숨김 ? (
             <p className="board-evidence-meta">{EVIDENCE_DRAFT_ROWS_ELSEWHERE}</p>
@@ -749,7 +755,7 @@ function InvalidatesSlot({
                   TBM 회의록 같은 비평가서도 걸리고, 그때 평가서 패널은 행을 0건 찾아 "행이
                   없습니다" 를 그린다. 거짓말은 아니지만 왜 비었는지를 말하지 않는다. */}
               {item.invalidates[0] ? "무효 대상으로 지목된 문서" : "이 카드가 근거로 삼은 문서"}{" "}
-              <b>{평가서}</b> 를 평가서로 엽니다.
+              <b title={문서키툴팁(평가서)}>{문서표시(평가서)}</b>를 평가서로 엽니다.
             </p>
             <button type="button" onClick={() => set펼침((p) => !p)} aria-expanded={펼침}>
               {펼침 ? "접기" : "평가서 펼치기"}
@@ -789,7 +795,9 @@ function DocFacts({
   // 반대다. AC-4 가 팩트 key 를 적으라고 요구하고, 그 좌표가 있어야 담당자가 원본 문서에서
   // 그 행을 찾는다.
   const 사전 = useReference(문서.docId);
-  const 이름 = 사전?.title ?? 문서.docId;
+  // 폴백이 `문서.docId` 였다. 사전에 없는 문서면 **제목 자리에 저장소 키가 그대로** 떴다.
+  // 바로 아래 `<code>` 가 키를 따로 적으므로, 여기는 사람이 읽는 이름이어야 한다.
+  const 이름 = 사전?.title ?? 문서이름(문서.docId);
 
   const 전부 = 문서근거(팩트들, 문서.docId);
   const 평가행수 = 전부.filter((f) => f.factType === "riskAssessmentRow").length;
@@ -815,14 +823,14 @@ function DocFacts({
       ) : 보일.length === 0 ? (
         <p className="board-evidence-empty">
           {평가서에서편다 && 평가행수 > 0
-            ? "이 문서에서 평가 행 말고 따로 저장된 팩트는 없습니다."
+            ? "이 문서에서 평가 행 말고 따로 기록된 근거는 없습니다."
             : 문서.출처 === "produces"
               ? EVIDENCE_NO_FACTS_YET
               : EVIDENCE_NO_FACTS}
         </p>
       ) : 보일.length > 접는건수 ? (
         <details className="board-evidence-fold">
-          <summary>근거 팩트 {보일.length}건 펼치기</summary>
+          <summary>기록된 근거 {보일.length}건 펼치기</summary>
           <FactList 팩트들={보일} />
         </details>
       ) : (

@@ -23,6 +23,7 @@ import type { FactType, SnapshotFact, WorkItem } from "@/lib/board/types";
 import { asRecord, readBoolean, readNumber, readRiskScore, readString } from "@/lib/detect/delta";
 import { 위험도표시, 이행상태읽기, type 평가행 } from "@/lib/risk/rows";
 import { 대상문서 } from "@/lib/risk/doc-target";
+import { 근거상태이름, 문서갈래이름 } from "@/lib/board/fact-labels";
 
 /* ------------------------------------------------------------------ *
  * 어느 종류를 읽는가
@@ -193,7 +194,7 @@ function 요약만들기(fact: SnapshotFact): string {
         점수문구("추천", rec?.["추천"]),
         이격 === null ? null : `이격 ${이격}`,
         재검토 === null ? null : 재검토 ? "재검토 필요" : "재검토 불필요",
-        readString(v, "originState"),
+        근거상태이름(readString(v, "originState")),
       ]);
     }
 
@@ -211,7 +212,7 @@ function 요약만들기(fact: SnapshotFact): string {
       const 인용 = readBoolean(v, "citable");
       return 이어붙이기([
         readString(v, "title"),
-        readString(v, "kind"),
+        문서갈래이름(readString(v, "kind")),
         readString(v, "author"),
         인용 === false ? "인용 불가" : null,
         자르기(readString(v, "excerpt"), 120),
