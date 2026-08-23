@@ -107,16 +107,30 @@ export async function POST(request: Request) {
       `;
       await tx`delete from board.invalidations where item_id = ${item.itemId}`;
 
-      // 행별 검토와 반영 이력도 카드와 함께 시드 상태로 돌아간다. 남겨 두면 새로 꽂힌
-      // 카드가 "이미 반영되었다" 며 원자 반영을 거절한다(row-application-store 의
-      // alreadyApplied 검사). 테이블은 그 저장소가 첫 호출에 만들므로 없을 수도 있다.
+      // 행별 검토와 반영 이력도 카드와 함께 시드 상태로 돌아간다. 남겨 두면 ⑴ 새로 꽂힌
+      // 카드가 "이미 반영되었다" 며 원자 반영을 거절하고(row-application-store 의
+      // alreadyApplied 검사), ⑵ 검토가 version 1 부터 다시 시작해 이력 테이블의
+      // identity_version 유니크 인덱스에 부딪힌다.
+      //
+      // 두 이력 테이블은 append-only 트리거로 잠겨 있다(tbm-check 0007·0008). 감사 이력을
+      // 지우지 못하게 하는 것이 그 트리거의 일인데, **이 라우트의 일이 바로 시연 상태를
+      // 시드로 되돌리는 것**이므로 여기서만, 이 카드 범위만 트리거를 내리고 지운다.
+      // 테이블은 마이그레이션 전이라 없을 수도 있다.
+      const [reviewEvents] = await tx<{ t: string | null }[]>`select to_regclass('risk_row_review_events') as t`;
+      if (reviewEvents?.t) {
+        await tx`alter table risk_row_review_events disable trigger risk_row_review_events_immutable`;
+        await tx`delete from risk_row_review_events where site_id = ${item.siteId}::uuid and work_item_id = ${item.itemId}`;
+        await tx`alter table risk_row_review_events enable trigger risk_row_review_events_immutable`;
+      }
       const [reviews] = await tx<{ t: string | null }[]>`select to_regclass('risk_row_reviews') as t`;
       if (reviews?.t) {
         await tx`delete from risk_row_reviews where site_id = ${item.siteId}::uuid and work_item_id = ${item.itemId}`;
       }
       const [applications] = await tx<{ t: string | null }[]>`select to_regclass('risk_row_application_events') as t`;
       if (applications?.t) {
+        await tx`alter table risk_row_application_events disable trigger risk_row_application_events_immutable`;
         await tx`delete from risk_row_application_events where site_id = ${item.siteId}::uuid and work_item_id = ${item.itemId}`;
+        await tx`alter table risk_row_application_events enable trigger risk_row_application_events_immutable`;
       }
 
       let 지운팩트 = 0;
