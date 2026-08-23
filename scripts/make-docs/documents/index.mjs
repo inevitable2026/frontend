@@ -15,6 +15,11 @@ import ledger from "./approval-ledger.mjs";
 import liveSubcontract from "./live-subcontract.mjs";
 import livePatrol from "./live-patrol.mjs";
 import liveWorkStandard from "./live-work-standard.mjs";
+import ra202609 from "./ra-2026-09-adhoc.mjs";
+import tbmNight from "./tbm-night-pour.mjs";
+import patrol0901 from "./patrol-20260901.mjs";
+import pourStandard from "./pour-work-standard.mjs";
+import electricSubcontract from "./electric-subcontract.mjs";
 
 /** @type {Array<{id:string, 파일명:string, kind:string, 제목:string, 먹이는조건:string[], html:()=>string}>} */
 export const 문서목록 = [
@@ -33,6 +38,11 @@ export const 문서목록 = [
   liveSubcontract,
   livePatrol,
   liveWorkStandard,
+  ra202609,
+  tbmNight,
+  patrol0901,
+  pourStandard,
+  electricSubcontract,
 ];
 
 export default 문서목록;
