@@ -624,34 +624,47 @@ function 이행확인표기(row: 평가행): string {
   return "";
 }
 
-/** UTF-8 BOM 을 붙인 CSV. 엑셀이 한글을 깨뜨리지 않고 그대로 연다. */
-function csv내려받기(docId: string, rows: 평가행[], 판본: "현재" | "제안" = "현재"): void {
-  const 머리 = [
-    "행ID", "공종분류", "단위작업", "위험요인", "사고분류", "대책",
-    "개선전 빈도", "개선전 강도", "개선전 위험도",
-    "개선후 빈도", "개선후 강도", "개선후 위험도",
-    "담당사", "이행확인",
-  ];
-  const 칸 = (value: unknown): string => `"${String(value ?? "").replaceAll('"', '""')}"`;
-  const 줄들 = [
-    머리,
-    ...rows.map((row) => [
-      row.행id, row.공종분류 ?? "", row.단위작업, row.위험요인 ?? "", row.사고분류 ?? "",
-      (row.대책 ?? []).join(" / "),
-      row.개선전?.빈도 ?? "", row.개선전?.강도 ?? "", row.개선전?.위험도 ?? "",
-      row.개선후?.빈도 ?? "", row.개선후?.강도 ?? "", row.개선후?.위험도 ?? "",
-      회사표시(row.담당사), 이행확인표기(row),
-    ]),
-  ].map((row) => row.map(칸).join(","));
+/**
+ * 평가서를 실제 서식(위험성평가표)으로 내려받는다.
+ *
+ * **서버가 그린다.** 예전에는 이 자리에서 CSV 를 직접 만들었다. 그래서 「변경 전」은
+ * 결재에 올릴 수 있는 서식으로 나오는데 「변경 후」는 열 이름만 붙은 표로 나왔다 —
+ * 견주라고 나란히 놓은 두 파일이 서로 다른 물건이었다. 서식을 그리는 코드는 한 벌이다
+ * (`lib/risk/assessment-sheet.ts`).
+ *
+ * **왜 POST 인가.** 제안이 얹힌 판본은 아직 저장된 팩트가 아니라 서버에 없다. 주소로는
+ * 가리킬 수 없으므로 행을 실어 보낸다. 저장하지 않고 파일만 그린다.
+ *
+ * 실패하면 던진다. 여기서 삼키면 아무 일도 안 일어난 것처럼 보이고, 부르는 쪽은
+ * 사람에게 알릴 기회를 잃는다.
+ */
+async function 서식내려받기(
+  siteId: string,
+  docId: string,
+  rows: 평가행[],
+  판본: "현재" | "제안" = "현재",
+): Promise<void> {
+  const res = await fetch("/api/board/facts/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ siteId, docId, rows, 판본 }),
+  });
+  if (!res.ok) {
+    // 라우트가 사람이 읽을 문장을 준다. 못 읽으면 그때만 여기서 만든다.
+    const 말 = await res
+      .json()
+      .then((body: { error?: string }) => body?.error)
+      .catch(() => undefined);
+    throw new Error(말 ?? "평가서를 내려받지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+  }
 
-  const blob = new Blob(["\uFEFF", 줄들.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  // 파일명에 판본과 날짜를 넣는다. 「변경 전」과 「제안」을 같은 이름으로 내려받으면
-  // 내려받은 폴더에서 어느 것이 어느 것인지 알 수 없다. 한글을 쓰지 않는 이유는
-  // `app/api/board/facts/export/route.ts` 와 같다 — 다운로드 이름이 인코딩마다 갈린다.
-  anchor.download = `${docId}-${판본 === "제안" ? "proposed" : "current"}-${new Date().toISOString().slice(0, 10)}.csv`;
+  // 이름은 라우트가 `Content-Disposition` 으로도 준다. 브라우저마다 그것을 무시하는
+  // 경우가 있어 여기서도 적는다 — 판본과 날짜가 빠지면 내려받은 폴더에서 뒤섞인다.
+  anchor.download = `${docId}-${판본 === "제안" ? "proposed" : "current"}-${new Date().toISOString().slice(0, 10)}.xlsx`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -691,6 +704,8 @@ function ResultModal({
   onClose: () => void;
 }): JSX.Element | null {
   const closeRef = useRef<HTMLButtonElement>(null);
+  // 내려받기가 조용히 실패하면 사람은 눌린 줄 안다. 모달 안에도 알릴 자리가 있어야 한다.
+  const [내려받기오류, set내려받기오류] = useState<string | null>(null);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -726,10 +741,17 @@ function ResultModal({
           <div className="docview-actions">
             <button
               className="board-issue-result-csv"
-              onClick={() => csv내려받기(docId, rows, demo ? "제안" : "현재")}
+              onClick={() => {
+                set내려받기오류(null);
+                서식내려받기(siteId, docId, rows, demo ? "제안" : "현재").catch((error: unknown) =>
+                  set내려받기오류(
+                    error instanceof Error ? error.message : "평가서를 내려받지 못했습니다.",
+                  ),
+                );
+              }}
               type="button"
             >
-              엑셀(CSV) 내려받기
+              평가서 내려받기 (엑셀)
             </button>
             <a className="board-issue-result-go" href={위험성평가탭주소(siteId, cardId, demo)}>
               위험성평가 기록으로 이동
@@ -739,6 +761,12 @@ function ResultModal({
             </button>
           </div>
         </header>
+
+        {내려받기오류 ? (
+          <p className="board-issue-error" role="alert">
+            {내려받기오류}
+          </p>
+        ) : null}
 
         <div className="board-issue-result-scroll">
           <table className="board-issue-result-table">
@@ -990,10 +1018,18 @@ export function RiskIssueSection({
               </button>
               <button
                 className="board-issue-result-csv"
-                onClick={() => csv내려받기(issue.targetDocId, phase.문서행, 시연 ? "제안" : "현재")}
+                onClick={() => {
+                  set오류(null);
+                  서식내려받기(issue.siteId, issue.targetDocId, phase.문서행, 시연 ? "제안" : "현재").catch(
+                    (error: unknown) =>
+                      set오류(
+                        error instanceof Error ? error.message : "평가서를 내려받지 못했습니다.",
+                      ),
+                  );
+                }}
                 type="button"
               >
-                엑셀(CSV) 내려받기
+                평가서 내려받기 (엑셀)
               </button>
               <a
                 className="board-issue-result-go"
@@ -1132,13 +1168,33 @@ export function RiskIssueSection({
           <button
             className="board-issue-download"
             onClick={() => {
-              // 이 화면이 보이는 행만 담는다. 문서 전체가 필요하면 왼쪽 링크를 쓴다 —
-              // 저장되지 않은 값을 문서 전체인 척 내보내지 않는다.
-              csv내려받기(issue.targetDocId, issue.rows.map((row) => row.after), "제안");
+              /*
+               * **평가서 전체를 낸다.** 예전에는 제안된 두 행만 담았다. 그래서 왼쪽은
+               * 온전한 평가서인데 오른쪽은 두 줄짜리 표가 나왔다 — 견주라고 나란히 놓은
+               * 것이 서로 견줄 수 없는 물건이었다.
+               *
+               * 저장된 문서를 읽어 제안을 행id 로 덮는다. 반영 버튼이 하는 일과 같은
+               * 계산이고, 다만 저장하지 않는다.
+               */
+              set오류(null);
+              문서행읽기(issue.siteId, issue.targetDocId)
+                .then((저장된) => {
+                  const 덮을것 = new Map(issue.rows.map((row) => [row.after.행id, row.after]));
+                  const 합친것 = 저장된.map((row) => 덮을것.get(row.행id) ?? row);
+                  // 저장된 문서에 아직 없는 제안 행은 뒤에 붙인다.
+                  const 있는것 = new Set(저장된.map((row) => row.행id));
+                  for (const [행id, row] of 덮을것) if (!있는것.has(행id)) 합친것.push(row);
+                  return 서식내려받기(issue.siteId, issue.targetDocId, 합친것, "제안");
+                })
+                .catch((error: unknown) =>
+                  set오류(
+                    error instanceof Error ? error.message : "평가서를 내려받지 못했습니다.",
+                  ),
+                );
             }}
             type="button"
           >
-            이 제안이 반영된 행 내려받기 (변경 후)
+            이 제안이 반영된 평가서 내려받기 (변경 후)
           </button>
         </div>
 

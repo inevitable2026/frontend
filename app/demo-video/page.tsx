@@ -43,16 +43,16 @@ export default function DemoVideoPage() {
             controls
             playsInline
             preload="metadata"
-            width={1318}
-            height={720}
+            width={1512}
+            height={828}
           >
             <a href="/demo/upstage-demo.mp4">시연 영상 내려받기</a>
           </video>
         </div>
 
         <div className={styles.meta}>
-          <span>1:03</span>
-          <span>1318 × 720</span>
+          <span>1:16</span>
+          <span>1512 × 828</span>
           <span>음성 없음</span>
         </div>
 

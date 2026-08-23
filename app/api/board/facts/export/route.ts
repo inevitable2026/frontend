@@ -218,3 +218,82 @@ export async function GET(req: Request) {
     throw error;
   }
 }
+
+/**
+ * 아직 저장되지 않은 판본을 같은 서식으로 낸다.
+ *
+ * **왜 GET 으로 안 되는가.** 「변경 후」는 제안이 얹힌 상태이고 그 상태는 아직 팩트가
+ * 아니다. 서버에는 그 행이 없으므로 부르는 쪽이 행을 실어 보내는 수밖에 없다.
+ *
+ * **왜 화면에서 만들지 않는가.** 예전에는 화면이 CSV 를 직접 만들었다. 그래서 「변경 전」은
+ * 결재에 올릴 수 있는 서식으로 나오는데 「변경 후」는 열 이름만 붙은 표로 나왔다 — 견주라고
+ * 나란히 놓은 두 파일이 서로 다른 물건이었다. 서식을 그리는 코드는 한 벌이어야 한다.
+ *
+ * **머리칸은 저장된 것에서 읽는다.** 평가기법·근거·결재자는 제안과 무관하므로 부르는 쪽
+ * 말을 믿지 않는다. 여기서 바뀌는 것은 표의 행뿐이다.
+ *
+ * 쓰기가 아니다. 받은 행은 파일을 그리는 데만 쓰고 어디에도 저장하지 않는다.
+ */
+export async function POST(req: Request) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return fail("평가서를 내려받지 못했습니다. 요청을 읽지 못했습니다.", 400, "bad_body");
+  }
+
+  const { siteId, docId, rows, 판본 } = (body ?? {}) as {
+    siteId?: string;
+    docId?: string;
+    rows?: unknown;
+    판본?: string;
+  };
+
+  if (!siteId?.trim()) {
+    return fail("평가서를 내려받지 못했습니다. 현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "siteId_required");
+  }
+  if (!docId?.trim()) {
+    return fail("평가서를 내려받지 못했습니다. 문서가 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400, "docId_required");
+  }
+  if (!Array.isArray(rows)) {
+    return fail("평가서를 내려받지 못했습니다. 평가 항목을 받지 못했습니다.", 400, "rows_required");
+  }
+
+  // 행id 가 없는 것은 표에 놓을 자리가 없다. 조용히 빈 줄로 그리지 않고 걸러 낸다.
+  const 행들 = (rows as 평가행[]).filter(
+    (row) => row && typeof row === "object" && typeof row.행id === "string",
+  );
+  if (행들.length === 0) {
+    return fail(`${문서표시(docId)} 에 평가 항목이 없습니다. 내려받을 내용이 없습니다.`, 400, "no_rows");
+  }
+  // 한 문서가 이만큼 커질 일은 없다. 여기 걸리면 부르는 쪽이 잘못 부른 것이다.
+  if (행들.length > 1000) {
+    return fail("평가서를 내려받지 못했습니다. 평가 항목이 너무 많습니다.", 413, "too_many_rows");
+  }
+
+  행들.sort((a, b) => a.행id.localeCompare(b.행id, "en", { numeric: true }));
+
+  try {
+    // 작성일자는 저장된 팩트의 시각에서 읽는다(`머리만들기`). 제안에는 그 값이 없다.
+    const all = await boardStore().listFacts(siteId, "riskAssessmentRow");
+    const 이력 = all.filter((f) => f.key.startsWith(`${docId}#`));
+    const 결재 = await 결재읽기(siteId, docId);
+
+    const 바이트 = await 평가표바이트(행들, 머리만들기(행들, 이력, 결재));
+    // 이름이 판본을 가른다. 같은 이름이면 내려받은 폴더에서 어느 것이 어느 것인지 모른다.
+    const 판본표기 = 판본 === "제안" ? "proposed" : "current";
+    const 이름앞 = `${docId}-${판본표기}-${new Date().toISOString().slice(0, 10)}`;
+
+    return new Response(new Uint8Array(바이트), {
+      headers: {
+        ...HEADERS,
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${이름앞}.xlsx"`,
+      },
+    });
+  } catch (error) {
+    if (isBoardStoreError(error)) return fail(error.message, BOARD_STORE_ERROR_STATUS[error.code]);
+    throw error;
+  }
+}

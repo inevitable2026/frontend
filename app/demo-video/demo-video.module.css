@@ -65,13 +65,13 @@
   box-shadow: 0 28px 64px -32px rgba(60, 59, 77, 0.45);
 }
 
-/* 영상이 1318×720 이라 비율을 미리 잡아 둔다 — 메타데이터가 도착하기 전에도
+/* 영상이 1512×828 이라 비율을 미리 잡아 둔다 — 메타데이터가 도착하기 전에도
    자리가 흔들리지 않아야 스크롤이 튀지 않는다. */
 .video {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 1318 / 720;
+  aspect-ratio: 1512 / 828;
   background: #0b0c0e;
 }
 
