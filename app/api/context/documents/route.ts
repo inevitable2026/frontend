@@ -1,6 +1,7 @@
 import { db } from "@/lib/context/db";
 import { canSaveStudioJob } from "@/lib/context/job-save-policy";
 import { DOCUMENT_KINDS, type DocumentKind, type ExtractedFields, type IngestStage, type SiteRecommendation } from "@/lib/context/types";
+import { 근거있는것만 } from "@/lib/context/unanchored";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +84,9 @@ export async function POST(req: Request) {
     | { 페이지수?: number; execution?: { mode?: string; cleanup?: string } }
     | undefined;
   const extracted = (stageOutput("필드추출") ?? null) as ExtractedFields | null;
+  // 원문에서 위치를 짚지 못한 항목은 문서함에 남기지 않는다. 문서함의 값은 오래 가고,
+  // 다음에 읽는 사람에게는 그냥 사실로 보인다. 뺐다는 사실(`근거미확인`)은 남는다.
+  const 저장할것 = 근거있는것만(extracted);
   const parsed = layout;
   const recommendation = (stageOutput("프로젝트판정") ?? null) as SiteRecommendation | null;
 
@@ -100,7 +104,7 @@ export async function POST(req: Request) {
         insert into documents (site_id, kind, title, source_filename, mime, page_count, extracted)
         values (${siteId}, ${kind}, ${title}, ${file?.original_filename ?? "unknown"},
                 ${file?.mime ?? "application/pdf"}, ${parsed?.페이지수 ?? null},
-                ${extracted ? tx.json(extracted as never) : null})
+                ${저장할것 ? tx.json(저장할것 as never) : null})
         returning id
       `;
       // The initial read above is intentionally optimistic for a quick response.

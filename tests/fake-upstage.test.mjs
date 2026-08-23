@@ -615,24 +615,27 @@ test("rejects reassembled nested rows that lack native primitive coordinate meta
   const server = createFakeUpstage({
     responseStates: [{ status: 200, body: output }],
   });
-  await assert.rejects(
-    runStudioWorkflow(
-      "작업표준",
-      new Uint8Array([1]),
-      "work.pdf",
-      "application/pdf",
-      {
-        deadline: Date.now() + 10_000,
-        cleanupDeadline: Date.now() + 20_000,
-        identity,
-        fetch: server.fetch,
-        sleep: async () => {},
-      },
-    ),
-    (error) =>
-      error instanceof StudioError &&
-      error.code === "ACCEPTED_CLAIM_MISSING_EVIDENCE",
+  // 예전에는 통째로 거절했다. 지금은 **표시해서 넘긴다** — 짚지 못한 항목을 조용히
+  // 받아들이지 않는다는 성질은 같고, 그 성질을 지는 방식이 바뀌었다.
+  const result = await runStudioWorkflow(
+    "작업표준",
+    new Uint8Array([1]),
+    "work.pdf",
+    "application/pdf",
+    {
+      deadline: Date.now() + 10_000,
+      cleanupDeadline: Date.now() + 20_000,
+      identity,
+      fetch: server.fetch,
+      sleep: async () => {},
+    },
   );
+  const 미확인 = result.extracted.근거미확인;
+  assert.ok(미확인, "좌표 없는 행이 표시 없이 통과했다");
+  assert.deepEqual(미확인.갈래.작업단계, [1, 1]);
+  assert.equal(미확인.항목수, 1);
+  // 항목 하나하나의 표시는 evidence 가 진다. 화면은 이것으로 가른다.
+  assert.equal(result.extracted.작업단계[0].evidence.length, 0);
 });
 
 test("durably checkpoints Studio IDs before subsequent upstream work", async () => {
@@ -994,23 +997,21 @@ test("fails closed when application validation lacks evidence for extracted clai
   const server = createFakeUpstage({
     responseStates: [{ status: 200, body: output }],
   });
-  await assert.rejects(
-    runStudioWorkflow(
-      KIND,
-      new Uint8Array([1]),
-      "synthetic.pdf",
-      "application/pdf",
-      {
-        deadline: Date.now() + 10_000,
-        cleanupDeadline: Date.now() + 20_000,
-        identity,
-        fetch: server.fetch,
-        sleep: async () => {},
-      },
-    ),
-    (error) =>
-      error instanceof StudioError &&
-      error.code === "ACCEPTED_CLAIM_MISSING_EVIDENCE",
+  const result = await runStudioWorkflow(
+    KIND,
+    new Uint8Array([1]),
+    "synthetic.pdf",
+    "application/pdf",
+    {
+      deadline: Date.now() + 10_000,
+      cleanupDeadline: Date.now() + 20_000,
+      identity,
+      fetch: server.fetch,
+      sleep: async () => {},
+    },
   );
+  // 문서 전체를 가리키는 근거가 하나도 없는데 최상위 주장이 있다. 그 사실이 결과에
+  // 실려 나가야 한다 — 실려 나가지 않으면 화면이 그것을 확인된 값처럼 그린다.
+  assert.equal(result.extracted.근거미확인?.문서근거없음, true);
   assert.equal(server.file("file-1").deleted, true);
 });

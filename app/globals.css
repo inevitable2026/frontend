@@ -2010,6 +2010,24 @@ button {
   font-size: 13px;
 }
 
+/*
+ * 원문에서 위치를 짚지 못한 항목 알림.
+ *
+ * `.context-note` 와 같은 흐린 회색으로 두면 안 된다 — 그 색은 "참고" 라는 뜻이고,
+ * 이 문장은 **저장하면 빠진다** 는 뜻이다. 사람이 저장을 누르기 전에 읽어야 한다.
+ * 실패(빨강)도 아니다. 문서는 정상으로 처리됐고 일부 항목의 출처만 확인되지 않았다.
+ */
+.context-warning {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid #b8860b;
+  background: color-mix(in srgb, #b8860b 8%, transparent);
+  border-radius: 0 6px 6px 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .context-message {
   padding: 12px 16px;
   border-radius: 12px;

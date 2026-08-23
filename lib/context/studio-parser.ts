@@ -4,6 +4,7 @@ import type {
   ExtractedFields,
   LayoutElement,
   RawEvidenceAnchor,
+  근거미확인요약,
 } from "./types.ts";
 import { createHash } from "node:crypto";
 
@@ -925,17 +926,25 @@ function hasClaim(value: unknown): boolean {
 }
 
 /**
- * 근거를 못 댄 주장이 무엇이었는지 적는다.
+ * 읽어냈지만 **원문에서 위치를 짚지 못한** 항목을 센다.
  *
- * 이 오류가 났을 때 남는 것이 코드 한 줄뿐이면, 문서를 다시 올려 보는 것 말고는 할 수
- * 있는 일이 없다. 손글씨가 든 순회점검일지에서 실제로 그랬다 — 사람은 읽히는데 무엇이
- * 걸렸는지 알 길이 없었다.
+ * 예전에는 이런 항목이 하나라도 있으면 `ACCEPTED_CLAIM_MISSING_EVIDENCE` 로 문서를
+ * 통째로 거절했다. 짚지 못하는 주장을 받지 않겠다는 뜻이었고 그 자체는 옳다. 그런데
+ * 실측해 보니 그 규칙이 **손글씨가 든 서류 전체를 못 쓰게 만들었다**:
  *
- * **화면에는 나가지 않는다.** `StudioError` 가 사용자 문장을 따로 고르고, 이 글은
- * `cause` 를 타고 서버 로그에만 남는다.
+ *   활자   순회점검일지  →  근거 anchor 24개 · 통과
+ *   손글씨 순회점검일지  →  근거 anchor  0개 · 거절 (지적사항 3/3 · 조치사항 3/3)
+ *
+ * 모델이 손글씨를 못 읽은 것이 아니다. 손으로 적어 넣은 지적사항까지 읽어서 활자본보다
+ * 한 건을 더 냈다. 못 하는 것은 그것을 원문 좌표에 묶는 일이다.
+ *
+ * 그래서 버리지도, 사실인 척하지도 않는다. **세어서 넘긴다.** 화면이 짚은 항목과 못 짚은
+ * 항목을 갈라 보이고, 저장할 때는 못 짚은 것을 뺀다. 항목 하나하나의 표시는
+ * `evidence.length === 0` 이 이미 지고 있다.
  */
-function 근거없는주장(extracted: ExtractedFields): string {
-  const 빈것: string[] = [];
+function 근거미확인세기(extracted: ExtractedFields): 근거미확인요약 | undefined {
+  const 갈래: Record<string, [number, number]> = {};
+  let 항목수 = 0;
   const 중첩 = [
     ["평가항목", extracted.평가항목],
     ["저감조치", extracted.저감조치],
@@ -944,44 +953,38 @@ function 근거없는주장(extracted: ExtractedFields): string {
     ["조치사항", extracted.조치사항],
   ] as const;
   for (const [이름, 목록] of 중첩) {
+    const 전체 = (목록 ?? []).length;
+    if (전체 === 0) continue;
     const 없는것 = (목록 ?? []).filter((item) => item.evidence.length === 0).length;
-    if (없는것 > 0) 빈것.push(`${이름} ${없는것}/${(목록 ?? []).length}건`);
+    if (없는것 > 0) {
+      갈래[이름] = [없는것, 전체];
+      항목수 += 없는것;
+    }
   }
-  if ((extracted.evidence?.length ?? 0) === 0) 빈것.push("문서 전체 근거 0건");
-  return 빈것.length > 0 ? `근거 없는 주장: ${빈것.join(" · ")}` : "근거 없는 주장을 특정하지 못함";
+  const 문서근거없음 = hasTopLevelClaim(extracted) && (extracted.evidence?.length ?? 0) === 0;
+  if (항목수 === 0 && !문서근거없음) return undefined;
+  return { 항목수, 갈래, 문서근거없음 };
 }
 
-function assertAcceptedEvidence(extracted: ExtractedFields): void {
-  const topLevelClaim = [
-    extracted.업체명,
-    extracted.현장명,
-    extracted.공종,
-    extracted.장비,
-    extracted.자재,
-    extracted.계약금액,
-    extracted.공사기간,
-    extracted.일자,
-    extracted.참석자,
-    extracted.중점위험요인,
-    extracted.작업명,
-    extracted.보호구,
-    extracted.점검일자,
-    extracted.문서유형,
-    extracted.요약,
+function hasTopLevelClaim(extracted: ExtractedFields): boolean {
+  return [
+    extracted.업체명, extracted.현장명, extracted.공종, extracted.장비, extracted.자재,
+    extracted.계약금액, extracted.공사기간, extracted.일자, extracted.참석자,
+    extracted.중점위험요인, extracted.작업명, extracted.보호구, extracted.점검일자,
+    extracted.문서유형, extracted.요약,
   ].some(hasClaim);
-  if (topLevelClaim && (extracted.evidence?.length ?? 0) === 0) {
-    throw new StudioParseError("ACCEPTED_CLAIM_MISSING_EVIDENCE", 근거없는주장(extracted));
-  }
-  const nested = [
-    ...(extracted.평가항목 ?? []),
-    ...(extracted.저감조치 ?? []),
-    ...(extracted.작업단계 ?? []),
-    ...(extracted.지적사항 ?? []),
-    ...(extracted.조치사항 ?? []),
-  ];
-  if (nested.some((item) => item.evidence.length === 0)) {
-    throw new StudioParseError("ACCEPTED_CLAIM_MISSING_EVIDENCE", 근거없는주장(extracted));
-  }
+}
+
+/**
+ * 근거를 못 댄 항목을 표시해 돌려준다. **거절하지 않는다.**
+ *
+ * 이름이 `assert…` 가 아닌 이유가 이것이다 — 이 함수는 이제 막는 곳이 아니라 세는 곳이다.
+ * 막는 판단은 화면과 저장 경로가 한다(`components/site-context-panel.tsx` ·
+ * `app/api/context/documents/route.ts`).
+ */
+function 근거표시(extracted: ExtractedFields): ExtractedFields {
+  const 요약 = 근거미확인세기(extracted);
+  return 요약 ? { ...extracted, 근거미확인: 요약 } : extracted;
 }
 
 function extractedEvidenceAnchors(
@@ -1002,7 +1005,6 @@ function applicationValidationAndReview(
 ): Pick<ParsedStudioWorkflow, "validation" | "review"> {
   // These stages are deliberately deterministic application logic. Studio only
   // performs the documented Parse -> Extract topology.
-  assertAcceptedEvidence(extracted);
   const evidence = extractedEvidenceAnchors(extracted);
   return {
     validation: {
@@ -1063,7 +1065,10 @@ export function parseStudioWorkflowResponse(
     extract.stepName,
     parsedLayout.elements,
   );
-  const application = applicationValidationAndReview(extracted);
+  // 근거를 못 댄 항목에 표시를 붙인 뒤 내보낸다. 거절하지 않는다 — 화면과 저장 경로가
+  // 갈라서 다룬다.
+  const 표시된 = 근거표시(extracted);
+  const application = applicationValidationAndReview(표시된);
   const unrelatedStudioSteps = steps
     .filter((step) => classify(step) !== null)
     .filter(
@@ -1073,7 +1078,7 @@ export function parseStudioWorkflowResponse(
     throw new StudioParseError("UNEXPECTED_STUDIO_STEP");
   return {
     parse: parsedLayout,
-    extracted,
+    extracted: 표시된,
     validation: application.validation,
     review: application.review,
     steps: [parse, extract],
