@@ -57,12 +57,13 @@ test("legacy removed screens fall back without being emitted again", () => {
  * ⑵ 현장을 바꿔도 유지된다 — 다른 필드들은 "그 현장에서 열어 둔 것" 이지만 이것은 아니다.
  * ⑶ 꺼져 있으면 주소에 남기지 않는다 — 기본값이 주소를 더럽히지 않는다.
  */
-test("시연 모드는 명시적으로 켠 값만 받는다", () => {
-  for (const 켜짐 of ["demo=1"]) {
-    assert.equal(parseConsoleUrlState(new URLSearchParams(켜짐)).demo, true);
-  }
-  for (const 아님 of ["", "demo=0", "demo=true", "demo=on", "demo=yes", "demo="]) {
-    assert.equal(parseConsoleUrlState(new URLSearchParams(아님)).demo, false, 아님);
+test("시연 모드는 끄는 값만 받는다 — 기본이 켜짐이다", () => {
+  // **기본이 뒤집혀 있다.** 이 배포는 시연용이라, 켜는 것을 잊은 채 시작하면 첫 반영에서
+  // 카드가 사라지고 그 자리에서 되돌릴 방법이 없다. 그래서 끄는 쪽을 명시하게 했다.
+  // 시연이 끝나면 이 시험과 `parseConsoleUrlState`·`DEFAULT_CONSOLE_URL_STATE` 를 함께 되돌린다.
+  assert.equal(parseConsoleUrlState(new URLSearchParams("demo=0")).demo, false);
+  for (const 켜짐 of ["", "demo=1", "demo=true", "demo=on", "demo="]) {
+    assert.equal(parseConsoleUrlState(new URLSearchParams(켜짐)).demo, true, 켜짐);
   }
 });
 
@@ -74,8 +75,8 @@ test("시연 모드는 현장을 바꿔도 유지된다", () => {
   assert.equal(다른현장.cardId, null);
 });
 
-test("시연 모드가 꺼져 있으면 주소에 남기지 않는다", () => {
+test("기본값은 주소에 남기지 않는다 — 끈 것만 적는다", () => {
   assert.equal(new URL(serializeConsoleUrlState(DEFAULT_CONSOLE_URL_STATE), "https://console.test").searchParams.get("demo"), null);
-  const 켜둔것 = patchConsoleUrlState(DEFAULT_CONSOLE_URL_STATE, { demo: true });
-  assert.equal(new URL(serializeConsoleUrlState(켜둔것), "https://console.test").searchParams.get("demo"), "1");
+  const 끈것 = patchConsoleUrlState(DEFAULT_CONSOLE_URL_STATE, { demo: false });
+  assert.equal(new URL(serializeConsoleUrlState(끈것), "https://console.test").searchParams.get("demo"), "0");
 });

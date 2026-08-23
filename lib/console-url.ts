@@ -32,6 +32,10 @@ export type ConsoleUrlState = {
    * 렌더와 어긋난다.
    *
    * 내 브라우저에만 적용된다. 같은 주소를 남에게 보내지 않는 한 남의 화면은 그대로다.
+   *
+   * **기본값이 켜짐이다.** 이 배포는 지금 시연용이고, 켜는 것을 잊은 채 시연을 시작하면
+   * 첫 반영에서 카드가 사라진다 — 그 자리에서 되돌릴 방법이 없다. 그래서 끄는 쪽을
+   * 명시하게 했다(`demo=0`). 시연이 끝나면 이 기본값을 되돌린다.
    */
   demo: boolean;
 };
@@ -72,7 +76,7 @@ export const DEFAULT_CONSOLE_URL_STATE: ConsoleUrlState = {
   nav: "board", siteId: BOARD_SITE_ID, boardDate: BOARD_DATE, boardView: "week",
   boardFilterDate: BOARD_DATE, contextKind: null, documentId: null, riskScreen: "queue",
   riskSiteId: null, cardId: null, assessmentId: null,
-  conversationId: null, demo: false,
+  conversationId: null, demo: true,
 };
 
 type Params = Pick<URLSearchParams, "get"> | Record<string, string | string[] | undefined>;
@@ -124,9 +128,11 @@ export function parseConsoleUrlState(params: Params): ConsoleUrlState {
     cardId: cardId !== null && RESOURCE_ID.test(cardId) ? cardId : null,
     assessmentId: assessmentId !== null && RESOURCE_ID.test(assessmentId) ? assessmentId : null,
     conversationId: conversationId !== null && UUID.test(conversationId) ? conversationId : null,
-    // 켜는 값만 받는다. `demo=0` · `demo=false` · 없음은 전부 꺼진 것으로 읽는다 —
-    // 시연 모드는 명시적으로 켠 사람에게만 켜져야 한다.
-    demo: value(params, "demo") === "1",
+    // **끄는 값만 받는다.** 기본이 켜짐이므로 `demo=0` 만 끈 것으로 읽는다.
+    // 예전에는 반대였다(켜는 값만 받음). 시연 배포라 기본을 뒤집었고, 되돌릴 때는
+    // 이 줄과 DEFAULT_CONSOLE_URL_STATE 를 함께 되돌려야 한다 — 한쪽만 바꾸면
+    // 주소에 아무것도 없을 때와 토글을 끌 때가 어긋난다.
+    demo: value(params, "demo") !== "0",
   };
 }
 
@@ -142,6 +148,7 @@ export function serializeConsoleUrlState(state: ConsoleUrlState): string {
   if (state.cardId) params.set("cardId", state.cardId);
   if (state.assessmentId) params.set("assessmentId", state.assessmentId);
   if (state.conversationId) params.set("conversationId", state.conversationId);
-  if (state.demo) params.set("demo", "1");
+  // 기본이 켜짐이라 꺼졌을 때만 적는다. 기본값이 주소를 더럽히지 않는다.
+  if (!state.demo) params.set("demo", "0");
   return `/?${params.toString()}`;
 }
