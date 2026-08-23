@@ -306,7 +306,22 @@ export function ConstructionConsole({
           ))}
         </nav>
 
-        <button className="app-switch" type="button">
+        {/*
+          * 현장에서 쓰는 앱으로 건너간다.
+          *
+          * 버튼이 아니라 `<a>` 다 — 실제로 **다른 곳으로 가는 것**이기 때문이다. 버튼으로
+          * 두면 새 탭으로 열기·주소 복사가 안 되고, 스크린리더도 "여기서 무언가 실행된다"
+          * 고 읽는다.
+          *
+          * `rel="noreferrer"` 를 붙인다. `target="_blank"` 로 연 창은 `window.opener` 로
+          * 이 화면을 되만질 수 있고, 이 콘솔에는 현장 문서가 열려 있다.
+          */}
+        <a
+          className="app-switch"
+          href="https://tbm-agent.vercel.app/"
+          target="_blank"
+          rel="noreferrer"
+        >
           <span>안전관리자 및 작업반장 앱</span>
           <Image
             src="/assets/arrow-right-sidebar.svg"
@@ -314,7 +329,7 @@ export function ConstructionConsole({
             width={13.755}
             height={13.755}
           />
-        </button>
+        </a>
 
         <div className="sidebar-bottom">
           <section className="upload-promo" aria-labelledby="upload-title">

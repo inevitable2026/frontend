@@ -222,6 +222,8 @@ button {
   background: #ffffff;
   box-shadow: 0 3.439px 33.836px rgba(29, 74, 141, 0.06);
   color: var(--purple-secondary);
+  /* 이제 `<a>` 라 기본 밑줄이 붙는다. 생김새는 예전 버튼 그대로 둔다. */
+  text-decoration: none;
 }
 
 .app-switch span {
