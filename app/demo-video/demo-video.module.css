@@ -1,0 +1,137 @@
+/* 콘솔 화면(.construction-console)은 min-width 1440px 로 고정돼 있지만,
+   이 페이지는 심사위원이 노트북이든 휴대폰이든 링크만 열면 보게 되는 자리라 반응형으로 둔다. */
+
+.page {
+  min-height: 100dvh;
+  padding: 72px 24px 96px;
+  background:
+    radial-gradient(900px 520px at 50% -180px, rgba(92, 82, 255, 0.14), transparent 70%),
+    #ffffff;
+}
+
+.shell {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.brandMark {
+  height: 22px;
+  width: auto;
+}
+
+.eyebrow {
+  font-family: "Instrument Sans", "Wanted Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--purple-primary);
+  border: 1px solid rgba(92, 82, 255, 0.28);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(26px, 3.4vw, 38px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text-default);
+}
+
+.lede {
+  margin: 12px 0 0;
+  max-width: 62ch;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.frame {
+  margin-top: 32px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: #0b0c0e;
+  overflow: hidden;
+  box-shadow: 0 28px 64px -32px rgba(60, 59, 77, 0.45);
+}
+
+/* 영상이 1318×720 이라 비율을 미리 잡아 둔다 — 메타데이터가 도착하기 전에도
+   자리가 흔들리지 않아야 스크롤이 튀지 않는다. */
+.video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1318 / 720;
+  background: #0b0c0e;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 16px 2px 0;
+  font-family: "Instrument Sans", "Wanted Sans", sans-serif;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.primary {
+  background: var(--purple-primary);
+  color: #ffffff;
+}
+
+.primary:hover {
+  background: var(--purple-copy);
+}
+
+.secondary {
+  border: 1px solid var(--border-soft);
+  background: #ffffff;
+  color: var(--text-sidebar);
+}
+
+.secondary:hover {
+  border-color: rgba(92, 82, 255, 0.4);
+  color: var(--purple-primary);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 44px 16px 64px;
+  }
+
+  .frame {
+    border-radius: 12px;
+  }
+}

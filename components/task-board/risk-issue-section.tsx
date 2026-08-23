@@ -1121,9 +1121,11 @@ export function RiskIssueSection({
           * 서버가 낼 수 없다 — 화면이 만든다. 파일 이름이 둘을 가른다.
           */}
         <div className="board-issue-downloads">
+          {/* `format=xlsx` 를 붙여야 서식 엑셀이 온다. 라우트 기본값은 CSV 로 남아 있다 —
+              옛 호출이 말없이 다른 파일을 받으면 그게 깨진 것이다. */}
           <a
             className="board-issue-download"
-            href={`/api/board/facts/export?siteId=${encodeURIComponent(issue.siteId)}&docId=${encodeURIComponent(issue.targetDocId)}`}
+            href={`/api/board/facts/export?siteId=${encodeURIComponent(issue.siteId)}&docId=${encodeURIComponent(issue.targetDocId)}&format=xlsx`}
           >
             지금 평가서 내려받기 (변경 전)
           </a>

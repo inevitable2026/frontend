@@ -629,20 +629,25 @@ export default function RiskDocPanel({
               {/* 3. 무엇을 하면 되는지 */}
               <div className="risk-drawer-approval-acts">
                 {/* 바뀐 평가서를 밖으로 꺼낸다. 재평가가 필요하다는 건 평가서가
-                    바뀌었다는 뜻이고, 결재 상신은 결국 문서를 올리는 일이다. */}
+                    바뀌었다는 뜻이고, 결재 상신은 결국 문서를 올리는 일이다.
+
+                    `format=xlsx` 를 반드시 붙인다. 이 링크가 내주는 것은 결재에 올릴
+                    문서라, 실제 「(N월) 위험성평가 및 점검 회의록」 서식이어야 한다.
+                    붙이지 않으면 열 이름만 고친 CSV 가 나가고 — 받는 사람이 서식을
+                    처음부터 다시 만들어야 한다. */}
                 {docId && (행들?.length ?? 0) > 0 ? (
                   <>
                     {/* 둘을 나란히 둔다. 「수정한 것」만 있으면 받는 사람이 무엇이
                         달라졌는지 문서를 통째로 다시 읽어야 안다. */}
                     <a
                       className="risk-drawer-download"
-                      href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}&version=before`}
+                      href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}&version=before&format=xlsx`}
                     >
                       기존 평가서 내려받기
                     </a>
                     <a
                       className="risk-drawer-download is-now"
-                      href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}`}
+                      href={`/api/board/facts/export?siteId=${encodeURIComponent(siteId)}&docId=${encodeURIComponent(docId)}&format=xlsx`}
                     >
                       수정한 평가서 내려받기
                     </a>

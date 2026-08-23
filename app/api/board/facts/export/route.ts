@@ -1,7 +1,17 @@
 import { BOARD_STORE_ERROR_STATUS, boardStore, isBoardStoreError } from "@/lib/board/store";
+import { 평가표바이트, type 서식머리 } from "@/lib/risk/assessment-sheet";
 import { 문서표시 } from "@/lib/risk/doc-label";
 import { 그때상태, 기준시각, type 판본 } from "@/lib/risk/diff";
-import { 위험도표시, 이행상태읽기, 최신만, 행정렬, 회사표시, type 행팩트 } from "@/lib/risk/rows";
+import {
+  위험도표시,
+  이행상태읽기,
+  최신만,
+  행정렬,
+  회사표시,
+  type 결재상태,
+  type 평가행,
+  type 행팩트,
+} from "@/lib/risk/rows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,11 +25,18 @@ const HEADERS = { "X-Robots-Tag": "noindex, nofollow" };
  * 화면은 바뀐 결과를 보여 주기만 하고 밖으로 꺼낼 방법이 없었다. 결재 상신은 결국 문서를
  * 올리는 일이라, 화면 안에만 있는 표는 그 일을 끝내 주지 못한다.
  *
- * **왜 CSV 인가:** 이 프런트엔드에는 xlsx 라이브러리가 없다(의존성 8개뿐). SAFEGRID 는
- * 엑셀을 만들지만 그건 저쪽 DB 의 평가서용이고, 여기 문서는 보드 팩트라 저쪽에 없다.
- * 라이브러리를 새로 들이는 대신 CSV 로 낸다 — 엑셀에서 그대로 열린다.
+ * **두 가지 모양으로 낸다.**
  *
- * BOM 을 붙이는 이유는 엑셀이 UTF-8 CSV 를 BOM 없이 열면 한글이 깨지기 때문이다.
+ * - `format=xlsx` — 실제 「(N월) 위험성평가 및 점검 회의록」 서식. 결재란·관리기간·주간
+ *   점검란까지 그린다. 현직자가 그대로 결재에 올릴 수 있는 것은 이쪽뿐이다. 서식은
+ *   `lib/risk/assessment-sheet.ts` 가 만든다.
+ * - `format` 없음 또는 `format=csv` — 열 이름을 사람 말로 고친 표 하나. 값만 빠르게
+ *   훑거나 다른 도구에 넣을 때 쓴다. 서식이 없어 결재 문서로는 쓸 수 없다.
+ *
+ * **CSV 가 기본으로 남아 있다.** 서식 쪽이 낫지만 기본값을 바꾸면 `format` 을 붙이지
+ * 않은 기존 호출이 말없이 다른 파일을 받는다. 부르는 쪽이 무엇을 원하는지 적게 한다.
+ *
+ * CSV 에 BOM 을 붙이는 이유는 엑셀이 UTF-8 CSV 를 BOM 없이 열면 한글이 깨지기 때문이다.
  */
 
 /** CSV 한 칸. 쉼표·따옴표·줄바꿈이 들어가면 따옴표로 감싸고 안의 따옴표는 겹친다. */
@@ -44,6 +61,44 @@ const 머리 = [
   "실제 실행",
   "판정 근거",
 ] as const;
+
+/**
+ * 서식 머리칸을 채운다.
+ *
+ * **행에서 뽑을 수 있는 것은 행에서 뽑는다.** 관리기간과 공종은 이미 행마다 적혀 있어
+ * 시드에 또 적으면 두 벌이 되고, 두 벌은 언젠가 어긋난다.
+ *
+ * **작성일자는 팩트의 시각이다.** 이 문서의 행이 처음 기록된 때가 곧 평가서를 쓴 날이다.
+ * 따로 저장된 값이 없으므로 지어내지 않고 기록에서 읽는다.
+ *
+ * 나머지(평가기법·근거·업종·장비·자재·결재자)는 행에도 없고 계산할 수도 없어
+ * `documentApprovalState` 팩트의 `서식` 칸에 저장한다. 없으면 **비운다.**
+ */
+function 머리만들기(
+  행들: 평가행[],
+  이력: Array<{ observedAt: string }>,
+  결재: 결재상태 | null,
+): 서식머리 {
+  const 시각들 = 이력.map((f) => f.observedAt).filter(Boolean).sort();
+  const 관리기간 = 행들.map((r) => r.관리기간).find((v) => v && v.trim() !== "");
+  // 같은 공종이 여러 행에 나온다. 나온 순서를 지키며 겹치는 것만 뺀다.
+  const 공종 = [...new Set(행들.map((r) => r.공종분류).filter((v): v is string => !!v && v.trim() !== ""))];
+
+  return {
+    ...(결재?.서식 ?? {}),
+    작성일자: 시각들[0]?.slice(0, 10),
+    관리기간,
+    공종,
+  };
+}
+
+/** 이 문서의 결재 상태. 같은 key 가 여러 번 기록되므로 **가장 나중 것**을 쓴다. */
+async function 결재읽기(siteId: string, docId: string): Promise<결재상태 | null> {
+  const facts = await boardStore().listFacts(siteId, "documentApprovalState");
+  const 이문서 = 최신만(facts.filter((f) => f.key === docId));
+  const 값 = 이문서[0]?.value;
+  return 값 && typeof 값 === "object" ? (값 as 결재상태) : null;
+}
 
 function fail(message: string, status: number, code?: string) {
   return Response.json(code ? { error: message, code } : { error: message }, {
@@ -76,6 +131,9 @@ export async function GET(req: Request) {
   // 조용히 어긋난다. 실제로 헤더 쪽에서 한 번 500 을 냈다.
   const 판본요청 = params.get("version")?.trim() === "before" ? "원본" : "최신";
 
+  // 모르는 값을 받으면 CSV 로 떨어진다. 오탈자 하나에 400 을 내는 것보다 낫다.
+  const 서식요청 = params.get("format")?.trim().toLowerCase() === "xlsx";
+
   try {
     const all = await boardStore().listFacts(siteId, "riskAssessmentRow");
     const 이력 = all.filter((f) => f.key.startsWith(`${docId}#`));
@@ -96,6 +154,31 @@ export async function GET(req: Request) {
       // 빈 파일을 내려보내지 않는다. 받는 사람이 "행이 없는 평가서" 로 읽는다.
       // 조회는 성공했고 건수가 0 이다. "읽지 못했습니다" 와 합치지 않는다.
       return fail(`${문서표시(docId)} 에 평가 항목이 없습니다. 내려받을 내용이 없습니다.`, 404, "no_rows");
+    }
+
+    /*
+     * 파일 이름으로 두 판본을 가른다. 같은 이름이면 내려받은 폴더에서 뒤섞인다.
+     *
+     * **이름을 ASCII 로 짓는다.** `원본`·`최신` 을 그대로 넣었다가 500 이 났다 —
+     * `Content-Disposition` 은 HTTP 헤더라 바이트 하나가 한 글자이고, 한글이 들어가면
+     * `Cannot convert argument to a ByteString` 로 응답 자체가 못 나간다.
+     * (바로 이 자리에 "파일명에 한글이 없으므로" 라고 적어 두고 한글을 넣었다.)
+     */
+    const 판본표기 = 판본요청 === "원본" ? "before" : "current";
+    const 이름앞 = `${docId}-${판본표기}-${new Date().toISOString().slice(0, 10)}`;
+
+    if (서식요청) {
+      // 결재 상태를 못 읽어도 서식은 낸다. 머리칸 몇 개가 비는 것뿐이고, 표는 온전하다.
+      const 결재 = await 결재읽기(siteId, docId);
+      const 바이트 = await 평가표바이트(행들, 머리만들기(행들, 이력, 결재));
+      return new Response(new Uint8Array(바이트), {
+        headers: {
+          ...HEADERS,
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${이름앞}.xlsx"`,
+        },
+      });
     }
 
     const 줄 = [
@@ -122,23 +205,12 @@ export async function GET(req: Request) {
       ),
     ].join("\r\n");
 
-    /*
-     * 파일 이름으로 두 판본을 가른다. 같은 이름이면 내려받은 폴더에서 뒤섞인다.
-     *
-     * **이름을 ASCII 로 짓는다.** `원본`·`최신` 을 그대로 넣었다가 500 이 났다 —
-     * `Content-Disposition` 은 HTTP 헤더라 바이트 하나가 한 글자이고, 한글이 들어가면
-     * `Cannot convert argument to a ByteString` 로 응답 자체가 못 나간다.
-     * (바로 이 자리에 "파일명에 한글이 없으므로" 라고 적어 두고 한글을 넣었다.)
-     */
-    const 판본표기 = 판본요청 === "원본" ? "before" : "current";
-    const 파일명 = `${docId}-${판본표기}-${new Date().toISOString().slice(0, 10)}.csv`;
-
     return new Response(`﻿${줄}`, {
       headers: {
         ...HEADERS,
         "Content-Type": "text/csv; charset=utf-8",
         // 파일명에 한글이 없으므로 filename 하나로 충분하다.
-        "Content-Disposition": `attachment; filename="${파일명}"`,
+        "Content-Disposition": `attachment; filename="${이름앞}.csv"`,
       },
     });
   } catch (error) {
