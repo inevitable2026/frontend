@@ -23,6 +23,17 @@ export type ConsoleUrlState = {
   cardId: string | null;
   assessmentId: string | null;
   conversationId: string | null;
+  /**
+   * 시연 모드.
+   *
+   * **주소에 싣는 이유.** 이 앱은 URL 이 상태의 원천이고(`app/page.tsx` 가 서버에서
+   * 파싱해 내려준다), 주소에 실으면 **강제 새로고침에도 남는다** — 시연 중 새로 고쳐도
+   * 모드가 유지되어야 한다는 요구가 이 한 줄로 해결된다. localStorage 로 두면 서버
+   * 렌더와 어긋난다.
+   *
+   * 내 브라우저에만 적용된다. 같은 주소를 남에게 보내지 않는 한 남의 화면은 그대로다.
+   */
+  demo: boolean;
 };
 
 /**
@@ -35,6 +46,8 @@ export function patchConsoleUrlState(
 ): ConsoleUrlState {
   const next = { ...current, ...patch };
   if (patch.siteId !== undefined && patch.siteId !== current.siteId) {
+    // `demo` 는 여기서 비우지 않는다. 현장을 바꿔도 시연 모드는 유지되는 편이 맞다 —
+    // 아래 필드들은 "그 현장에서 열어 둔 것" 이지만 시연 모드는 보는 사람의 설정이다.
     next.documentId = null;
     next.riskSiteId = null;
     next.cardId = null;
@@ -59,7 +72,7 @@ export const DEFAULT_CONSOLE_URL_STATE: ConsoleUrlState = {
   nav: "board", siteId: BOARD_SITE_ID, boardDate: BOARD_DATE, boardView: "week",
   boardFilterDate: BOARD_DATE, contextKind: null, documentId: null, riskScreen: "queue",
   riskSiteId: null, cardId: null, assessmentId: null,
-  conversationId: null,
+  conversationId: null, demo: false,
 };
 
 type Params = Pick<URLSearchParams, "get"> | Record<string, string | string[] | undefined>;
@@ -111,6 +124,9 @@ export function parseConsoleUrlState(params: Params): ConsoleUrlState {
     cardId: cardId !== null && RESOURCE_ID.test(cardId) ? cardId : null,
     assessmentId: assessmentId !== null && RESOURCE_ID.test(assessmentId) ? assessmentId : null,
     conversationId: conversationId !== null && UUID.test(conversationId) ? conversationId : null,
+    // 켜는 값만 받는다. `demo=0` · `demo=false` · 없음은 전부 꺼진 것으로 읽는다 —
+    // 시연 모드는 명시적으로 켠 사람에게만 켜져야 한다.
+    demo: value(params, "demo") === "1",
   };
 }
 
@@ -126,5 +142,6 @@ export function serializeConsoleUrlState(state: ConsoleUrlState): string {
   if (state.cardId) params.set("cardId", state.cardId);
   if (state.assessmentId) params.set("assessmentId", state.assessmentId);
   if (state.conversationId) params.set("conversationId", state.conversationId);
+  if (state.demo) params.set("demo", "1");
   return `/?${params.toString()}`;
 }

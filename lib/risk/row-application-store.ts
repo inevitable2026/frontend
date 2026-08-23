@@ -155,7 +155,7 @@ async function draftRows(sql: QuerySql, siteId: string, workItemId: string): Pro
 function descriptor(item: ReturnType<typeof asItem>, rows: DraftRow[], reviews: ReviewRow[], siteId: string, workItemId: string, blocked: boolean): RiskRowApplicationDescriptor {
   const issues: RiskRowApplicationDescriptor["issues"] = [];
   if (item.status !== "approval" || item.confirmedBy !== null || item.confirmedAt !== null || !item.draft || typeof item.draft !== "object" || (item.draft as { form?: unknown }).form !== "회의록") {
-    issues.push({ code: "work_item_not_unconfirmed_approval", message: "미확정 approval 상태의 카드만 반영할 수 있습니다." });
+    issues.push({ code: "work_item_not_unconfirmed_approval", message: "아직 확정하지 않은 승인 대기 카드만 반영할 수 있습니다." });
   }
   const target = targetDocumentId(item);
   if (!target) issues.push({ code: "target_document_missing", message: "반영 대상 문서를 찾지 못했습니다." });

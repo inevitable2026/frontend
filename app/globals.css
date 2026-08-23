@@ -1857,6 +1857,74 @@ button {
   color: #ffffff;
 }
 
+/*
+ * 사이드바 브랜드 카드 안의 시연 토글.
+ *
+ * `.brand-card` 가 세로 배치라(위 110-120) 로고 아래 줄로 들어간다. 크기를 줄이는 이유는
+ * 이것이 **설정**이지 탭이 아니기 때문이다 — 내비게이션보다 눈에 덜 띄어야 한다.
+ */
+.brand-demo-toggle {
+  margin-top: 10px;
+  padding: 3px;
+}
+
+.brand-demo-toggle button {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/*
+ * 시연 모드임을 밝히는 줄.
+ *
+ * 이 모드에서는 화면이 저장된 상태와 다른 것을 보인다(반영해도 저장되지 않고, 처리된
+ * 카드가 계속 남는다). 접히거나 흐려지면 안 된다 — 밝히지 않고 다르게 보이면 그게
+ * 속이는 것이다. 실패(빨강)는 아니므로 주의 색을 쓴다.
+ */
+.board-issue-demo {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid #b8860b;
+  background: color-mix(in srgb, #b8860b 8%, transparent);
+  border-radius: 0 6px 6px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.board-issue-demo-mark { color: #8a6400; }
+
+/* 견주는 자리의 내려받기 두 개. 반영 버튼과 같은 줄에 두지 않는다 — 성격이 다르다. */
+.board-issue-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.board-issue-download {
+  padding: 8px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text-default);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  text-decoration: none;
+}
+
+.board-issue-download:hover { border-color: var(--purple-primary); }
+
+/*
+ * 다른 화면에서 넘어오며 가리킨 카드.
+ *
+ * 새 색을 들이지 않는다 — hover·focus 가 이미 쓰는 `--purple-primary` 로 테두리만 굵게
+ * 한다. 목록에서 "이 건이었다" 를 말하는 것이 전부이므로 그 이상 화려할 이유가 없다.
+ */
+.risk-queue-card.is-주목 {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 1px var(--purple-primary);
+}
+
 .context-upload,
 .context-save {
   display: flex;

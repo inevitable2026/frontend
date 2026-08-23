@@ -186,6 +186,7 @@ export default function RiskQueue({
   불러오는중,
   감지,
   기준시각,
+  주목카드 = null,
 }: {
   항목들: WorkItem[];
   /** siteId → 현장 이름. 이름이 없으면 저장소 키 대신 「현장 이름 없음」 을 보인다. */
@@ -200,11 +201,28 @@ export default function RiskQueue({
    * (`react-hooks/purity` 가 잡아 준다). 시각은 렌더의 입력이지 렌더가 만드는 것이 아니다.
    */
   기준시각: number;
+  /**
+   * 다른 화면에서 넘어오며 가리킨 카드.
+   *
+   * 보드에서 「위험성평가 기록으로 이동」을 누르면 그 건이 주소에 실려 온다. 목록이 길면
+   * 넘어온 사람이 방금 처리한 건을 다시 찾아야 하므로, 그 묶음 안에서 맨 앞으로 올리고
+   * 테두리로 표시한다. 서랍이 함께 열리므로 **닫았을 때** 이 표시가 보인다.
+   */
+  주목카드?: string | null;
 }) {
   const 위험카드 = 항목들.filter(위험성평가카드인가);
 
   const 묶인것 = new Map<묶음, WorkItem[]>(순서.map((g) => [g, []]));
   for (const item of 위험카드) 묶인것.get(묶음판정(item))!.push(item);
+
+  // 주목 카드를 **자기 묶음 안에서만** 맨 앞으로 올린다. 묶음을 바꾸지는 않는다 —
+  // 처리된 카드를 「재평가 필요」로 끌어올리면 화면이 상태를 잘못 말하게 된다.
+  if (주목카드) {
+    for (const 목록 of 묶인것.values()) {
+      const 자리 = 목록.findIndex((item) => item.itemId === 주목카드);
+      if (자리 > 0) 목록.unshift(...목록.splice(자리, 1));
+    }
+  }
 
   if (불러오는중) return <p className="risk-queue-empty">할 일 목록을 불러오는 중입니다…</p>;
 
@@ -250,7 +268,7 @@ export default function RiskQueue({
                     {/* 보드 카드와 같은 뼈대. 다른 점은 이것이 통째로 누를 수 있는 버튼이라는 것뿐이다. */}
                     <button
                       type="button"
-                      className={`board-card risk-queue-card ${급함색(item)}`}
+                      className={`board-card risk-queue-card ${급함색(item)}${item.itemId === 주목카드 ? " is-주목" : ""}`}
                       onClick={() => 선택(item)}
                     >
                       <span className="board-card-top">

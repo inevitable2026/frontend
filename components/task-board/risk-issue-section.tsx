@@ -17,6 +17,8 @@ import {
 } from "@/lib/risk/row-application-client";
 import { loadRiskRowReviewStates, saveRiskRowReview } from "@/lib/risk/row-review-client";
 import { 이행상태읽기, 회사표시, type 평가행 } from "@/lib/risk/rows";
+import { 시연대상인가 } from "@/lib/board/demo";
+import { 문서이름, 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
 
 /**
  * 보드 맨 위의 "위험성평가 이슈" 섹션.
@@ -495,7 +497,7 @@ function RowDiff({
             <div className="board-issue-dline board-issue-dhead">
               <div className="board-issue-dcell">
                 <span className="board-issue-dhead-del">−</span>&nbsp;
-                {before ? `변경 전 · ${after.회의록}` : "변경 전 · 기존 평가서에 없음"}
+                {before ? `변경 전 · ${문서이름(after.회의록)}` : "변경 전 · 기존 평가서에 없음"}
               </div>
               <div className="board-issue-dmid">근거</div>
               <div className="board-issue-dcell">
@@ -623,7 +625,7 @@ function 이행확인표기(row: 평가행): string {
 }
 
 /** UTF-8 BOM 을 붙인 CSV. 엑셀이 한글을 깨뜨리지 않고 그대로 연다. */
-function csv내려받기(docId: string, rows: 평가행[]): void {
+function csv내려받기(docId: string, rows: 평가행[], 판본: "현재" | "제안" = "현재"): void {
   const 머리 = [
     "행ID", "공종분류", "단위작업", "위험요인", "사고분류", "대책",
     "개선전 빈도", "개선전 강도", "개선전 위험도",
@@ -646,30 +648,46 @@ function csv내려받기(docId: string, rows: 평가행[]): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${docId}.csv`;
+  // 파일명에 판본과 날짜를 넣는다. 「변경 전」과 「제안」을 같은 이름으로 내려받으면
+  // 내려받은 폴더에서 어느 것이 어느 것인지 알 수 없다. 한글을 쓰지 않는 이유는
+  // `app/api/board/facts/export/route.ts` 와 같다 — 다운로드 이름이 인코딩마다 갈린다.
+  anchor.download = `${docId}-${판본 === "제안" ? "proposed" : "current"}-${new Date().toISOString().slice(0, 10)}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-/** 위험성평가 탭으로 가는 콘솔 주소. lib/console-url.ts 의 직렬화 규칙과 같은 모양이다. */
-function 위험성평가탭주소(siteId: string): string {
+/**
+ * 위험성평가 탭으로 가는 콘솔 주소. `lib/console-url.ts` 의 직렬화 규칙과 같은 모양이다.
+ *
+ * **카드를 함께 싣는다.** 예전에는 탭만 열려서, 넘어간 사람이 방금 반영한 그 건을 목록에서
+ * 다시 찾아야 했다. `cardId` 를 실으면 그 카드의 서랍이 곧바로 열리고(대기열이 그렇게
+ * 동작한다) 목록에서도 표시된다.
+ */
+function 위험성평가탭주소(siteId: string, cardId: string, demo: boolean): string {
   const params = new URLSearchParams({ nav: "risk" });
   // uuid 일 때만 붙인다 — parseConsoleUrlState 가 uuid 가 아니면 버린다.
   if (/^[0-9a-f-]{36}$/i.test(siteId)) params.set("siteId", siteId);
+  if (/^[A-Za-z0-9_-]{1,128}$/.test(cardId)) params.set("cardId", cardId);
+  if (demo) params.set("demo", "1");
   return `/?${params.toString()}`;
 }
 
 function ResultModal({
   docId,
   siteId,
+  cardId,
   rows,
   appliedIds,
+  demo,
   onClose,
 }: {
   docId: string;
   siteId: string;
+  cardId: string;
   rows: 평가행[];
   appliedIds: Set<string>;
+  /** 시연 모드에서는 아직 저장하지 않았다. 문구가 그것을 그대로 말해야 한다. */
+  demo: boolean;
   onClose: () => void;
 }): JSX.Element | null {
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -694,24 +712,26 @@ function ResultModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div aria-label={`${docId} 반영 결과`} aria-modal="true" className="docview board-issue-resultview" role="dialog">
+      <div aria-label={`${문서이름(docId)} 반영 결과`} aria-modal="true" className="docview board-issue-resultview" role="dialog">
         <header className="docview-head">
           <div>
-            <p className="eyebrow">위험성평가서 · 반영 완료</p>
-            <h2>{docId}</h2>
+            {/* 시연에서는 저장하지 않았다. 하지 않은 일을 했다고 적지 않는다. */}
+            <p className="eyebrow">{demo ? "위험성평가서 · 반영하면 이렇게 됩니다" : "위험성평가서 · 반영 완료"}</p>
+            <h2 title={문서키툴팁(docId)}>{문서이름(docId)}</h2>
             <p className="docview-meta">
-              전체 {rows.length}행 · 방금 반영된 {appliedIds.size}행은 초록으로 표시됩니다
+              전체 {rows.length}행 · {demo ? "바뀌는" : "방금 반영된"} {appliedIds.size}행은 초록으로 표시됩니다
+              {demo ? " · 아직 저장하지 않았습니다" : ""}
             </p>
           </div>
           <div className="docview-actions">
             <button
               className="board-issue-result-csv"
-              onClick={() => csv내려받기(docId, rows)}
+              onClick={() => csv내려받기(docId, rows, demo ? "제안" : "현재")}
               type="button"
             >
               엑셀(CSV) 내려받기
             </button>
-            <a className="board-issue-result-go" href={위험성평가탭주소(siteId)}>
+            <a className="board-issue-result-go" href={위험성평가탭주소(siteId, cardId, demo)}>
               위험성평가 기록으로 이동
             </a>
             <button className="docview-close" onClick={onClose} ref={closeRef} type="button">
@@ -776,7 +796,14 @@ type Phase =
   | { name: "applying"; issue: RiskIssue }
   | { name: "done"; issue: RiskIssue; 적용수: number; 문서행: 평가행[] };
 
-export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | null {
+export function RiskIssueSection({
+  siteId,
+  demo = false,
+}: {
+  siteId: string;
+  /** 시연 모드. 켜져 있어도 `DEMO_ISSUE_CARD_ID` 카드에만 다르게 동작한다. */
+  demo?: boolean;
+}): JSX.Element | null {
   const [phase, setPhase] = useState<Phase>({ name: "loading" });
   const [켜짐, set켜짐] = useState<Set<string>>(new Set());
   const [오류, set오류] = useState<string | null>(null);
@@ -785,7 +812,8 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
 
   useEffect(() => {
     let 살아있음 = true;
-    fetch(`/api/board/risk-issue?siteId=${encodeURIComponent(siteId)}`)
+    // 시연 모드는 서버도 알아야 한다 — 확정된 카드를 계속 이슈로 볼지 여기서 갈린다.
+    fetch(`/api/board/risk-issue?siteId=${encodeURIComponent(siteId)}${demo ? "&demo=1" : ""}`)
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
         return r.json() as Promise<{ issue: RiskIssue | null }>;
@@ -808,7 +836,9 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
     return () => {
       살아있음 = false;
     };
-  }, [siteId]);
+    // `demo` 가 빠져 있으면 토글을 눌러도 다시 읽지 않는다. 주소는 바뀌는데 이 컴포넌트는
+    // 마운트된 채라(키가 현장·날짜에만 걸려 있다) 옛 응답을 그대로 들고 있게 된다.
+  }, [siteId, demo]);
 
   const toggle = useCallback((행id: string, on: boolean) => {
     set켜짐((previous) => {
@@ -822,6 +852,8 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
   if (phase.name === "loading" || phase.name === "hidden") return null;
 
   const issue = phase.issue;
+  // 플래그가 켜진 것만으로는 부족하다. **그 카드**여야 한다.
+  const 시연 = 시연대상인가(demo, issue.cardId);
   const refNumbers = new Map(issue.evidence.map((evidence, index) => [evidence.refId, index + 1]));
 
   const chip: ChipRenderer = (refId) => {
@@ -865,6 +897,27 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
     set오류(null);
 
     try {
+      /*
+       * **시연에서는 아무것도 쓰지 않는다.**
+       *
+       * 검토 저장·반영 명령을 모두 건너뛴다. 그래서 카드가 저장소에서 미확정으로 남고,
+       * 새로 고치면 이 섹션이 그대로 되살아난다 — 복원 라우트도 토큰도 필요 없다.
+       *
+       * 보이는 것은 저장된 행 위에 이번 제안을 얹은 것이다. 실제로 반영했을 때와 같은
+       * 값이지만 **저장되지 않았고**, 화면이 그 사실을 그대로 적는다.
+       */
+      if (시연) {
+        const 지금행 = await 문서행읽기(issue.siteId, issue.targetDocId);
+        const 합친것 = new Map(지금행.map((row) => [row.행id, row]));
+        for (const row of issue.rows) 합친것.set(row.행id, row.after);
+        const 문서행 = [...합친것.values()].sort((a, b) =>
+          a.행id.localeCompare(b.행id, "en", { numeric: true }),
+        );
+        setPhase({ name: "done", issue, 적용수: issue.rows.length, 문서행 });
+        setResultOpen(true);
+        return;
+      }
+
       const states = await loadRiskRowReviewStates(issue.siteId, issue.cardId);
       for (const state of states) {
         if (state.decision === "approved") continue;
@@ -883,7 +936,7 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
       if (!descriptor.eligible || !descriptor.applicationFingerprint) {
         throw new Error(
           descriptor.issues.map((issueItem) => issueItem.message).join(" ") ||
-            "반영 조건을 만족하지 못했습니다.",
+            "지금은 반영할 수 없습니다. 아래 사유를 확인해 주세요.",
         );
       }
 
@@ -910,27 +963,42 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
       <section aria-label="위험성평가 이슈" className="board-issue">
         <div className="board-brief-card">
           <div className="board-issue-done" role="status">
-            <b>
-              {phase.적용수}행을 {issue.targetDocId} 에 반영했습니다.
-            </b>{" "}
-            카드가 완료 열로 이동했습니다. 새 행의 이행확인은 비어 있습니다 — 현장에서 실행을
-            확인한 뒤 위험성평가 기록에서 체크합니다.
+            {시연 ? (
+              <>
+                <b>
+                  {phase.적용수}행을 {문서표시(issue.targetDocId)}에 반영하면 이렇게 됩니다.
+                </b>{" "}
+                <b className="board-issue-demo-mark">시연 모드라 저장하지 않았습니다.</b>{" "}
+                실제로 반영하려면 왼쪽 위 토글을 「실제」로 바꾼 뒤 다시 눌러 주세요.
+              </>
+            ) : (
+              <>
+                <b>
+                  {phase.적용수}행을 {문서표시(issue.targetDocId)}에 반영했습니다.
+                </b>{" "}
+                카드가 완료 열로 이동했습니다. 새 행의 이행확인은 비어 있습니다 — 현장에서 실행을
+                확인한 뒤 위험성평가 기록에서 체크합니다.
+              </>
+            )}
             <div className="board-issue-done-acts">
               <button
                 className="board-issue-apply"
                 onClick={() => setResultOpen(true)}
                 type="button"
               >
-                업데이트된 평가서 보기
+                {시연 ? "바뀐 평가서 보기" : "업데이트된 평가서 보기"}
               </button>
               <button
                 className="board-issue-result-csv"
-                onClick={() => csv내려받기(issue.targetDocId, phase.문서행)}
+                onClick={() => csv내려받기(issue.targetDocId, phase.문서행, 시연 ? "제안" : "현재")}
                 type="button"
               >
                 엑셀(CSV) 내려받기
               </button>
-              <a className="board-issue-result-go" href={위험성평가탭주소(issue.siteId)}>
+              <a
+                className="board-issue-result-go"
+                href={위험성평가탭주소(issue.siteId, issue.cardId, demo)}
+              >
                 위험성평가 기록으로 이동
               </a>
             </div>
@@ -939,6 +1007,8 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
         {resultOpen ? (
           <ResultModal
             appliedIds={appliedIds}
+            cardId={issue.cardId}
+            demo={시연}
             docId={issue.targetDocId}
             onClose={() => setResultOpen(false)}
             rows={phase.문서행}
@@ -984,6 +1054,20 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
           </span>
         </div>
 
+        {/*
+          * 시연 모드임을 계속 밝힌다.
+          *
+          * 이 모드에서는 반영해도 저장되지 않고, 처리된 카드가 계속 여기 남는다 — 즉
+          * **화면이 저장된 상태와 다른 것을 보인다.** 밝히지 않고 다르게 보이면 그게
+          * 속이는 것이다. 배지를 접거나 숨기지 않는 이유가 그것이다.
+          */}
+        {시연 ? (
+          <p className="board-issue-demo">
+            <b>시연 모드</b> — 반영해도 저장되지 않고, 새로 고치면 이 건이 다시 나타납니다.
+            실제로 반영하려면 왼쪽 위 토글을 「실제」로 바꿔 주세요.
+          </p>
+        ) : null}
+
         <div className="board-issue-lede">
           {issue.lede.map((문단, index) => (
             <p key={index}>{문단}</p>
@@ -1001,8 +1085,8 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
         </div>
 
         <p className="board-issue-ask">
-          이 변경을 반영하면 <b>{issue.targetDocId}</b> 가 아래처럼 바뀝니다. 행마다 반영 여부를
-          고를 수 있습니다.
+          이 변경을 반영하면 <b title={문서키툴팁(issue.targetDocId)}>{문서표시(issue.targetDocId)}</b>가
+          아래처럼 바뀝니다. 행마다 반영 여부를 고를 수 있습니다.
           <span className="board-issue-ask-count">
             수정 {issue.rows.filter((row) => row.mode === "수정").length} · 신규{" "}
             {issue.rows.filter((row) => row.mode === "신규").length}
@@ -1027,21 +1111,51 @@ export function RiskIssueSection({ siteId }: { siteId: string }): JSX.Element | 
           </p>
         ) : null}
 
+        {/*
+          * 견주는 자리에서 곧바로 내려받게 한다.
+          *
+          * 예전에는 내려받기가 **반영을 끝낸 뒤에만** 있었다. 그런데 결재를 올리는 사람은
+          * 반영하기 전에 두 판본을 나란히 놓고 봐야 한다.
+          *
+          * 왼쪽은 저장된 것이라 서버 라우트가 낸다. 오른쪽은 **아직 저장되지 않은 제안**이라
+          * 서버가 낼 수 없다 — 화면이 만든다. 파일 이름이 둘을 가른다.
+          */}
+        <div className="board-issue-downloads">
+          <a
+            className="board-issue-download"
+            href={`/api/board/facts/export?siteId=${encodeURIComponent(issue.siteId)}&docId=${encodeURIComponent(issue.targetDocId)}`}
+          >
+            지금 평가서 내려받기 (변경 전)
+          </a>
+          <button
+            className="board-issue-download"
+            onClick={() => {
+              // 이 화면이 보이는 행만 담는다. 문서 전체가 필요하면 왼쪽 링크를 쓴다 —
+              // 저장되지 않은 값을 문서 전체인 척 내보내지 않는다.
+              csv내려받기(issue.targetDocId, issue.rows.map((row) => row.after), "제안");
+            }}
+            type="button"
+          >
+            이 제안이 반영된 행 내려받기 (변경 후)
+          </button>
+        </div>
+
         <div className="board-issue-actions">
           <button
             className="board-issue-apply"
             disabled={phase.name === "applying" || 선택수 !== issue.rows.length}
             onClick={() => void 반영하기()}
             type="button"
+            title={문서키툴팁(issue.targetDocId)}
           >
             {phase.name === "applying"
               ? "반영 중…"
-              : `행 ${issue.rows.length}건 승인하고 ${issue.targetDocId} 에 반영`}
+              : `행 ${issue.rows.length}건 승인하고 ${문서표시(issue.targetDocId)}에 반영`}
           </button>
           <span className="board-issue-note">
             {선택수 !== issue.rows.length
               ? "회의록 카드는 모든 행이 승인되어야 반영할 수 있습니다 — 보류한 행이 있으면 카드가 승인 열에 남습니다."
-              : "반영하면 행 쓰기와 카드 완료가 한 명령으로 함께 확정되고, 업데이트된 평가서를 바로 받아볼 수 있습니다."}
+              : "반영하면 평가서 수정과 카드 처리가 함께 끝납니다 — 하나만 되고 마는 일은 없습니다. 바뀐 평가서는 바로 내려받을 수 있습니다."}
           </span>
         </div>
       </div>

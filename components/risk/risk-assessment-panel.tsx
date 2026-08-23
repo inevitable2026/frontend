@@ -749,6 +749,8 @@ export function RiskAssessmentPanel({
           // 대기열은 그대로 두고 오른쪽에 평가서가 열린다. 다음 카드로 바로 넘어갈 수 있다.
           선택={(item) => onUrlStateChange({ cardId: item.itemId })}
           감지={감지돌리기}
+          // 보드에서 넘어오며 가리킨 카드. 서랍을 닫아도 어느 건이었는지 남는다.
+          주목카드={cardId}
         />
 
         {/* 감지 카드와 만든 평가서는 **다른 곳에 산다.** 탭이 "기록 목록"을 표방하므로

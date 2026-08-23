@@ -18,11 +18,15 @@ function fail(message: string, status: number) {
  * 않는다: 404 는 "그런 현장이 없다" 처럼 요청 자체가 틀린 경우에만 어울린다.
  */
 export async function GET(req: Request) {
-  const siteId = new URL(req.url).searchParams.get("siteId")?.trim();
-  if (!siteId) return fail("siteId 가 필요합니다.", 400);
+  const params = new URL(req.url).searchParams;
+  const siteId = params.get("siteId")?.trim();
+  if (!siteId) return fail("현장이 지정되지 않았습니다. 화면을 새로 고쳐 주세요.", 400);
 
   try {
-    const issue = await loadRiskIssue(siteId);
+    // 시연 모드는 보는 사람의 설정이라 주소로 온다. 켜는 값만 받는다 — `demo=1` 이 아니면
+    // 전부 꺼진 것으로 읽는다(`lib/console-url.ts` 와 같은 규칙).
+    const demo = params.get("demo") === "1";
+    const issue = await loadRiskIssue(siteId, { demo });
     return Response.json({ issue }, { headers: HEADERS });
   } catch (error) {
     if (isBoardStoreError(error)) return fail(error.message, BOARD_STORE_ERROR_STATUS[error.code]);

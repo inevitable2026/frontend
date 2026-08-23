@@ -243,7 +243,11 @@ export default function RiskDocPanel({
       if (현재카드키.current !== requestKey) return;
       최신요청완료 = true;
       set반영정보(null);
-      set반영오류(error instanceof Error ? error.message : "원자적 반영 조건을 불러오지 못했습니다.");
+      set반영오류(
+        error instanceof Error
+          ? error.message
+          : "평가서에 행을 넣는 일과 이 카드를 닫는 일을 한 번에 끝낼 수 있는지 확인하지 못했습니다.",
+      );
     } finally {
       if (최신요청완료 && 현재카드키.current === requestKey) {
         set반영정보불러오는중(false);
@@ -708,7 +712,7 @@ export default function RiskDocPanel({
                       >
                         <div className="risk-drawer-review-head">
                           <b>{r.itemId}</b>
-                          <span>{approved ? "승인됨 · 잠김" : held ? "보류됨" : "검토 대기"}</span>
+                          <span>{approved ? "승인됨 · 되돌릴 수 없음" : held ? "보류됨" : "검토 대기"}</span>
                         </div>
                         <p className="risk-drawer-work">{r.hazard}</p>
                         <p className="risk-drawer-hazard">{r.process}</p>
@@ -733,7 +737,7 @@ export default function RiskDocPanel({
                             disabled={disabled || approved}
                             onClick={() => void 검토저장(r.itemId, "approved")}
                           >
-                            {saving ? "저장 중…" : approved ? "승인됨 · 잠김" : "이 행 승인"}
+                            {saving ? "저장 중…" : approved ? "승인됨 · 되돌릴 수 없음" : "이 행 승인"}
                           </button>
                         </div>
                       </li>
@@ -757,9 +761,10 @@ export default function RiskDocPanel({
                     {!검토동기화됨
                       ? "저장된 검토 상태를 확인한 뒤 반영할 수 있습니다."
                       : 반영정보불러오는중 || !반영정보
-                        ? 반영오류 ?? "원자적 반영 조건을 확인하는 중입니다."
+                        ? 반영오류 ??
+                          "평가서에 행을 넣는 일과 이 카드를 닫는 일을 한 번에 끝낼 수 있는지 확인하는 중입니다."
                         : !반영정보.eligible
-                          ? "서버의 최신 반영 조건이 바뀌었습니다. 검토 상태를 다시 확인하세요."
+                          ? "반영 조건이 방금 전과 달라졌습니다. 검토 상태를 다시 확인하세요."
                       : 보류행수 > 0
                         ? `보류된 ${보류행수}행이 있어 반영할 수 없습니다.`
                         : 대기행수 > 0

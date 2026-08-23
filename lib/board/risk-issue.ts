@@ -5,6 +5,7 @@ import { 최신만, type 평가행 } from "@/lib/risk/rows";
 import { BOARD_SITE_ID, BOARD_SITE_SEED_ID } from "./site";
 import { boardStore, boardStoreDriver } from "./store";
 import type { RiskRowDraft, WorkItem } from "./types";
+import { 시연대상인가 } from "./demo.ts";
 
 /**
  * 태스크 보드 맨 위의 "위험성평가 이슈" 한 건을 조립한다.
@@ -154,9 +155,20 @@ type 회의록초안 = Extract<NonNullable<WorkItem["draft"]>, { form: "회의�
  * 들어갈 문서가 **자기가 무효화한 문서와 같은** 것. 초안 없는 재평가 카드(temp_power)와
  * 새 문서로 가는 초안(card_ra_draft_3rows)은 걸리지 않는다.
  */
-function 이슈카드인가(item: WorkItem): item is WorkItem & { draft: 회의록초안 } {
-  if (item.status !== "approval" || item.origin !== "machine") return false;
-  if (item.confirmedAt !== null) return false;
+function 이슈카드인가(item: WorkItem, demo = false): item is WorkItem & { draft: 회의록초안 } {
+  /*
+   * 시연 모드에서는 **그 한 카드에 한해** 처리 여부를 묻지 않는다.
+   *
+   * 평소에는 확정된 카드가 「처리할 이슈」에 남아 있으면 그것이 거짓말이다. 그런데
+   * 시연은 같은 흐름을 여러 번 보여야 하고, 지금은 한 번 누르면 섹션이 사라진다.
+   *
+   * 예외는 `demo` 가 켜졌을 때 + `DEMO_ISSUE_CARD_ID` 일 때만 산다. 화면은 이때
+   * 「시연 모드」 배지를 띄워 **저장된 상태와 다른 것을 보이고 있다**고 밝힌다 —
+   * 밝히지 않고 다르게 보이면 그게 속이는 것이다.
+   */
+  const 시연 = 시연대상인가(demo, item.itemId);
+  if (item.origin !== "machine") return false;
+  if (!시연 && (item.status !== "approval" || item.confirmedAt !== null)) return false;
   if (item.draft?.form !== "회의록" || item.draft.rows.length === 0) return false;
   const 들어갈곳 = item.produces.find((p) => p.form === "회의록")?.into ?? null;
   if (!들어갈곳) return false;
@@ -230,7 +242,11 @@ function 메일근거만들기(
  * 거절하고, 그 오류가 그대로 응답이 되어 "이슈 없음"이어야 할 화면이 오류로 바뀐다 —
  * 실제로 프로덕션에서 그렇게 400 이 났다.
  */
-export async function loadRiskIssue(siteId: string): Promise<RiskIssue | null> {
+export async function loadRiskIssue(
+  siteId: string,
+  options: { demo?: boolean } = {},
+): Promise<RiskIssue | null> {
+  const demo = options.demo === true;
   const store = boardStore();
   const 후보 =
     siteId === BOARD_SITE_ID && boardStoreDriver() === "json"
@@ -238,8 +254,10 @@ export async function loadRiskIssue(siteId: string): Promise<RiskIssue | null> {
       : [siteId];
 
   for (const sid of 후보) {
-    const page = await store.listItems({ siteId: sid, status: "approval" });
-    const card = page.items.find(이슈카드인가);
+    // 시연 모드에서는 상태를 좁혀 읽지 않는다 — 그 카드는 이미 `done` 이 되어 있을 수
+    // 있고, `status: "approval"` 로 물으면 저장소가 애초에 돌려주지 않는다.
+    const page = await store.listItems(demo ? { siteId: sid } : { siteId: sid, status: "approval" });
+    const card = page.items.find((item) => 이슈카드인가(item, demo));
     if (!card) continue;
 
     const draft = card.draft;

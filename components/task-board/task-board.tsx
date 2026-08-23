@@ -224,6 +224,7 @@ export function TaskBoard({
   boardDate: requestedDate,
   selectedDate: requestedSelectedDate,
   viewMode: requestedViewMode,
+  demo = false,
   onUrlStateChange,
 }: {
   /**
@@ -238,6 +239,8 @@ export function TaskBoard({
   boardDate: string;
   selectedDate: string | null;
   viewMode: BoardView;
+  /** 시연 모드. 한 카드(`DEMO_ISSUE_CARD_ID`)의 위험성평가 이슈에만 쓰인다. */
+  demo?: boolean;
   onUrlStateChange: (patch: Partial<ConsoleUrlState>) => void;
 }): JSX.Element {
   /**
@@ -849,7 +852,7 @@ export function TaskBoard({
 
       {/* 메일에서 감지된 변경이 기존 평가서를 무너뜨렸을 때만 뜬다. 이슈가 없으면 아무것도
           그리지 않으므로 아래 브리핑이 그 자리를 그대로 이어받는다. */}
-      <RiskIssueSection siteId={siteId} />
+      <RiskIssueSection siteId={siteId} demo={demo} />
 
       <DailyBriefingPanel
         briefing={snapshot.briefing}

@@ -252,6 +252,31 @@ export function ConstructionConsole({
             priority
           />
           <span>for Construction</span>
+
+          {/*
+            * 시연 모드 토글.
+            *
+            * 로고 옆(아래)에 두는 이유는 이것이 **화면 전체의 성격을 바꾸는 설정**이기
+            * 때문이다. 탭 안에 두면 그 탭만의 옵션으로 읽힌다.
+            *
+            * 마크업은 이미 두 곳에서 쓰는 `.mode-toggle` 을 그대로 쓴다
+            * (`site-context-panel.tsx` 의 라이브/데모, `risk-assessment-panel.tsx` 의
+            * 생성 방식). 새 스위치를 만들지 않는다.
+            *
+            * 상태는 주소에 실린다 — 새로 고쳐도 유지되고, 내 브라우저에만 적용된다.
+            */}
+          <div className="mode-toggle brand-demo-toggle" role="group" aria-label="시연 모드">
+            {([false, true] as const).map((value) => (
+              <button
+                key={String(value)}
+                type="button"
+                className={urlState.demo === value ? "is-active" : ""}
+                onClick={() => updateUrl({ demo: value })}
+              >
+                {value ? "시연" : "실제"}
+              </button>
+            ))}
+          </div>
         </div>
 
         <nav className="nav-panel">
@@ -331,6 +356,7 @@ export function ConstructionConsole({
             boardDate={urlState.boardDate}
             selectedDate={urlState.boardFilterDate}
             viewMode={urlState.boardView}
+            demo={urlState.demo}
             onUrlStateChange={updateUrl}
           />
         ) : urlState.nav === "context" ? (
