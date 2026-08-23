@@ -14,7 +14,7 @@
 // 다른 현장을 골랐을 때 곧바로 거짓말이 되고, 안전관리 콘솔에서 그것은 기록의 위조와 같은
 // 자리에 선다.
 
-import { kstDateOf, 기한날짜, 기한시각 } from "@/lib/board/briefing";
+import { kstDateOf, ruleLabel, 기한날짜, 기한시각 } from "@/lib/board/briefing";
 import type {
   Briefing,
   BriefingEntry,
@@ -436,7 +436,7 @@ function 카드유형(item: WorkItem): TaskKindBadge {
 /**
  * 카드 태그 최대 세 개.
  *
- * 규칙 번호 · 예상 소요 · 초안의 분량 · 완료 카드의 근거 문서 순으로 담고 세 개에서 끊는다.
+ * 조건 이름 · 예상 소요 · 초안의 분량 · 완료 카드의 근거 문서 순으로 담고 세 개에서 끊는다.
  * '분' 이 든 태그가 있으면 task-card.tsx 가 예상 소요 배지를 따로 붙이지 않으므로,
  * 두 번째 자리의 문구를 바꿀 때는 그 판정도 함께 봐야 한다.
  */
@@ -444,7 +444,15 @@ function 카드태그(item: WorkItem): TaskTag[] {
   const tags: TaskTag[] = [];
 
   if (item.trigger) {
-    tags.push({ label: item.trigger.ruleId, tone: 규칙색(item.trigger.ruleId) });
+    // 규칙 번호(`T-03` · `S-02`)는 감지 엔진의 어휘다. 카드 표면에는 사람이 읽는 이름을
+    // 적고, 번호가 필요한 대조는 근거 서랍의 "왜 생겼나" 가 받는다 — evidence-drawer.tsx 가
+    // 같은 이름표 옆에 번호를 title 로 달아 둔다. TaskTag 에는 title 자리가 없어 이 배지에는
+    // 번호를 달지 못한다.
+    //
+    // 이름표는 lib/board/briefing.ts 의 ruleLabel 에서 끌어온다. presentation.ts 의
+    // CONDITION_BY_RULE 은 T-01~T-08 만 아는 조건 슬러그 표이고, 이것만이 규칙 파일이 없는
+    // S- 규칙까지 이름을 안다(주기 도래).
+    tags.push({ label: ruleLabel(item.trigger.ruleId), tone: 규칙색(item.trigger.ruleId) });
   }
   if (item.estimatedMinutes !== null) {
     tags.push({ label: `${item.estimatedMinutes}분`, tone: "neutral" });

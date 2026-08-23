@@ -191,8 +191,17 @@ export function BriefingItem({
         onClick={() => onToggle(condition.conditionId)}
         type="button"
       >
-        <span className="board-rsn-code">{condition.code}</span>
-        <span className="board-rsn-kind">{condition.kindLabel}</span>
+        {/* 배지 자리에는 규칙 번호가 아니라 조건 이름을 적는다. `T-03` 은 감지 엔진의
+            어휘이고, 이 줄을 읽는 사람에게 필요한 것은 무엇이 걸렸는지다. 번호는
+            `title` 로 남겨 문의·대조에 쓴다 (lib/risk/doc-label.ts 의 문서키툴팁과 같은 방식).
+
+            이름은 다시 계산하지 않고 kindLabel 을 그대로 옮긴다. 서버가 붙여 보낸 이름표라
+            (lib/board/briefing.ts:177) 현장별 덧쓰기까지 반영되어 있고, 옆 칸에 같은 말을
+            두 번 적을 이유도 없다. 좁은 화면에서 .board-rsn-kind 가 숨는 탓에
+            (app/globals.css:4217) 이름이 이 배지에 있어야 이름이 살아남는다. */}
+        <span className="board-rsn-code" title={condition.code}>
+          {condition.kindLabel}
+        </span>
         <span className="board-rsn-title">{condition.headline}</span>
         <time className="board-rsn-at" dateTime={condition.detectedAt}>
           {condition.detectedAtLabel}

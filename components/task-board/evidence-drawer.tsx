@@ -74,7 +74,7 @@ import {
 import { BOARD_COLUMNS, FACT_TYPE_LABEL } from "./presentation";
 import { useReference } from "./reference-chip";
 import type { TaskCard } from "./types";
-import { ruleLabel } from "@/lib/detect/rules";
+import { ruleLabel } from "@/lib/board/briefing";
 import { 문서이름, 문서키툴팁, 문서표시 } from "@/lib/risk/doc-label";
 
 /** 팩트가 이보다 많이 붙은 문서는 접는다. 감추지 않고 summary 에 총건수를 적는다. */
@@ -454,12 +454,17 @@ function WhySlot({
       ) : (
         <>
           <p className="board-evidence-claim">
-            {/* 규칙 이름표를 CONDITION_BY_RULE 에서 끌어 쓰지 않는다. 그 표는 T-01~T-08 뿐이라
-                S-02 카드가 "주기 도래" 로 잘못 적힌다. ruleId 는 카드가 든 값 그대로 적는다. */}
-            <b className="board-evidence-rule" title={`규칙 ${item.trigger.ruleId}`}>
-              {ruleLabel(item.trigger.ruleId) === item.trigger.ruleId
-                ? "감지 규칙"
-                : ruleLabel(item.trigger.ruleId)}
+            {/*
+              * 규칙 번호(`T-03` · `S-02`)는 감지 엔진의 어휘다. 현직자에게 `T-03` 은 아무
+              * 뜻이 없으므로 이름을 적고 번호는 `title` 로 남긴다 — 문의·대조에는 번호가 필요하다.
+              *
+              * `CONDITION_BY_RULE` 이 아니라 `lib/board/briefing.ts` 의 `ruleLabel` 을 쓴다.
+              * 앞의 것은 T-01~T-08 만 아는 조건 슬러그 표이고, 뒤의 것만 `S-` 규칙까지 안다.
+              * S-02 는 규칙 파일이 없지만 조건문이 스스로 "관리기간 중간 점검 주기가
+              * 도래했고…" 라고 적으므로 「주기 도래」가 맞다.
+              */}
+            <b className="board-evidence-rule" title={`감지 규칙 ${item.trigger.ruleId}`}>
+              {ruleLabel(item.trigger.ruleId)}
             </b>
             <span className="board-evidence-timing">{TIMING_LABEL[item.timing]}</span>
             {item.trigger.condition}
